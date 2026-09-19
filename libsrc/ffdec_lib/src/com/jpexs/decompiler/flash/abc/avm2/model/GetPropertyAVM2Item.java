@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -38,14 +38,41 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Get property.
  *
  * @author JPEXS
  */
 public class GetPropertyAVM2Item extends AVM2Item {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
+    /**
+     * Property name
+     */
     public GraphTargetItem propertyName;
+
+    /**
+     * Type
+     */
+    public GraphTargetItem type;
+
+    /**
+     * Call type
+     */
+    public GraphTargetItem callType;
+
+    /**
+     * Is static
+     */
+    public boolean isStatic;
+    
+    /**
+     * Is null condition - ?.
+     */
+    public boolean nullCondition = false;
 
     @Override
     public void visit(GraphTargetVisitorInterface visitor) {
@@ -92,7 +119,7 @@ public class GetPropertyAVM2Item extends AVM2Item {
 
     @Override
     public String getResultAsString() {
-        if (object.isCompileTime() && (propertyName instanceof FullMultinameAVM2Item) && (((FullMultinameAVM2Item) propertyName).name.isCompileTime()) && "constructor".equals(((FullMultinameAVM2Item) propertyName).name.getResult())) {
+        if (object.isCompileTime() && (propertyName instanceof FullMultinameAVM2Item) && ((FullMultinameAVM2Item) propertyName).name != null && (((FullMultinameAVM2Item) propertyName).name.isCompileTime()) && "constructor".equals(((FullMultinameAVM2Item) propertyName).name.getResult())) {
             Object obj = object.getResult();
             EcmaType t = EcmaScript.type(obj);
             if (t != EcmaType.OBJECT) {
@@ -127,15 +154,29 @@ public class GetPropertyAVM2Item extends AVM2Item {
         return null;
     }
 
-    public GetPropertyAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem propertyName) {
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     * @param propertyName Property name
+     * @param type Type
+     * @param callType Call type
+     * @param isStatic Is static
+     */
+    public GetPropertyAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem propertyName, GraphTargetItem type, GraphTargetItem callType, boolean isStatic) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.object = object;
         this.propertyName = propertyName;
+        this.type = type;
+        this.callType = callType;
+        this.isStatic = isStatic;
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        return formatProperty(writer, object, propertyName, localData);
+        return formatProperty(writer, object, propertyName, localData, isStatic, nullCondition);
     }
 
     @Override
@@ -147,7 +188,22 @@ public class GetPropertyAVM2Item extends AVM2Item {
 
     @Override
     public GraphTargetItem returnType() {
-        return TypeItem.UNBOUNDED;
+        if (object instanceof FindPropertyAVM2Item) {
+            FindPropertyAVM2Item fprop = (FindPropertyAVM2Item) object;
+            if (fprop.propertyName instanceof FullMultinameAVM2Item) {
+                FullMultinameAVM2Item fmul = (FullMultinameAVM2Item) fprop.propertyName;
+                if (this.propertyName.equals(fmul)) {
+                    switch (fmul.resolvedMultinameName) {
+                        case "NaN":
+                            return TypeItem.NUMBER;
+                        case "undefined":
+                            return TypeItem.UNDEFINED;
+                    }
+                }
+            }
+        }
+        return type;
+        //return TypeItem.UNBOUNDED;
     }
 
     @Override

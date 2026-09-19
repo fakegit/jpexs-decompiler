@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,6 +17,10 @@
 package com.jpexs.decompiler.flash.gui.abc;
 
 import com.jpexs.decompiler.flash.abc.ABC;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instructions;
+import com.jpexs.decompiler.flash.abc.types.MethodBody;
+import com.jpexs.decompiler.flash.abc.types.MethodInfo;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
@@ -25,35 +29,53 @@ import com.jpexs.decompiler.flash.gui.DocsPanel;
 import com.jpexs.decompiler.flash.gui.FasterScrollPane;
 import com.jpexs.decompiler.flash.gui.Main;
 import com.jpexs.decompiler.flash.gui.View;
+import com.jpexs.decompiler.flash.gui.ViewMessages;
 import com.jpexs.decompiler.flash.gui.controls.JPersistentSplitPane;
 import com.jpexs.decompiler.flash.gui.controls.NoneSelectedButtonGroup;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightSpecialType;
+import com.jpexs.decompiler.flash.tags.Tag;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Insets;
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
+import java.util.List;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
 import javax.swing.JToggleButton;
 
 /**
- *
  * @author JPEXS
  */
 public class MethodCodePanel extends JPanel {
 
     private final ASMSourceEditorPane sourceTextArea;
 
-    public JPanel buttonsPanel;
+    private final FasterScrollPane sourceScrollPane;
+
+    public JPanel detailButtonsPanel;
 
     private final JToggleButton hexButton;
 
     private final JToggleButton hexOnlyButton;
 
+    private final JButton addFunctionButton;
+
     private final DocsPanel docsPanel;
+
+    public ABC getABC() {
+        return sourceTextArea.abc;
+    }
+
+    public FasterScrollPane getSourceScrollPane() {
+        return sourceScrollPane;
+    }
 
     public void refreshMarkers() {
         sourceTextArea.refreshMarkers();
@@ -79,28 +101,32 @@ public class MethodCodePanel extends JPanel {
         return sourceTextArea.getName();
     }
 
-    public void setIgnoreCarret(boolean ignoreCarret) {
-        sourceTextArea.setIgnoreCarret(ignoreCarret);
+    public void setIgnoreCaret(boolean ignoreCaret) {
+        sourceTextArea.setIgnoreCaret(ignoreCaret);
     }
 
-    public void hilighOffset(long offset) {
-        sourceTextArea.hilighOffset(offset);
+    public void hilightOffset(long offset) {
+        sourceTextArea.hilightOffset(offset);
     }
 
     public void hilighSpecial(HighlightSpecialType type, String specialValue) {
         sourceTextArea.hilighSpecial(type, specialValue);
     }
 
-    public void setBodyIndex(String scriptPathName, int bodyIndex, ABC abc, Trait trait, int scriptIndex) {
-        sourceTextArea.setBodyIndex(scriptPathName, bodyIndex, abc, sourceTextArea.getName(), trait, scriptIndex);
+    public void setMethod(String scriptPathName, int methodIndex, int bodyIndex, ABC abc, Trait trait, int scriptIndex) {
+        sourceTextArea.setMethod(scriptPathName, methodIndex, bodyIndex, abc, sourceTextArea.getName(), trait, scriptIndex);
     }
 
-    public void setBodyIndex(String scriptPathName, int bodyIndex, ABC abc, String name, Trait trait, int scriptIndex) {
-        sourceTextArea.setBodyIndex(scriptPathName, bodyIndex, abc, name, trait, scriptIndex);
+    public void setMethod(String scriptPathName, int methodIndex, int bodyIndex, ABC abc, String name, Trait trait, int scriptIndex) {
+        sourceTextArea.setMethod(scriptPathName, methodIndex, bodyIndex, abc, name, trait, scriptIndex);
     }
 
     public int getBodyIndex() {
         return sourceTextArea.bodyIndex;
+    }
+
+    public int getMethodIndex() {
+        return sourceTextArea.methodIndex;
     }
 
     public void clear() {
@@ -119,15 +145,15 @@ public class MethodCodePanel extends JPanel {
         docsPanel = new DocsPanel();
         sourceTextArea.addDocsListener(docsPanel);
         if (Configuration.displayAs3PCodeDocsPanel.get()) {
-            add(new JPersistentSplitPane(JSplitPane.VERTICAL_SPLIT, new FasterScrollPane(sourceTextArea), new FasterScrollPane(docsPanel), Configuration.guiAvm2DocsSplitPaneDividerLocationPercent));
+            add(new JPersistentSplitPane(JSplitPane.VERTICAL_SPLIT, sourceScrollPane = new FasterScrollPane(sourceTextArea), new FasterScrollPane(docsPanel), Configuration.guiAvm2DocsSplitPaneDividerLocationPercent));
         } else {
-            add(new FasterScrollPane(sourceTextArea));
+            add(sourceScrollPane = new FasterScrollPane(sourceTextArea));
         }
         sourceTextArea.changeContentType("text/flasm3");
         sourceTextArea.setFont(Configuration.getSourceFont());
 
-        buttonsPanel = new JPanel();
-        buttonsPanel.setLayout(new BoxLayout(buttonsPanel, BoxLayout.X_AXIS));
+        detailButtonsPanel = new JPanel();
+        detailButtonsPanel.setLayout(new BoxLayout(detailButtonsPanel, BoxLayout.X_AXIS));
 
         JButton graphButton = new JButton(View.getIcon("graph16"));
         graphButton.addActionListener(this::graphButtonActionPerformed);
@@ -144,16 +170,30 @@ public class MethodCodePanel extends JPanel {
         hexOnlyButton.setToolTipText(AppStrings.translate("button.viewhex"));
         hexOnlyButton.setMargin(new Insets(3, 3, 3, 3));
 
+        addFunctionButton = new JButton(View.getIcon("addfunction16"));
+        addFunctionButton.addActionListener(this::addFunctionButtonActionPerformed);
+        addFunctionButton.setToolTipText(AppStrings.translate("button.addfunction"));
+        addFunctionButton.setMargin(new Insets(3, 3, 3, 3));
+
         NoneSelectedButtonGroup exportModeButtonGroup = new NoneSelectedButtonGroup();
         exportModeButtonGroup.add(hexButton);
         exportModeButtonGroup.add(hexOnlyButton);
 
-        buttonsPanel.add(graphButton);
-        buttonsPanel.add(Box.createRigidArea(new Dimension(10, 0)));
-        buttonsPanel.add(hexButton);
-        buttonsPanel.add(hexOnlyButton);
-        buttonsPanel.add(new JPanel());
+        detailButtonsPanel.add(graphButton);
+        detailButtonsPanel.add(Box.createRigidArea(new Dimension(10, 0)));
+        detailButtonsPanel.add(hexButton);
+        detailButtonsPanel.add(hexOnlyButton);
 
+        JPanel buttonsPanel = new JPanel();
+        buttonsPanel.setLayout(new BoxLayout(buttonsPanel, BoxLayout.X_AXIS));
+        JPanel editVisibleButtonsPanel = new JPanel();
+        editVisibleButtonsPanel.setLayout(new BoxLayout(editVisibleButtonsPanel, BoxLayout.X_AXIS));
+        editVisibleButtonsPanel.add(addFunctionButton);
+
+        buttonsPanel.add(detailButtonsPanel);
+        buttonsPanel.add(Box.createHorizontalStrut(5));
+        buttonsPanel.add(editVisibleButtonsPanel);
+        buttonsPanel.add(Box.createHorizontalGlue());
         add(buttonsPanel, BorderLayout.NORTH);
 
     }
@@ -182,6 +222,27 @@ public class MethodCodePanel extends JPanel {
         sourceTextArea.setHex(getExportMode(), false);
     }
 
+    private void addFunctionButtonActionPerformed(ActionEvent evt) {
+        if (ViewMessages.showConfirmDialog(this, AppStrings.translate("message.confirm.addfunction"), AppStrings.translate("message.warning"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE, Configuration.warningAddFunction, JOptionPane.OK_OPTION) != JOptionPane.OK_OPTION) {
+            return;
+        }
+        MethodInfo methodInfoObj = new MethodInfo(new int[0], 0, 0, 0, null, null);
+        ABC abc = getABC();
+        int methodInfo = abc.addMethodInfo(methodInfoObj);
+        MethodBody body = new MethodBody();
+        List<AVM2Instruction> code = body.getCode().code;
+        code.add(new AVM2Instruction(0, AVM2Instructions.ReturnVoid, new int[0]));
+        body.method_info = methodInfo;
+        abc.addMethodBody(body);
+        ((Tag) abc.parentTag).setModified(true);
+        if (ViewMessages.showConfirmDialog(this, AppStrings.translate("addfunction.result").replace("%method_info_index%", "" + methodInfo), AppStrings.translate("addfunction.result.title"), JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) {
+            return;
+        }
+        StringSelection stringSelection = new StringSelection("" + methodInfo);
+        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+        clipboard.setContents(stringSelection, null);
+    }
+
     public ASMSourceEditorPane getSourceTextArea() {
         return sourceTextArea;
     }
@@ -202,6 +263,6 @@ public class MethodCodePanel extends JPanel {
 
         sourceTextArea.setEditable(val);
         sourceTextArea.getCaret().setVisible(true);
-        buttonsPanel.setVisible(!val);
+        detailButtonsPanel.setVisible(!val);
     }
 }

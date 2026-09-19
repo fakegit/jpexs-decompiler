@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,24 +17,37 @@
 package com.jpexs.decompiler.graph.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
-import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SimpleValue;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import java.util.List;
 import java.util.Set;
 
 /**
+ * Duplicate item.
  *
  * @author JPEXS
  */
-public class DuplicateItem extends GraphTargetItem implements SimpleValue {
+public class DuplicateItem extends GraphTargetItem implements SimpleValue, HasTempIndex {
 
-    public DuplicateItem(GraphSourceItem src, GraphSourceItem lineStartIns, GraphTargetItem value) {
-        super(src, lineStartIns, value.getPrecedence(), value);
+    public int tempIndex;
+
+    /**
+     * Constructor.
+     *
+     * @param dialect Dialect
+     * @param src Source
+     * @param lineStartIns Line start item
+     * @param value Value
+     */
+    public DuplicateItem(GraphTargetDialect dialect, GraphSourceItem src, GraphSourceItem lineStartIns, GraphTargetItem value, int tempIndex) {
+        super(dialect, src, lineStartIns, PRECEDENCE_PRIMARY, value);
+        this.tempIndex = tempIndex;
     }
 
     @Override
@@ -49,12 +62,15 @@ public class DuplicateItem extends GraphTargetItem implements SimpleValue {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        if (((value instanceof SimpleValue) && (((SimpleValue) value).isSimpleValue())) || !Configuration.displayDupInstructions.get()) {
+        /*if (!value.hasSideEffect() || !Configuration.displayDupInstructions.get()) {
             return value.appendTry(writer, localData);
+        }*/
+        if (tempIndex == 0) {
+            writer.append("§§dup(");
+            value.appendTry(writer, localData);
+            return writer.append(")");
         }
-        writer.append("§§dup(");
-        value.appendTry(writer, localData);
-        return writer.append(")");
+        return writer.append("_temp_").append(tempIndex);
     }
 
     @Override
@@ -82,7 +98,9 @@ public class DuplicateItem extends GraphTargetItem implements SimpleValue {
         if (dependencies.contains(value)) {
             return false;
         }
-        dependencies.add(value);
+        if (!((value instanceof SimpleValue) && ((SimpleValue) value).isSimpleValue())) {
+            dependencies.add(value);
+        }
         return value.isCompileTime(dependencies);
     }
 
@@ -125,4 +143,12 @@ public class DuplicateItem extends GraphTargetItem implements SimpleValue {
         return value.hasSideEffect();
     }
 
+    @Override
+    public int getTempIndex() {
+        return tempIndex;
+    }
+
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+    }
 }

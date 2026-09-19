@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,10 +19,10 @@ package com.jpexs.decompiler.flash.gui.pipes;
 import com.jpexs.decompiler.flash.ApplicationInfo;
 import com.jpexs.decompiler.flash.gui.Main;
 import com.jpexs.decompiler.flash.gui.View;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.Kernel32;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.WinNT;
 import com.sun.jna.Platform;
-import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.WinError;
-import com.sun.jna.platform.win32.WinNT;
 import java.awt.Window;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -30,7 +30,6 @@ import java.io.ObjectOutputStream;
 import java.util.List;
 
 /**
- *
  * @author JPEXS
  */
 public class FirstInstance {
@@ -47,15 +46,30 @@ public class FirstInstance {
 
     public static final String PIPE_APP_CODE = "ffdec";
 
-    private static boolean isRunning() {
+    private static boolean mainInstance = false;
+    private static boolean alreadyRunning = false;
+    private static boolean canCommunicate = false;
+    private static boolean inited = false;
+
+    public static synchronized void ensureInited() {
+        if (inited) {
+            return;
+        }
+        inited = true;
         if (Platform.isWindows()) {
             mutex = Kernel32.INSTANCE.CreateMutex(null, false, MUTEX_NAME);
             if (mutex == null) {
-                return false;
+                mainInstance = false;
+                alreadyRunning = false;
+                canCommunicate = false;
+                return;
             }
             int er = Kernel32.INSTANCE.GetLastError();
             if (er == WinError.ERROR_ALREADY_EXISTS) {
-                return true;
+                mainInstance = false;
+                alreadyRunning = true;
+                canCommunicate = true;
+                return;
             }
 
             new Thread("OtherInstanceCommunicator") {
@@ -88,7 +102,7 @@ public class FirstInstance {
                                                     Main.openFile(fileNames[i], null);
                                                 }
                                             });
-                                        //no break - focus too
+                                        //fallthrough
                                         case "focus":
 
                                             View.execInEventDispatch(new Runnable() {
@@ -113,9 +127,14 @@ public class FirstInstance {
                     }
                 }
             }.start();
-
+            mainInstance = true;
+            alreadyRunning = false;
+            canCommunicate = true;
+            return;
         }
-        return false;
+        mainInstance = true;
+        alreadyRunning = false;
+        canCommunicate = false;
     }
 
     private static ObjectOutputStream startCommand(String command) throws IOException {
@@ -133,7 +152,8 @@ public class FirstInstance {
     }
 
     public static boolean focus() {
-        if (!isRunning()) {
+        ensureInited();
+        if (!canCommunicate || !alreadyRunning) {
             return false;
         }
         try {
@@ -146,6 +166,10 @@ public class FirstInstance {
     }
 
     public static boolean openFiles(List<String> files) {
+        ensureInited();
+        if (!canCommunicate || mainInstance) {
+            return false;
+        }
         try {
             ObjectOutputStream oos = startCommand("open");
             oos.writeInt(files.size());

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.stack;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -28,11 +29,15 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.List;
 
 /**
+ * pushbyte instruction - Push a byte value onto the stack.
  *
  * @author JPEXS
  */
 public class PushByteIns extends InstructionDefinition implements PushIntegerTypeIns {
 
+    /**
+     * Constructor
+     */
     public PushByteIns() {
         super(0x24, "pushbyte", new int[]{AVM2Code.OPT_S8}, false);
     }
@@ -45,7 +50,7 @@ public class PushByteIns extends InstructionDefinition implements PushIntegerTyp
 
     @Override
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
-        stack.push(new IntegerValueAVM2Item(ins, localData.lineStartInstruction, (long) (byte) ins.operands[0]));
+        stack.push(new IntegerValueAVM2Item(ins, localData.lineStartInstruction, (int) (byte) ins.operands[0]));
     }
 
     @Override

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,6 +19,7 @@ package com.jpexs.decompiler.flash.action.parser.script;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 
 /**
+ * ActionScript 1/2 symbol type.
  *
  * @author JPEXS
  */
@@ -72,13 +73,13 @@ public enum SymbolType {
     COMMA(GraphTargetItem.PRECEDENCE_COMMA, false),
     REST,
     DOT(GraphTargetItem.PRECEDENCE_PRIMARY, false),
-    ASSIGN(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
+    ASSIGN(GraphTargetItem.PRECEDENCE_ASSIGNMENT, true, true),
     GREATER_THAN(GraphTargetItem.PRECEDENCE_RELATIONAL, true),
     LOWER_THAN(GraphTargetItem.PRECEDENCE_RELATIONAL, true),
     NOT(GraphTargetItem.PRECEDENCE_UNARY, false),
     NEGATE(GraphTargetItem.PRECEDENCE_UNARY, false),
     TERNAR(GraphTargetItem.PRECEDENCE_CONDITIONAL, true, true), /*!! ternar !!!*/
-    COLON(GraphTargetItem.PRECEDENCE_CONDITIONAL, false),/*!! ternar !!!*/
+    COLON(GraphTargetItem.PRECEDENCE_CONDITIONAL, false), /*!! ternar !!!*/
     EQUALS(GraphTargetItem.PRECEDENCE_EQUALITY, true),
     STRICT_EQUALS(GraphTargetItem.PRECEDENCE_EQUALITY, true),
     LOWER_EQUAL(GraphTargetItem.PRECEDENCE_RELATIONAL, true),
@@ -89,7 +90,7 @@ public enum SymbolType {
     OR(GraphTargetItem.PRECEDENCE_LOGICALOR, true),
     FULLAND(GraphTargetItem.PRECEDENCE_LOGICALAND, true),
     FULLOR(GraphTargetItem.PRECEDENCE_LOGICALOR, true),
-    INCREMENT(GraphTargetItem.PRECEDENCE_POSTFIX, false),//OR Unary
+    INCREMENT(GraphTargetItem.PRECEDENCE_POSTFIX, false), //OR Unary
     DECREMENT(GraphTargetItem.PRECEDENCE_POSTFIX, false), //OR Unary
     PLUS(GraphTargetItem.PRECEDENCE_ADDITIVE, true),
     MINUS(GraphTargetItem.PRECEDENCE_ADDITIVE, true), //OR Unary
@@ -102,17 +103,17 @@ public enum SymbolType {
     SHIFT_LEFT(GraphTargetItem.PRECEDENCE_BITWISESHIFT, true),
     SHIFT_RIGHT(GraphTargetItem.PRECEDENCE_BITWISESHIFT, true),
     USHIFT_RIGHT(GraphTargetItem.PRECEDENCE_BITWISESHIFT, true),
-    ASSIGN_PLUS(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
-    ASSIGN_MINUS(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
-    ASSIGN_MULTIPLY(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
-    ASSIGN_DIVIDE(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
-    ASSIGN_BITAND(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
-    ASSIGN_BITOR(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
-    ASSIGN_XOR(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
-    ASSIGN_MODULO(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
-    ASSIGN_SHIFT_LEFT(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
-    ASSIGN_SHIFT_RIGHT(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
-    ASSIGN_USHIFT_RIGHT(GraphTargetItem.PRECEDENCE_ASSIGMENT, true, true),
+    ASSIGN_PLUS(GraphTargetItem.PRECEDENCE_ASSIGNMENT, true, true),
+    ASSIGN_MINUS(GraphTargetItem.PRECEDENCE_ASSIGNMENT, true, true),
+    ASSIGN_MULTIPLY(GraphTargetItem.PRECEDENCE_ASSIGNMENT, true, true),
+    ASSIGN_DIVIDE(GraphTargetItem.PRECEDENCE_ASSIGNMENT, true, true),
+    ASSIGN_BITAND(GraphTargetItem.PRECEDENCE_ASSIGNMENT, true, true),
+    ASSIGN_BITOR(GraphTargetItem.PRECEDENCE_ASSIGNMENT, true, true),
+    ASSIGN_XOR(GraphTargetItem.PRECEDENCE_ASSIGNMENT, true, true),
+    ASSIGN_MODULO(GraphTargetItem.PRECEDENCE_ASSIGNMENT, true, true),
+    ASSIGN_SHIFT_LEFT(GraphTargetItem.PRECEDENCE_ASSIGNMENT, true, true),
+    ASSIGN_SHIFT_RIGHT(GraphTargetItem.PRECEDENCE_ASSIGNMENT, true, true),
+    ASSIGN_USHIFT_RIGHT(GraphTargetItem.PRECEDENCE_ASSIGNMENT, true, true),
     DELETE(GraphTargetItem.PRECEDENCE_UNARY, false),
     INSTANCEOF(GraphTargetItem.PRECEDENCE_RELATIONAL, true),
     NEW(GraphTargetItem.PRECEDENCE_PRIMARY, false),
@@ -152,7 +153,7 @@ public enum SymbolType {
     RANDOM(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     REMOVEMOVIECLIP(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     STARTDRAG(GraphTargetItem.PRECEDENCE_PRIMARY, false),
-    SUBSTR(GraphTargetItem.PRECEDENCE_PRIMARY, false),
+    SUBSTRING(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     LENGTH(GraphTargetItem.PRECEDENCE_PRIMARY, false), //string.length
     INT(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     TARGETPATH(GraphTargetItem.PRECEDENCE_PRIMARY, false),
@@ -173,8 +174,10 @@ public enum SymbolType {
     UNLOADMOVIE(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     UNLOADMOVIENUM(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     FSCOMMAND(GraphTargetItem.PRECEDENCE_PRIMARY, false),
-    PREPROCESSOR(GraphTargetItem.PRECEDENCE_PRIMARY, false);
-
+    PREPROCESSOR(GraphTargetItem.PRECEDENCE_PRIMARY, false),
+    FSCOMMAND2(GraphTargetItem.PRECEDENCE_PRIMARY, false),
+    DIRECTIVE(GraphTargetItem.PRECEDENCE_PRIMARY, false);
+    
     private int precedence = GraphTargetItem.NOPRECEDENCE;
 
     private boolean binary = false;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,11 +31,15 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Enumerate.
  *
  * @author JPEXS
  */
 public class EnumerateActionItem extends ActionItem {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
     @Override
@@ -43,6 +47,13 @@ public class EnumerateActionItem extends ActionItem {
         visitor.visit(object);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     */
     public EnumerateActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.object = object;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,8 +16,7 @@
  */
 package com.jpexs.decompiler.flash.gui;
 
-import com.jpexs.decompiler.flash.configuration.Configuration;
-import com.jpexs.decompiler.flash.gui.debugger.DebugListener;
+import com.jpexs.decompiler.flash.gui.debugger.DebugAdapter;
 import com.jpexs.decompiler.flash.gui.debugger.Debugger;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -34,7 +33,6 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 
 /**
- *
  * @author JPEXS
  */
 public class DebugLogDialog extends AppDialog {
@@ -55,16 +53,11 @@ public class DebugLogDialog extends AppDialog {
         JScrollPane spane = new FasterScrollPane(logTextArea);
         spane.setPreferredSize(new Dimension(800, 500));
 
-        debug.addMessageListener(new DebugListener() {
+        debug.addMessageListener(new DebugAdapter() {
 
             @Override
             public void onMessage(String clientId, String msg) {
                 log(translate("msg.header").replace("%clientid%", clientId) + msg);
-            }
-
-            @Override
-            public void onFinish(String clientId) {
-
             }
 
             @Override
@@ -75,6 +68,11 @@ public class DebugLogDialog extends AppDialog {
             @Override
             public void onLoaderBytes(String clientId, byte[] data) {
                 log(translate("msg.header").replace("%clientid%", clientId) + " LOADBYTES: " + data.length + "B");
+            }
+
+            @Override
+            public void onDumpByteArray(String clientId, byte[] data) {
+                log(translate("msg.header").replace("%clientid%", clientId) + " DUMPBYTEARRAY: " + data.length + "B");
             }
         });
         Container cnt = getContentPane();

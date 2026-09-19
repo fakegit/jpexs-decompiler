@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,13 +25,24 @@ import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.Objects;
 
 /**
+ * Find definition.
  *
  * @author JPEXS
  */
 public class FindDefAVM2Item extends AVM2Item {
 
+    /**
+     * Property name
+     */
     public Multiname propertyName;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param propertyName Property name
+     */
     public FindDefAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, Multiname propertyName) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.propertyName = propertyName;
@@ -39,7 +50,7 @@ public class FindDefAVM2Item extends AVM2Item {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) {
-        return writer.append(propertyName.getNamespace(localData.constantsAvm2).getName(localData.constantsAvm2).toPrintableString(true)); //assume not null name
+        return writer.append(propertyName.getNamespace(localData.constantsAvm2).getName(localData.constantsAvm2).toPrintableString(localData.usedDeobfuscations, localData.swf, true)); //assume not null name
     }
 
     @Override

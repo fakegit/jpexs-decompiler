@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,44 +12,73 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.timeline;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.decompiler.flash.tags.base.Exportable;
+import com.jpexs.decompiler.flash.treeitems.Openable;
 import com.jpexs.decompiler.flash.treeitems.TreeItem;
 import java.util.List;
 import java.util.Objects;
 
 /**
+ * A tag containing script.
  *
  * @author JPEXS
  */
 public class TagScript implements TreeItem, Exportable {
 
+    /**
+     * SWF.
+     */
     private final SWF swf;
 
+    /**
+     * Tag.
+     */
     private final Tag tag;
 
+    /**
+     * Frames
+     */
     private final List<TreeItem> frames;
 
+    /**
+     * Constructs TagScript.
+     *
+     * @param swf SWF
+     * @param tag Tag
+     * @param frames Frames
+     */
     public TagScript(SWF swf, Tag tag, List<TreeItem> frames) {
         this.swf = swf;
         this.tag = tag;
         this.frames = frames;
     }
 
+    /**
+     * Gets tag.
+     *
+     * @return Tag
+     */
     public Tag getTag() {
         return tag;
     }
 
+    /**
+     * Gets frames.
+     *
+     * @return Frames
+     */
     public List<TreeItem> getFrames() {
         return frames;
     }
 
     @Override
-    public SWF getSwf() {
+    public Openable getOpenable() {
         return swf;
     }
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -39,7 +39,6 @@ import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
 
 /**
- *
  * @author JPEXS
  */
 public class NewTraitDialog extends AppDialog {
@@ -103,7 +102,7 @@ public class NewTraitDialog extends AppDialog {
             translate("type.getter"),
             translate("type.setter"),
             translate("type.const"),
-            translate("type.slot"),});
+            translate("type.slot")});
         staticCheckbox = new JCheckBox(translate("checkbox.static"));
         optionsPanel.add(staticCheckbox);
         String[] accessStrings = new String[modifiers.length];

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,6 +21,7 @@ import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.exporters.RequiresNormalizedFonts;
 import com.jpexs.decompiler.flash.exporters.commonshape.ExportRectangle;
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.exporters.commonshape.SVGExporter;
@@ -43,35 +44,73 @@ import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.helpers.ByteArrayRange;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.SerializableImage;
+import java.awt.Dimension;
+import java.awt.Shape;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
+ * Base class for static text tags.
  *
  * @author JPEXS
  */
 public abstract class StaticTextTag extends TextTag {
 
+    /**
+     * Character ID
+     */
     @SWFType(BasicType.UI16)
     public int characterID;
 
+    /**
+     * Glyph bits
+     */
     protected int glyphBits;
 
+    /**
+     * Advance bits
+     */
     protected int advanceBits;
 
+    /**
+     * Text bounds
+     */
     public RECT textBounds;
 
+    /**
+     * Text matrix
+     */
     public MATRIX textMatrix;
 
+    /**
+     * Text records
+     */
     public List<TEXTRECORD> textRecords;
 
+    /**
+     * Gets text number. DefineText = 1, DefineText2 = 2
+     *
+     * @return Text num
+     */
     public abstract int getTextNum();
 
+    /**
+     * Constructor.
+     *
+     * @param swf SWF
+     * @param id ID
+     * @param name Name
+     * @param data Data
+     */
     public StaticTextTag(SWF swf, int id, String name, ByteArrayRange data) {
         super(swf, id, name, data);
     }
@@ -90,11 +129,19 @@ public abstract class StaticTextTag extends TextTag {
         }
     }
 
+    @Override
+    public void insertCharacterGlyph(int glyphPos, char character) {
+    }
+
+    @Override
+    public void removeCharacterGlyph(int glyphPos) {
+    }    
+    
     /**
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -203,7 +250,7 @@ public abstract class StaticTextTag extends TextTag {
 
     @Override
     public ExportRectangle calculateTextBounds() {
-        return calculateTextBounds(swf, textRecords, getTextMatrix());
+        return calculateTextBounds(swf, this, textRecords, getTextMatrix());
     }
 
     @Override
@@ -242,16 +289,18 @@ public abstract class StaticTextTag extends TextTag {
             writer.append("translatey ").append(textMatrix.translateY).newLine();
         }
         if (textMatrix.hasScale) {
-            writer.append("scalex ").append(textMatrix.scaleX).newLine();
-            writer.append("scaley ").append(textMatrix.scaleY).newLine();
+            writer.append("scalexf ").append(textMatrix.scaleX).newLine();
+            writer.append("scaleyf ").append(textMatrix.scaleY).newLine();
         }
         if (textMatrix.hasRotate) {
-            writer.append("rotateskew0 ").append(textMatrix.rotateSkew0).newLine();
-            writer.append("rotateskew1 ").append(textMatrix.rotateSkew1).newLine();
+            writer.append("rotateskew0f ").append(textMatrix.rotateSkew0).newLine();
+            writer.append("rotateskew1f ").append(textMatrix.rotateSkew1).newLine();
         }
         writer.append("]");
         int textHeight = 12;
+        int prevLetterSpacing = 0;
         for (TEXTRECORD rec : textRecords) {
+            int letterSpacing = 0;
             if (rec.styleFlagsHasFont || rec.styleFlagsHasColor || rec.styleFlagsHasXOffset || rec.styleFlagsHasYOffset) {
                 writer.append("[").newLine();
                 if (rec.styleFlagsHasFont) {
@@ -264,10 +313,11 @@ public abstract class StaticTextTag extends TextTag {
                     textHeight = rec.textHeight;
                 }
                 if (fnt != null && !ignoreLetterSpacing) {
-                    int letterSpacing = detectLetterSpacing(rec, fnt, textHeight);
-                    if (letterSpacing != 0) {
+                    letterSpacing = detectLetterSpacing(rec, fnt, textHeight);
+                    if (letterSpacing != prevLetterSpacing) {
                         writer.append("letterspacing ").append(letterSpacing).newLine();
                     }
+                    prevLetterSpacing = letterSpacing;
                 }
                 if (rec.styleFlagsHasColor) {
                     if (getTextNum() == 1) {
@@ -282,15 +332,140 @@ public abstract class StaticTextTag extends TextTag {
                 if (rec.styleFlagsHasYOffset) {
                     writer.append("y ").append(rec.yOffset).newLine();
                 }
-                writer.append("]");
             }
 
             if (fnt == null) {
                 writer.append(AppResources.translate("fontNotFound").replace("%fontId%", Integer.toString(rec.fontId)));
             } else {
-                writer.hilightSpecial(Helper.escapeActionScriptString(rec.getText(fnt)).replace("[", "\\[").replace("]", "\\]"), HighlightSpecialType.TEXT);
+
+                boolean first = true;
+                Map<String, Integer> spacing = new LinkedHashMap<>();
+                Map<String, Integer> spacingCount = new LinkedHashMap<>();
+                Set<String> ignoredSpacings = new LinkedHashSet<>();
+                Map<Character, Set<Integer>> charToSpacing = new LinkedHashMap<>();
+                Set<Character> noSpacing = new LinkedHashSet<>();
+                Map<Character, Integer> charCount = new LinkedHashMap<>();
+                if (rec.glyphEntries.size() > 1) {
+                    for (int i = 0; i < rec.glyphEntries.size(); i++) {
+                        GLYPHENTRY ge = rec.glyphEntries.get(i);
+                        char c = fnt.glyphToChar(ge.glyphIndex);
+                        Character nextChar = null;
+                        if (i + 1 < rec.glyphEntries.size()) {
+                            GLYPHENTRY nge = rec.glyphEntries.get(i + 1);
+                            nextChar = fnt.glyphToChar(nge.glyphIndex);
+                        }
+                        int advance = getAdvance(fnt, ge.glyphIndex, textHeight, c, nextChar);
+                        int delta = ge.glyphAdvance - advance;
+                        String spacingKey = "" + c + (nextChar == null ? "" : nextChar);
+                        int spacingVal = delta - letterSpacing;
+
+                        if (!charToSpacing.containsKey(c)) {
+                            charToSpacing.put(c, new LinkedHashSet<>());
+                        }
+                        charToSpacing.get(c).add(spacingVal);
+
+                        if (!charCount.containsKey(c)) {
+                            charCount.put(c, 0);
+                        }
+                        charCount.put(c, charCount.get(c) + 1);
+
+                        
+                        if (delta != letterSpacing && !ignoreLetterSpacing) {
+                            if (ignoredSpacings.contains(spacingKey)) {
+                                continue;
+                            }
+                            if (spacing.containsKey(spacingKey) && spacing.get(spacingKey) != spacingVal) {
+                                spacing.remove(spacingKey);
+                                spacingCount.remove(spacingKey);
+                                ignoredSpacings.add(spacingKey);
+                                continue;
+                            }
+                            spacing.put(spacingKey, spacingVal);
+                            if (!spacingCount.containsKey(spacingKey)) {
+                                spacingCount.put(spacingKey, 0);
+                            }
+                            spacingCount.put(spacingKey, spacingCount.get(spacingKey) + 1);
+                        } else {
+                            noSpacing.add(c);
+                        }
+                    }
+                }
+                List<String> spacingKeys = new ArrayList<>(spacing.keySet());
+                Map<Character, Integer> simpleSpacing = new LinkedHashMap<>();
+                for (String spacingKey : spacingKeys) {
+                    Character c = spacingKey.charAt(0);
+                    if (charToSpacing.get(c).size() == 1 && charCount.get(c) > 1) {
+                        spacing.remove(spacingKey);
+                        simpleSpacing.put(c, charToSpacing.get(c).iterator().next());
+                    }
+                }
+
+                if (!(rec.styleFlagsHasFont || rec.styleFlagsHasColor || rec.styleFlagsHasXOffset || rec.styleFlagsHasYOffset)
+                        && (!simpleSpacing.isEmpty() || !spacing.isEmpty())) {
+                    writer.append("[").newLine().append("resetspacing").newLine();
+                }
+
+                if (!simpleSpacing.isEmpty()) {
+                    //writer.append("[").newLine();
+                    for (Character c : simpleSpacing.keySet()) {
+                        writer.append("spacing \"").append(Helper.escapeString("" + c)).append("\"");
+                        writer.append(" ");
+                        writer.append(simpleSpacing.get(c));
+                        writer.newLine();
+                    }
+                    //writer.append("]");
+                }
+
+                if (!spacing.isEmpty()) {
+                    //writer.append("[").newLine();
+
+                    for (String spacingKey : spacing.keySet()) {
+                        writer.append("spacingpair \"").append(Helper.escapeString("" + spacingKey.charAt(0))).append("\"");
+                        writer.append(" ");
+                        if (spacingKey.length() > 1) {
+                            writer.append("\"").append(spacingKey.charAt(1)).append("\"");
+                        } else {
+                            writer.append("\"\"");
+                        }
+                        writer.append(" ");
+                        writer.append(spacing.get(spacingKey));
+                        writer.newLine();
+                    }
+
+                    //writer.append("]");
+                }
+
+                if (rec.styleFlagsHasFont || rec.styleFlagsHasColor || rec.styleFlagsHasXOffset || rec.styleFlagsHasYOffset
+                        || !simpleSpacing.isEmpty() || !spacing.isEmpty()) {
+                    writer.append("]");
+                }
+
+                for (int i = 0; i < rec.glyphEntries.size(); i++) {
+                    GLYPHENTRY ge = rec.glyphEntries.get(i);
+                    char c = fnt.glyphToChar(ge.glyphIndex);
+                    String sc = ("" + c).replace("[", "\\[").replace("]", "\\]");
+                    writer.hilightSpecial(sc, HighlightSpecialType.TEXT);
+
+                    if (!ignoreLetterSpacing) {
+                        Character nextChar = null;
+                        if (i + 1 < rec.glyphEntries.size()) {
+                            GLYPHENTRY nge = rec.glyphEntries.get(i + 1);
+                            nextChar = fnt.glyphToChar(nge.glyphIndex);
+                        }
+
+                        String spacingKey = "" + c + (nextChar == null ? "" : nextChar);
+                        if (!spacing.containsKey(spacingKey) && !simpleSpacing.containsKey(c)) {
+                            int advance = getAdvance(fnt, ge.glyphIndex, textHeight, c, nextChar);
+                            int delta = ge.glyphAdvance - advance;
+                            if (delta != letterSpacing && !ignoreLetterSpacing) {
+                                writer.append("[space " + (delta - letterSpacing) + "]");
+                            }
+                        }
+                    }
+                }
             }
         }
+        writer.finishHilights();
         return new HighlightedText(writer);
     }
 
@@ -317,13 +492,37 @@ public abstract class StaticTextTag extends TextTag {
             textMatrix.hasScale = false;
             RECT textBounds = new RECT();
             int textIdx = 0;
+            Map<Character, Integer> simpleSpacing = new LinkedHashMap<>();
+            Map<String, Integer> pairSpacing = new LinkedHashMap<>();
+            boolean append = false;
             while ((s = lexer.yylex()) != null) {
                 switch (s.type) {
-                    case PARAMETER:
-                        String paramName = (String) s.values[0];
-                        String paramValue = (String) s.values[1];
+                    case PARAMETER_IDENTIFIER:
+                        String paramName = (String) s.value;
+
                         switch (paramName) {
+                            case "font":
+                            case "height":
+                            case "letterspacing":
                             case "color":
+                            case "x":
+                            case "y":
+                            case "resetspacing":
+                                simpleSpacing.clear();
+                                pairSpacing.clear();
+                        }
+
+                        if (!paramName.equals("space")) {
+                            append = false;
+                        }
+
+                        String paramValue;
+                        switch (paramName) {
+                            case "resetspacing":
+                                break;
+                            case "color":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 if (getTextNum() == 1) {
                                     Matcher m = Pattern.compile("#([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])").matcher(paramValue);
                                     if (m.matches()) {
@@ -341,6 +540,8 @@ public abstract class StaticTextTag extends TextTag {
                                 }
                                 break;
                             case "font":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
                                     fontId = Integer.parseInt(paramValue);
 
@@ -355,6 +556,8 @@ public abstract class StaticTextTag extends TextTag {
                                 }
                                 break;
                             case "height":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
                                     textHeight = Integer.parseInt(paramValue);
                                 } catch (NumberFormatException nfe) {
@@ -362,6 +565,8 @@ public abstract class StaticTextTag extends TextTag {
                                 }
                                 break;
                             case "letterspacing":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
                                     letterSpacing = Integer.parseInt(paramValue);
                                 } catch (NumberFormatException nfe) {
@@ -369,6 +574,8 @@ public abstract class StaticTextTag extends TextTag {
                                 }
                                 break;
                             case "x":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
                                     x = Integer.parseInt(paramValue);
                                     currentX = x;
@@ -377,6 +584,8 @@ public abstract class StaticTextTag extends TextTag {
                                 }
                                 break;
                             case "y":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
                                     y = Integer.parseInt(paramValue);
                                     currentY = y;
@@ -385,6 +594,8 @@ public abstract class StaticTextTag extends TextTag {
                                 }
                                 break;
                             case "xmin":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
                                     textBounds.Xmin = Integer.parseInt(paramValue);
                                 } catch (NumberFormatException nfe) {
@@ -392,6 +603,8 @@ public abstract class StaticTextTag extends TextTag {
                                 }
                                 break;
                             case "xmax":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
                                     textBounds.Xmax = Integer.parseInt(paramValue);
                                 } catch (NumberFormatException nfe) {
@@ -399,6 +612,8 @@ public abstract class StaticTextTag extends TextTag {
                                 }
                                 break;
                             case "ymin":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
                                     textBounds.Ymin = Integer.parseInt(paramValue);
                                 } catch (NumberFormatException nfe) {
@@ -406,6 +621,8 @@ public abstract class StaticTextTag extends TextTag {
                                 }
                                 break;
                             case "ymax":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
                                     textBounds.Ymax = Integer.parseInt(paramValue);
                                 } catch (NumberFormatException nfe) {
@@ -413,38 +630,90 @@ public abstract class StaticTextTag extends TextTag {
                                 }
                                 break;
                             case "scalex":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
-                                    textMatrix.scaleX = Integer.parseInt(paramValue);
+                                    textMatrix.scaleX = MATRIX.toFloat(Integer.parseInt(paramValue));
                                     textMatrix.hasScale = true;
                                 } catch (NumberFormatException nfe) {
                                     throw new TextParseException("Invalid scalex value - number expected. Found: " + paramValue, lexer.yyline());
                                 }
                                 break;
                             case "scaley":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
-                                    textMatrix.scaleY = Integer.parseInt(paramValue);
+                                    textMatrix.scaleY = MATRIX.toFloat(Integer.parseInt(paramValue));
                                     textMatrix.hasScale = true;
                                 } catch (NumberFormatException nfe) {
-                                    throw new TextParseException("Invalid scalex value - number expected. Found: " + paramValue, lexer.yyline());
+                                    throw new TextParseException("Invalid scaley value - number expected. Found: " + paramValue, lexer.yyline());
                                 }
                                 break;
-                            case "rotateskew0":
+
+                            case "scalexf":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
-                                    textMatrix.rotateSkew0 = Integer.parseInt(paramValue);
+                                    textMatrix.scaleX = Float.parseFloat(paramValue);
+                                    textMatrix.hasScale = true;
+                                } catch (NumberFormatException nfe) {
+                                    throw new TextParseException("Invalid scalexf value - float number expected. Found: " + paramValue, lexer.yyline());
+                                }
+                                break;
+                            case "scaleyf":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
+                                try {
+                                    textMatrix.scaleY = Float.parseFloat(paramValue);
+                                    textMatrix.hasScale = true;
+                                } catch (NumberFormatException nfe) {
+                                    throw new TextParseException("Invalid scaleyf value - float number expected. Found: " + paramValue, lexer.yyline());
+                                }
+                                break;
+
+                            case "rotateskew0":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
+                                try {
+                                    textMatrix.rotateSkew0 = MATRIX.toFloat(Integer.parseInt(paramValue));
                                     textMatrix.hasRotate = true;
                                 } catch (NumberFormatException nfe) {
                                     throw new TextParseException("Invalid rotateskew0 value - number expected. Found: " + paramValue, lexer.yyline());
                                 }
                                 break;
                             case "rotateskew1":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
-                                    textMatrix.rotateSkew1 = Integer.parseInt(paramValue);
+                                    textMatrix.rotateSkew1 = MATRIX.toFloat(Integer.parseInt(paramValue));
                                     textMatrix.hasRotate = true;
                                 } catch (NumberFormatException nfe) {
                                     throw new TextParseException("Invalid rotateskew1 value - number expected. Found: " + paramValue, lexer.yyline());
                                 }
                                 break;
+                            case "rotateskew0f":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
+                                try {
+                                    textMatrix.rotateSkew0 = Float.parseFloat(paramValue);
+                                    textMatrix.hasRotate = true;
+                                } catch (NumberFormatException nfe) {
+                                    throw new TextParseException("Invalid rotateskew0 value - float number expected. Found: " + paramValue, lexer.yyline());
+                                }
+                                break;
+                            case "rotateskew1f":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
+                                try {
+                                    textMatrix.rotateSkew1 = Float.parseFloat(paramValue);
+                                    textMatrix.hasRotate = true;
+                                } catch (NumberFormatException nfe) {
+                                    throw new TextParseException("Invalid rotateskew1 value - float number expected. Found: " + paramValue, lexer.yyline());
+                                }
+                                break;
                             case "translatex":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
                                     textMatrix.translateX = Integer.parseInt(paramValue);
                                 } catch (NumberFormatException nfe) {
@@ -452,10 +721,61 @@ public abstract class StaticTextTag extends TextTag {
                                 }
                                 break;
                             case "translatey":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
                                 try {
                                     textMatrix.translateY = Integer.parseInt(paramValue);
                                 } catch (NumberFormatException nfe) {
                                     throw new TextParseException("Invalid translatey value - number expected. Found: " + paramValue, lexer.yyline());
+                                }
+                                break;
+                            case "space":
+                                s = lexer.yylex();
+                                paramValue = (String) s.value;
+                                try {
+                                    int space = Integer.parseInt(paramValue);
+                                    if (textRecords.isEmpty()) {
+                                        throw new TextParseException("space parameter must be placed after some text", lexer.yyline());
+                                    }
+                                    TEXTRECORD lastRecord = textRecords.get(textRecords.size() - 1);
+                                    if (!lastRecord.glyphEntries.isEmpty()) {
+                                        lastRecord.glyphEntries.get(lastRecord.glyphEntries.size() - 1).glyphAdvance += space;
+                                    }
+                                } catch (NumberFormatException nfe) {
+                                    throw new TextParseException("Invalid space value - number expected. Found: " + paramValue, lexer.yyline());
+                                }
+                                break;
+                            case "spacing":
+                                s = lexer.yylex();
+                                String spacingChar = (String) s.value;
+                                if (spacingChar.length() != 1) {
+                                    throw new TextParseException("Invalid spacing character - single character expected. Found: " + (String) s.value, lexer.yyline());
+                                }
+                                s = lexer.yylex();
+                                try {
+                                    int space = Integer.parseInt((String) s.value);
+                                    simpleSpacing.put(spacingChar.charAt(0), space);
+                                } catch (NumberFormatException nfe) {
+                                    throw new TextParseException("Invalid spacing value - number expected. Found: " + (String) s.value, lexer.yyline());
+                                }
+                                break;
+                            case "spacingpair":
+                                s = lexer.yylex();
+                                String spacingChar1 = (String) s.value;
+                                if (spacingChar1.length() != 1) {
+                                    throw new TextParseException("Invalid spacing character1 - single character expected. Found: " + (String) s.value, lexer.yyline());
+                                }
+                                s = lexer.yylex();
+                                String spacingChar2 = (String) s.value;
+                                if (spacingChar2.length() > 1) {
+                                    throw new TextParseException("Invalid spacing character2 - single character expected. Found: " + (String) s.value, lexer.yyline());
+                                }
+                                s = lexer.yylex();
+                                try {
+                                    int space = Integer.parseInt((String) s.value);
+                                    pairSpacing.put(spacingChar1 + spacingChar2, space);
+                                } catch (NumberFormatException nfe) {
+                                    throw new TextParseException("Invalid spacing value - number expected. Found: " + (String) s.value, lexer.yyline());
                                 }
                                 break;
                             default:
@@ -463,7 +783,7 @@ public abstract class StaticTextTag extends TextTag {
                         }
                         break;
                     case TEXT:
-                        String txt = (texts == null || textIdx >= texts.length) ? (String) s.values[0] : texts[textIdx++];
+                        String txt = (texts == null || textIdx >= texts.length) ? (String) s.value : texts[textIdx++];
                         if (txt == null || (font == null && txt.isEmpty())) {
                             continue;
                         }
@@ -472,11 +792,11 @@ public abstract class StaticTextTag extends TextTag {
                             throw new TextParseException("Font not defined", lexer.yyline());
                         }
 
-                        while (txt.charAt(0) == '\r' || txt.charAt(0) == '\n') {
+                        while (!txt.isEmpty() && (txt.charAt(0) == '\r' || txt.charAt(0) == '\n')) {
                             txt = txt.substring(1);
                         }
 
-                        while (txt.charAt(txt.length() - 1) == '\r' || txt.charAt(txt.length() - 1) == '\n') {
+                        while (!txt.isEmpty() && (txt.charAt(txt.length() - 1) == '\r' || txt.charAt(txt.length() - 1) == '\n')) {
                             txt = txt.substring(0, txt.length() - 1);
                         }
 
@@ -499,36 +819,42 @@ public abstract class StaticTextTag extends TextTag {
 
                         txt = txtSb.toString();
 
-                        TEXTRECORD tr = new TEXTRECORD();
-                        textRecords.add(tr);
-                        if (fontId > -1) {
-                            tr.fontId = fontId;
-                            tr.textHeight = textHeight;
-                            fontId = -1;
-                            tr.styleFlagsHasFont = true;
-                        }
-                        if (getTextNum() == 1) {
-                            if (color != null) {
-                                tr.textColor = color;
-                                tr.styleFlagsHasColor = true;
-                                color = null;
+                        TEXTRECORD tr;
+
+                        if (append) {
+                            tr = textRecords.get(textRecords.size() - 1);
+                        } else {
+                            tr = new TEXTRECORD();
+                            textRecords.add(tr);
+                            if (fontId > -1) {
+                                tr.fontId = fontId;
+                                tr.textHeight = textHeight;
+                                fontId = -1;
+                                tr.styleFlagsHasFont = true;
                             }
-                        } else if (colorA != null) {
-                            tr.textColorA = colorA;
-                            tr.styleFlagsHasColor = true;
-                            colorA = null;
+                            if (getTextNum() == 1) {
+                                if (color != null) {
+                                    tr.textColor = color;
+                                    tr.styleFlagsHasColor = true;
+                                    color = null;
+                                }
+                            } else if (colorA != null) {
+                                tr.textColorA = colorA;
+                                tr.styleFlagsHasColor = true;
+                                colorA = null;
+                            }
+                            if (x != null) {
+                                tr.xOffset = x;
+                                tr.styleFlagsHasXOffset = true;
+                                x = null;
+                            }
+                            if (y != null) {
+                                tr.yOffset = y;
+                                tr.styleFlagsHasYOffset = true;
+                                y = null;
+                            }
+                            tr.glyphEntries = new ArrayList<>(txt.length());
                         }
-                        if (x != null) {
-                            tr.xOffset = x;
-                            tr.styleFlagsHasXOffset = true;
-                            x = null;
-                        }
-                        if (y != null) {
-                            tr.yOffset = y;
-                            tr.styleFlagsHasYOffset = true;
-                            y = null;
-                        }
-                        tr.glyphEntries = new ArrayList<>(txt.length());
                         for (int i = 0; i < txt.length(); i++) {
                             char c = txt.charAt(i);
                             Character nextChar = null;
@@ -539,7 +865,16 @@ public abstract class StaticTextTag extends TextTag {
                             GLYPHENTRY ge = new GLYPHENTRY();
                             ge.glyphIndex = font.charToGlyph(c);
 
-                            int advance = getAdvance(font, ge.glyphIndex, textHeight, c, nextChar) + letterSpacing;
+                            int advance = getAdvance(font, ge.glyphIndex, textHeight, c, nextChar);
+
+                            advance += letterSpacing;
+                            if (simpleSpacing.containsKey(c)) {
+                                advance += simpleSpacing.get(c) - letterSpacing;
+                            }
+                            String pairKey = "" + c + (nextChar == null ? "" : nextChar);
+                            if (pairSpacing.containsKey(pairKey)) {
+                                advance += pairSpacing.get(pairKey) - letterSpacing;
+                            }
                             ge.glyphAdvance = advance;
                             tr.glyphEntries.add(ge);
 
@@ -552,6 +887,7 @@ public abstract class StaticTextTag extends TextTag {
                         if (currentX < minX) {
                             minX = currentX;
                         }
+                        append = true;
                         break;
                 }
             }
@@ -570,6 +906,16 @@ public abstract class StaticTextTag extends TextTag {
         return true;
     }
 
+    /**
+     * Gets advance.
+     *
+     * @param font Font
+     * @param glyphIndex Glyph index
+     * @param textHeight Text height
+     * @param c Character
+     * @param nextChar Next character
+     * @return Advance
+     */
     public static int getAdvance(FontTag font, int glyphIndex, int textHeight, char c, Character nextChar) {
         int advance;
         if (font.hasLayout()) {
@@ -586,32 +932,64 @@ public abstract class StaticTextTag extends TextTag {
         return advance;
     }
 
+    /**
+     * Detects letter spacing.
+     *
+     * @param textRecord Text record
+     * @param font Font
+     * @param textHeight Text height
+     * @return Letter spacing
+     */
     public static int detectLetterSpacing(TEXTRECORD textRecord, FontTag font, int textHeight) {
-        int totalLetterSpacing = 0;
+        int minLetterSpacing = Integer.MAX_VALUE;
+        int numNegatives = 0;
         List<GLYPHENTRY> glyphEntries = textRecord.glyphEntries;
-        for (int i = 0; i < glyphEntries.size(); i++) {
-            GLYPHENTRY glyph = glyphEntries.get(i);
-            GLYPHENTRY nextGlyph = null;
-            if (i + 1 < glyphEntries.size()) {
-                nextGlyph = glyphEntries.get(i + 1);
-            }
 
-            char c = font.glyphToChar(glyph.glyphIndex);
-            Character nextChar = nextGlyph == null ? null : font.glyphToChar(nextGlyph.glyphIndex);
-            int advance = getAdvance(font, glyph.glyphIndex, textHeight, c, nextChar);
-            int letterSpacing = glyph.glyphAdvance - advance;
-            totalLetterSpacing += letterSpacing;
+        if (glyphEntries.size() < 2) {
+            return 0;
         }
 
-        return (int) Math.round(totalLetterSpacing / glyphEntries.size());
+        int numMin = 0;
+        for (int i = 0; i < glyphEntries.size() - 1; i++) {
+            GLYPHENTRY glyph = glyphEntries.get(i);
+            /*GLYPHENTRY nextGlyph = null;
+            if (i + 1 < glyphEntries.size()) {
+                nextGlyph = glyphEntries.get(i + 1);
+            }*/
+            GLYPHENTRY nextGlyph = glyphEntries.get(i + 1);
+            char c = font.glyphToChar(glyph.glyphIndex);
+            //Character nextChar = nextGlyph == null ? null : font.glyphToChar(nextGlyph.glyphIndex);
+            Character nextChar = font.glyphToChar(nextGlyph.glyphIndex);
+            int advance = getAdvance(font, glyph.glyphIndex, textHeight, c, nextChar);
+            int letterSpacing = glyph.glyphAdvance - advance;
+            //System.err.println("advance between char "+c+" and "+nextChar+": advance = " + advance + " glyphAdvance="+glyph.glyphAdvance+" delta:"+letterSpacing);
+            if (letterSpacing < 0) {
+                numNegatives++;
+            }
+            if (letterSpacing == minLetterSpacing) {
+                numMin++;
+            }
+            if (letterSpacing < minLetterSpacing) {
+                minLetterSpacing = letterSpacing;
+                numMin = 1;
+            }
+        }
+        if (minLetterSpacing < 0 && numNegatives < glyphEntries.size() / 2) { //a hack, use negative letterspacing only when 50% letters use it
+            minLetterSpacing = 0;
+        }
+        if (numMin == 1) {
+            return 0;
+        }
+
+        return minLetterSpacing;
     }
 
     @Override
-    public void getNeededCharacters(Set<Integer> needed) {
+    public void getNeededCharacters(Set<Integer> needed, Set<String> neededClasses, SWF swf) {
         for (TEXTRECORD tr : textRecords) {
             if (tr.styleFlagsHasFont) {
                 needed.add(tr.fontId);
-            }
+            }            
         }
     }
 
@@ -652,8 +1030,18 @@ public abstract class StaticTextTag extends TextTag {
     }
 
     @Override
-    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, SerializableImage fullImage, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, Matrix fullTransformation, ColorTransform colorTransform, double unzoom, boolean sameImage, ExportRectangle viewRect, boolean scaleStrokes, int drawMode) {
-        staticTextToImage(swf, textRecords, getTextNum(), image, textMatrix, transformation, colorTransform);
+    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, SerializableImage fullImage, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, Matrix fullTransformation, ColorTransform colorTransform, double unzoom, boolean sameImage, ExportRectangle viewRect, ExportRectangle viewRectRaw, boolean scaleStrokes, int drawMode, int blendMode, boolean canUseSmoothing, int aaScale) {
+        if (image.getGraphics() instanceof RequiresNormalizedFonts) {
+            RequiresNormalizedFonts g = (RequiresNormalizedFonts) image.getGraphics();
+            Map<Integer, TextTag> normalizedTexts = g.getNormalizedTexts();
+            int realTextId = getSwf().getCharacterId(this);
+            if (normalizedTexts.containsKey(realTextId) && normalizedTexts.get(realTextId) instanceof StaticTextTag) {
+                StaticTextTag normalizedText = (StaticTextTag) normalizedTexts.get(realTextId);
+                staticTextToImage(swf, normalizedText.textRecords, getTextNum(), image, normalizedText.textMatrix, transformation, colorTransform, renderContext.selectionText == this ? renderContext.selectionStart : 0, renderContext.selectionText == this ? renderContext.selectionEnd : 0, aaScale);
+                return;
+            }
+        }
+        staticTextToImage(swf, textRecords, getTextNum(), image, textMatrix, transformation, colorTransform, renderContext.selectionText == this ? renderContext.selectionStart : 0, renderContext.selectionText == this ? renderContext.selectionEnd : 0, aaScale);
         /*try {
          TextTag originalTag = (TextTag) getOriginalTag();
          if (isModified()) {
@@ -666,12 +1054,30 @@ public abstract class StaticTextTag extends TextTag {
     }
 
     @Override
-    public void toSVG(SVGExporter exporter, int ratio, ColorTransform colorTransform, int level) {
-        staticTextToSVG(swf, textRecords, getTextNum(), exporter, getRect(), textMatrix, colorTransform, 1);
+    public void toSVG(int frame, int time, SVGExporter exporter, int ratio, ColorTransform colorTransform, int level, Matrix transformation, Matrix strokeTransformation) {
+        int realTextId = getSwf().getCharacterId(this);
+        if (exporter.getNormalizedTexts().containsKey(realTextId) && exporter.getNormalizedTexts().get(realTextId) instanceof StaticTextTag) {
+            StaticTextTag normalizedText = (StaticTextTag) exporter.getNormalizedTexts().get(realTextId);
+            staticTextToSVG(swf, normalizedText.textRecords, getTextNum(), exporter, getRect(), normalizedText.textMatrix, colorTransform, exporter.getZoom(), transformation);
+            return;
+        }
+        staticTextToSVG(swf, textRecords, getTextNum(), exporter, getRect(), textMatrix, colorTransform, exporter.getZoom(), transformation);
     }
 
     @Override
     public void toHtmlCanvas(StringBuilder result, double unitDivisor) {
         staticTextToHtmlCanvas(unitDivisor, swf, textRecords, getTextNum(), result, textBounds, textMatrix, null);
     }
+    
+    @Override
+    public Dimension getFilterDimensions() {
+        return new Dimension(0, 0);                
+    }
+
+    /* NOT READY YET    
+    @Override
+    public Shape getOutline(boolean fast, int frame, int time, int ratio, RenderContext renderContext, Matrix transformation, boolean stroked, ExportRectangle viewRect, double unzoom) {
+        return staticTextToOutline(swf, textRecords, textMatrix, new HashMap<>(), transformation);
+    } 
+    */
 }

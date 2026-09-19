@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,29 +21,34 @@ import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.ActionList;
+import com.jpexs.decompiler.flash.action.ActionTreeOperation;
 import com.jpexs.decompiler.flash.action.ConstantPoolTooBigException;
 import com.jpexs.decompiler.flash.dumpview.DumpInfoSpecialType;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.decompiler.flash.tags.base.ASMSource;
+import com.jpexs.decompiler.flash.treeitems.Openable;
 import com.jpexs.decompiler.flash.types.annotations.Conditional;
 import com.jpexs.decompiler.flash.types.annotations.HideInRawEdit;
 import com.jpexs.decompiler.flash.types.annotations.Internal;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
+import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.helpers.ByteArrayRange;
 import com.jpexs.helpers.Helper;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
- * Actions to execute at particular button events
+ * Actions to execute at particular button events.
  *
  * @author JPEXS
  */
-public class BUTTONCONDACTION implements ASMSource, Serializable {
+public class BUTTONCONDACTION implements ASMSource, Serializable, HasSwfAndTag {
 
     private SWF swf;
 
@@ -51,18 +56,27 @@ public class BUTTONCONDACTION implements ASMSource, Serializable {
 
     private String scriptName = "-";
 
+    private String exportedScriptName = "-";
+
     @Override
     public String getScriptName() {
         return scriptName;
     }
 
-    // Constructor for Generic tag editor.
+    /**
+     * Constructor for Generic tag editor.
+     */
     public BUTTONCONDACTION() {
         swf = null;
         tag = null;
         actionBytes = new ByteArrayRange(SWFInputStream.BYTE_ARRAY_EMPTY);
     }
 
+    /**
+     * Constructor.
+     * @param swf SWF
+     * @param tag Tag
+     */
     public BUTTONCONDACTION(SWF swf, Tag tag) {
         this.swf = swf;
         this.tag = tag;
@@ -74,6 +88,13 @@ public class BUTTONCONDACTION implements ASMSource, Serializable {
         this.scriptName = scriptName;
     }
 
+    /**
+     * Constructor.
+     * @param swf SWF
+     * @param sis SWF input stream
+     * @param tag Tag
+     * @throws IOException On I/O error
+     */
     public BUTTONCONDACTION(SWF swf, SWFInputStream sis, Tag tag) throws IOException {
         this.swf = swf;
         this.tag = tag;
@@ -90,6 +111,11 @@ public class BUTTONCONDACTION implements ASMSource, Serializable {
         condKeyPress = (int) sis.readUB(7, "condKeyPress");
         condOverDownToIdle = sis.readUB(1, "condOverDownToIdle") == 1;
         actionBytes = sis.readByteRangeEx(condActionSize <= 0 ? sis.available() : condActionSize - 4, "actionBytes", DumpInfoSpecialType.ACTION_BYTES, sis.getPos());
+    }
+
+    @Override
+    public Openable getOpenable() {
+        return swf;
     }
 
     @Override
@@ -144,6 +170,7 @@ public class BUTTONCONDACTION implements ASMSource, Serializable {
     public boolean condIdleToOverUp;
 
     /**
+     * Key pres condition
      * @since SWF 4 key code
      */
     @SWFType(value = BasicType.UB, count = 7)
@@ -162,14 +189,6 @@ public class BUTTONCONDACTION implements ASMSource, Serializable {
     public ByteArrayRange actionBytes;
 
     /**
-     * Sets actions associated with this object
-     *
-     * @param actions Action list
-     */
-    /*public void setActions(List<Action> actions) {
-     this.actions = actions;
-     }*/
-    /**
      * Returns a string representation of the object
      *
      * @return a string representation of the object.
@@ -183,10 +202,10 @@ public class BUTTONCONDACTION implements ASMSource, Serializable {
      * Converts actions to ASM source
      *
      * @param exportMode PCode or hex?
-     * @param writer
-     * @param actions
+     * @param writer Writer
+     * @param actions Actions
      * @return ASM source
-     * @throws java.lang.InterruptedException
+     * @throws InterruptedException On interrupt
      */
     @Override
     public GraphTextWriter getASMSource(ScriptExportMode exportMode, GraphTextWriter writer, ActionList actions) throws InterruptedException {
@@ -202,11 +221,20 @@ public class BUTTONCONDACTION implements ASMSource, Serializable {
             actions = getActions();
         }
 
-        return Action.actionsToSource(this, actions, getScriptName(), writer);
+        return Action.actionsToSource(new HashMap<>(), this, actions, getScriptName(), writer, actions.getCharset());
+    }
+
+    @Override
+    public GraphTextWriter getActionScriptSource(GraphTextWriter writer, ActionList actions, List<ActionTreeOperation> treeOperations) throws InterruptedException {
+        if (actions == null) {
+            actions = getActions();
+        }
+
+        return Action.actionsToSource(new HashMap<>(), this, actions, getScriptName(), writer, actions.getCharset(), treeOperations);
     }
 
     /**
-     * Whether or not this object contains ASM source
+     * Whether this object contains ASM source
      *
      * @return True when contains
      */
@@ -219,7 +247,7 @@ public class BUTTONCONDACTION implements ASMSource, Serializable {
      * Returns actions associated with this object
      *
      * @return List of actions
-     * @throws java.lang.InterruptedException
+     * @throws InterruptedException On interrupt
      */
     @Override
     public ActionList getActions() throws InterruptedException {
@@ -356,5 +384,29 @@ public class BUTTONCONDACTION implements ASMSource, Serializable {
     public void setSourceTag(Tag t) {
         this.tag = t;
         this.swf = t.getSwf();
+    }
+
+    @Override
+    public Tag getTag() {
+        return tag;
+    }
+
+    @Override
+    public List<GraphTargetItem> getActionsToTree() {
+        try {
+            return Action.actionsToTree(new LinkedHashSet<>(), false, new HashMap<>(), false, false, getActions(), swf.version, 0, getScriptName(), swf.getCharset());
+        } catch (InterruptedException ex) {
+            return new ArrayList<>();
+        }
+    }
+
+    @Override
+    public String getExportedScriptName() {
+        return exportedScriptName;
+    }
+
+    @Override
+    public void setExportedScriptName(String scriptName) {
+        this.exportedScriptName = scriptName;
     }
 }

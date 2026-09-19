@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.alchemy;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -30,11 +31,14 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.List;
 
 /**
+ * lf32 instruction - Load 32-bit float from domain memory.
  *
  * @author JPEXS
  */
 public class Lf32Ins extends InstructionDefinition implements AlchemyTypeIns {
-
+    /**
+     * Constructor
+     */
     public Lf32Ins() {
         super(0x38, "lf32", new int[]{}, true, AVM2InstructionFlag.DOMAIN_MEMORY);
     }

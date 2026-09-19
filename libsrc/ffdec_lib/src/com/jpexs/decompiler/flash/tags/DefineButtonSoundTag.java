@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,27 +12,30 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
-import com.jpexs.decompiler.flash.tags.base.CharacterIdTag;
+import com.jpexs.decompiler.flash.tags.base.CharacterModifier;
 import com.jpexs.decompiler.flash.types.BasicType;
 import com.jpexs.decompiler.flash.types.SOUNDINFO;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.helpers.ByteArrayRange;
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 
 /**
+ * DefineButtonSound tag - defines sound effects for a button.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 2)
-public class DefineButtonSoundTag extends Tag implements CharacterIdTag {
+public class DefineButtonSoundTag extends Tag implements CharacterModifier {
 
     public static final int ID = 17;
 
@@ -64,7 +67,7 @@ public class DefineButtonSoundTag extends Tag implements CharacterIdTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineButtonSoundTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -73,9 +76,9 @@ public class DefineButtonSoundTag extends Tag implements CharacterIdTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineButtonSoundTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -107,7 +110,7 @@ public class DefineButtonSoundTag extends Tag implements CharacterIdTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -141,7 +144,7 @@ public class DefineButtonSoundTag extends Tag implements CharacterIdTag {
     }
 
     @Override
-    public void getNeededCharacters(Set<Integer> needed) {
+    public void getNeededCharacters(Set<Integer> needed, Set<String> neededClasses, SWF swf) {
         if (buttonSoundChar0 != 0) {
             needed.add(buttonSoundChar0);
         }
@@ -154,5 +157,75 @@ public class DefineButtonSoundTag extends Tag implements CharacterIdTag {
         if (buttonSoundChar3 != 0) {
             needed.add(buttonSoundChar3);
         }
+        needed.add(buttonId);
+    }
+
+    @Override
+    public Map<String, String> getNameProperties() {
+        Map<String, String> ret = super.getNameProperties();
+        ret.put("bid", "" + buttonId);
+        return ret;
+    }
+
+    @Override
+    public boolean removeCharacter(int characterId) {
+        boolean modified = false;
+
+        if (buttonSoundChar0 == characterId) {
+            buttonSoundChar0 = 0;
+            buttonSoundInfo0 = null;
+            modified = true;
+        }
+        if (buttonSoundChar1 == characterId) {
+            buttonSoundChar1 = 0;
+            buttonSoundInfo1 = null;
+            modified = true;
+        }
+        if (buttonSoundChar2 == characterId) {
+            buttonSoundChar2 = 0;
+            buttonSoundInfo2 = null;
+            modified = true;
+        }
+        if (buttonSoundChar3 == characterId) {
+            buttonSoundChar3 = 0;
+            buttonSoundInfo3 = null;
+            modified = true;
+        }
+
+        if (modified) {
+            setModified(true);
+        }
+        return modified;
+    }
+
+    @Override
+    public boolean replaceCharacter(int oldCharacterId, int newCharacterId) {
+        boolean modified = false;
+
+        if (buttonId == oldCharacterId) {
+            buttonId = newCharacterId;
+            modified = true;
+        }
+        if (buttonSoundChar0 == oldCharacterId) {
+            buttonSoundChar0 = newCharacterId;
+            modified = true;
+        }
+        if (buttonSoundChar1 == oldCharacterId) {
+            buttonSoundChar1 = newCharacterId;
+            modified = true;
+        }
+        if (buttonSoundChar2 == oldCharacterId) {
+            buttonSoundChar2 = newCharacterId;
+            modified = true;
+        }
+        if (buttonSoundChar3 == oldCharacterId) {
+            buttonSoundChar3 = newCharacterId;
+            modified = true;
+        }
+
+        if (modified) {
+            setModified(true);
+        }
+        return modified;
     }
 }

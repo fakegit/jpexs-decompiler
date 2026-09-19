@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,47 +12,76 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.helpers.SwfHeaderStreamSearch;
 import com.jpexs.helpers.streams.SeekableInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
 /**
+ * Binary search SWF bundle
  *
  * @author JPEXS
  */
-public class BinarySWFBundle implements SWFBundle {
+public class BinarySWFBundle implements Bundle {
 
+    /**
+     * SWF search
+     */
     private final SWFSearch search;
 
+    /**
+     * Constructs a new BinarySWFBundle.
+     *
+     * @param is Input stream
+     * @param noCheck Do not check
+     * @param searchMode Search mode
+     * @throws IOException On I/O error
+     */
     public BinarySWFBundle(InputStream is, boolean noCheck, SearchMode searchMode) throws IOException {
         search = new SWFSearch(new SwfHeaderStreamSearch(is), noCheck, searchMode);
         search.process();
     }
 
+    /**
+     * Gets size of the search.
+     *
+     * @return Size of the search
+     */
     @Override
     public int length() {
         return search.length();
     }
 
+    /**
+     * Gets keys.
+     *
+     * @return Keys
+     */
     @Override
     public Set<String> getKeys() {
-        Set<String> ret = new HashSet<>();
+        Set<String> ret = new LinkedHashSet<>();
         for (Long address : search.getAddresses()) {
             ret.add("[" + address + "]");
         }
         return ret;
     }
 
+    /**
+     * Gets openable.
+     *
+     * @param key Key
+     * @return Openable
+     */
     @Override
-    public SeekableInputStream getSWF(String key) {
+    public SeekableInputStream getOpenable(String key) {
         if (!key.startsWith("[")) {
             return null;
         }
@@ -68,27 +97,49 @@ public class BinarySWFBundle implements SWFBundle {
         }
     }
 
+    /**
+     * Gets all.
+     *
+     * @return Map of string to seekable input stream
+     */
     @Override
     public Map<String, SeekableInputStream> getAll() {
-        Map<String, SeekableInputStream> ret = new HashMap<>();
+        Map<String, SeekableInputStream> ret = new LinkedHashMap<>();
         for (String key : getKeys()) {
-            ret.put(key, getSWF(key));
+            ret.put(key, getOpenable(key));
         }
         return ret;
     }
 
+    /**
+     * Gets extension.
+     *
+     * @return Extension
+     */
     @Override
     public String getExtension() {
         return "bin";
     }
 
+    /**
+     * Checks if read only.
+     *
+     * @return True if read only, false otherwise
+     */
     @Override
     public boolean isReadOnly() {
         return true;
     }
 
+    /**
+     * Replaces openable.
+     *
+     * @param key Key
+     * @param is Input stream
+     * @return True if successful, false otherwise
+     */
     @Override
-    public boolean putSWF(String key, InputStream is) {
+    public boolean putOpenable(String key, InputStream is) {
         throw new UnsupportedOperationException("Save not supported for this type of bundle");
     }
 }

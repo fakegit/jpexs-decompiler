@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,32 +16,67 @@
  */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
+import com.jpexs.decompiler.flash.abc.types.Multiname;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
+import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
-import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
+import com.jpexs.helpers.Helper;
 import java.util.List;
 import java.util.Objects;
 
 /**
+ * Construct property.
  *
  * @author JPEXS
  */
 public class ConstructPropAVM2Item extends AVM2Item {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
+    /**
+     * Property name
+     */
     public GraphTargetItem propertyName;
 
+    /**
+     * Arguments
+     */
     public List<GraphTargetItem> args;
 
-    public ConstructPropAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem propertyName, List<GraphTargetItem> args) {
+    /**
+     * Type
+     */
+    public GraphTargetItem type;
+    
+    /**
+     * Is static
+     */
+    public boolean isStatic;
+
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     * @param propertyName Property name
+     * @param args Arguments
+     * @param type Type
+     * @param isStatic Is static
+     */
+    public ConstructPropAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem propertyName, List<GraphTargetItem> args, GraphTargetItem type, boolean isStatic) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.object = object;
         this.propertyName = propertyName;
         this.args = args;
+        this.type = type;
+        this.isStatic = isStatic;
     }
 
     @Override
@@ -54,16 +89,41 @@ public class ConstructPropAVM2Item extends AVM2Item {
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("new ");
-        if (!(object.getThroughDuplicate() instanceof FindPropertyAVM2Item)) {
-            object.toString(writer, localData);
-            writer.append(".");
+        boolean isGetDefinition = false;
+        if (propertyName instanceof FullMultinameAVM2Item) {
+            FullMultinameAVM2Item fm = (FullMultinameAVM2Item) propertyName;
+            if (fm.multinameIndex > 0) {
+                Multiname m = localData.abc.constants.getMultiname(fm.multinameIndex);
+                if (m.kind == Multiname.MULTINAMEL) {
+                    if (m.getNamespaceSet(localData.abc.constants).namespaces.length == 1) {
+                        isGetDefinition = true;
+                        writer.append("(");
+                        if (localData.fullyQualifiedNames.contains(DottedChain.parseNoSuffix("flash.utils.getDefinitionByName"))) {
+                            writer.append("flash.utils.getDefinitionByName");
+                        } else {
+                            writer.append("getDefinitionByName");
+                        }
+                        writer.append("(");
+                        String nname = m.getSingleNamespace(localData.abc.constants).getName(localData.abc.constants).toRawString();
+                        if (!nname.isEmpty()) {
+                            writer.append("\"");
+                            writer.append(Helper.escapeActionScriptString(nname));                        
+                            writer.append("\"+\".\"+");                    
+                        }
+                        fm.name.appendTo(writer, localData);
+                        writer.append("))");
+                    }
+                }
+            }
         }
-        propertyName.toString(writer, localData);
-        writer.spaceBeforeCallParenthesies(args.size());
+        if (!isGetDefinition) {
+            formatProperty(writer, object, propertyName, localData, isStatic, false);        
+        }
+        writer.spaceBeforeCallParenthesis(args.size());
         writer.append("(");
         for (int a = 0; a < args.size(); a++) {
             if (a > 0) {
-                writer.append(",");
+                writer.allowWrapHere().append(",");
             }
             args.get(a).toString(writer, localData);
         }
@@ -72,7 +132,7 @@ public class ConstructPropAVM2Item extends AVM2Item {
 
     @Override
     public GraphTargetItem returnType() {
-        return TypeItem.UNBOUNDED;
+        return type;
     }
 
     @Override

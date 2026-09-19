@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,7 +17,7 @@
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
-import com.jpexs.decompiler.flash.action.model.operations.AddActionItem;
+import com.jpexs.decompiler.flash.action.model.operations.StringAddActionItem;
 import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.swf4.ActionGetURL2;
 import com.jpexs.decompiler.flash.action.swf4.ActionPush;
@@ -33,15 +33,25 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Load variables num.
  *
  * @author JPEXS
  */
 public class LoadVariablesNumActionItem extends ActionItem {
 
+    /**
+     * URL string
+     */
     private final GraphTargetItem urlString;
 
+    /**
+     * Number
+     */
     private final GraphTargetItem num;
 
+    /**
+     * Method
+     */
     private final int method;
 
     @Override
@@ -50,6 +60,15 @@ public class LoadVariablesNumActionItem extends ActionItem {
         visitor.visit(num);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param urlString URL string
+     * @param num Number
+     * @param method Method
+     */
     public LoadVariablesNumActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem urlString, GraphTargetItem num, int method) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.urlString = urlString;
@@ -67,7 +86,7 @@ public class LoadVariablesNumActionItem extends ActionItem {
             methodStr = ",\"POST\"";
         }
         writer.append("loadVariablesNum");
-        writer.spaceBeforeCallParenthesies(2);
+        writer.spaceBeforeCallParenthesis(2);
         writer.append("(");
         urlString.toString(writer, localData);
         writer.append(",");
@@ -76,24 +95,25 @@ public class LoadVariablesNumActionItem extends ActionItem {
     }
 
     @Override
-    public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        return toSource(localData, generator, true);
-    }
-
-    @Override
     public List<GraphSourceItem> toSourceIgnoreReturnValue(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         return toSource(localData, generator, false);
     }
 
+    @Override
+    public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+        return toSource(localData, generator, true);
+    }
+
     private List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator, boolean needsReturn) throws CompilationException {
         ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
         Object lev;
         if ((num instanceof DirectValueActionItem) && (((DirectValueActionItem) num).value instanceof Long)) {
             lev = asGenerator.pushConstTargetItem("_level" + ((DirectValueActionItem) num).value);
         } else {
-            lev = new AddActionItem(getSrc(), getLineStartItem(), asGenerator.pushConstTargetItem("_level"), num, true);
+            lev = new StringAddActionItem(getSrc(), getLineStartItem(), asGenerator.pushConstTargetItem("_level"), num);
         }
-        return toSourceMerge(localData, generator, urlString, lev, new ActionGetURL2(method, true, false), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}) : null);
+        return toSourceMerge(localData, generator, urlString, lev, new ActionGetURL2(method, true, false, charset), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}, charset) : null);
     }
 
     @Override

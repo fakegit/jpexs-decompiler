@@ -97,6 +97,12 @@ public class TypefaceFile extends GlyphFile {
     private Double m_bottomSideBearing = null;
 
     private String m_name;
+    
+    //JPEXS
+    private boolean bold = false;
+    
+    //JPEXS
+    private boolean italic = false;
 
     public TypefaceFile(String a_name, File a_dir) throws FileNotFoundException {
         super(a_dir);
@@ -114,6 +120,16 @@ public class TypefaceFile extends GlyphFile {
 
         initFileName();
     }
+
+    //JPEXS
+    public void setBold(boolean bold) {
+        this.bold = bold;
+    }
+
+    //JPEXS
+    public void setItalic(boolean italic) {
+        this.italic = italic;
+    }        
 
     private void initFileName() {
 
@@ -397,6 +413,7 @@ public class TypefaceFile extends GlyphFile {
             writer.setXHeight((int) getXHeight());
             writer.setDescent((int) getDescender());
             writer.setLineGap((int) (getTopSideBearing() + getBottomSideBearing()));
+            writer.setFontStyle(bold, italic);
 
             loadCodePages(writer);
             loadUnicodeRanges(writer);
@@ -474,13 +491,18 @@ public class TypefaceFile extends GlyphFile {
             glyph = createCompoundGlyph(a_glyphFile, a_writer);
         }
 
-        if (glyph == null && a_glyphFile.isWhiteSpace()) {
+        /*if (glyph == null && a_glyphFile.isWhiteSpace()) {
             glyph = new TTGlyph();
         }
 
         if (glyph == null) {
             return;
+        }*/
+        //JPEXS
+        if (glyph == null) {
+            glyph = new TTGlyph();
         }
+        
 
         int glyphIndex = a_writer.addGlyph(glyph);
         long unicode = a_glyphFile.getUnicode();

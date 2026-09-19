@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,19 +12,34 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types;
 
 import java.io.Serializable;
 
 /**
- * Represents 32-bit alpha, red, green and blue value
+ * ALPHACOLORMAPDATA represents a color table and pixel data for an alpha color
+ * map.
  *
  * @author JPEXS
  */
 public class ALPHACOLORMAPDATA implements Serializable {
 
+    /**
+     * Color table
+     */
     public int[] colorTableRGB;
 
+    /**
+     * Color map pixel data
+     */
     public byte[] colorMapPixelData;
+
+    /**
+     * Constructor.
+     */
+    public ALPHACOLORMAPDATA() {
+
+    }
 }

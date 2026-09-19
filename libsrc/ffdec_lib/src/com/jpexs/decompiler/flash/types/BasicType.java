@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,29 +12,83 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types;
 
 /**
+ * Basic types enum.
  *
  * @author JPEXS
  */
 public enum BasicType {
 
+    /**
+     * Unsigned 8-bit integer
+     */
     UI8,
+    /**
+     * Unsigned 16-bit integer
+     */
     UI16,
+    /**
+     * Unsigned 32-bit integer
+     */
     UI32,
+    /**
+     * Variable length encoded unsigned 32-bit integer
+     */
     EncodedU32,
+    /**
+     * Signed 8-bit integer
+     */
     SI8,
+    /**
+     * Signed 16-bit integer
+     */
     SI16,
+    /**
+     * Signed 32-bit integer
+     */
     SI32,
+    /**
+     * Unsigned integer bits
+     */
     UB,
+    /**
+     * Signed integer bits
+     */
     SB,
+    /**
+     * Float bits
+     */
     FB,
+    /**
+     * Signed Single-precision (32-bit) floating-point number
+     */
     FLOAT,
+    /**
+     * Signed Half-precision (16-bit) floating-point number
+     */
     FLOAT16,
+    /**
+     * Signed 32-bit 16.16 fixed-point number
+     */
     FIXED,
+    /**
+     * Signed 16-bit 8.8 fixed-point number
+     */
     FIXED8,
+    /**
+     * Unsigned 16-bit 8.8 fixed-point number
+     */
+    UFIXED8,
+    /**
+     * None
+     */
     NONE,
+    /**
+     * Other
+     */
     OTHER
 }

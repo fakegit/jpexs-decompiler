@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,11 +17,13 @@
 package com.jpexs.decompiler.flash.gui;
 
 import com.jpexs.decompiler.flash.configuration.Configuration;
-import com.jpexs.decompiler.flash.gui.player.FlashPlayerPanel;
 import com.jpexs.helpers.Helper;
 import java.awt.BorderLayout;
 import java.awt.Container;
-import java.awt.Dimension;
+import java.awt.GraphicsDevice;
+import java.awt.Insets;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
 import java.awt.Window;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
@@ -31,7 +33,6 @@ import java.awt.event.WindowStateListener;
 import javax.swing.JFrame;
 
 /**
- *
  * @author JPEXS
  */
 public final class MainFrameClassic extends AppFrame implements MainFrame {
@@ -41,33 +42,26 @@ public final class MainFrameClassic extends AppFrame implements MainFrame {
     private final MainFrameMenu mainMenu;
 
     public MainFrameClassic() {
-        super();
+        super();      
 
-        FlashPlayerPanel flashPanel = null;
-        FlashPlayerPanel flashPanel2 = null;
-
-        if (Configuration.useAdobeFlashPlayerForPreviews.get()) {
-            try {
-                flashPanel = new FlashPlayerPanel(this);
-                flashPanel2 = new FlashPlayerPanel(this);
-            } catch (FlashUnsupportedException fue) {
-            }
-        }
-
-        boolean externalFlashPlayerUnavailable = flashPanel == null;
-        mainMenu = new MainFrameClassicMenu(this, externalFlashPlayerUnavailable);
+        mainMenu = new MainFrameClassicMenu(this);
         mainMenu.createMenuBar();
 
-        panel = new MainPanel(this, mainMenu, flashPanel, flashPanel2);
+        panel = new MainPanel(this, mainMenu);
 
         int w = Configuration.guiWindowWidth.get();
         int h = Configuration.guiWindowHeight.get();
-        Dimension dim = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
-        if (w > dim.width) {
-            w = dim.width;
+        GraphicsDevice device = View.getMainDefaultScreenDevice();
+        Rectangle bounds = device.getDefaultConfiguration().getBounds();
+        Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(device.getDefaultConfiguration());
+        int maxWidth = bounds.width - (insets.left + insets.right);
+        int maxHeight = bounds.height - (insets.top + insets.bottom);
+
+        if (w > maxWidth) {
+            w = maxWidth;
         }
-        if (h > dim.height) {
-            h = dim.height;
+        if (h > maxHeight) {
+            h = maxHeight;
         }
         setSize(w, h);
 
@@ -115,7 +109,7 @@ public final class MainFrameClassic extends AppFrame implements MainFrame {
         cnt.setLayout(new BorderLayout());
         cnt.add(panel);
 
-        View.centerScreen(this);
+        View.centerScreenMain(this);
     }
 
     @Override

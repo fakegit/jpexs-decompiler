@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.swf5;
 
 import com.jpexs.decompiler.flash.BaseLocalData;
@@ -20,25 +21,36 @@ import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.ActionScriptFunction;
 import com.jpexs.decompiler.flash.action.ActionScriptObject;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
+import com.jpexs.decompiler.flash.action.as2.Trait;
 import com.jpexs.decompiler.flash.action.model.CallMethodActionItem;
+import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
+import com.jpexs.decompiler.flash.action.model.GetMemberActionItem;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SecondPassData;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.decompiler.graph.model.AnyItem;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
+ * CallMethod action - Call a method on an object.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 5)
 public class ActionCallMethod extends Action {
 
+    /**
+     * Constructor.
+     */
     public ActionCallMethod() {
-        super(0x52, 0);
+        super(0x52, 0, Utf8Helper.charsetName);
     }
 
     @Override
@@ -76,7 +88,7 @@ public class ActionCallMethod extends Action {
     }
 
     @Override
-    public void translate(SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+    public void translate(Set<String> usedDeobfuscations, Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
         GraphTargetItem methodName = stack.pop();
         GraphTargetItem scriptObject = stack.pop();
         long numArgs = popLong(stack);
@@ -84,6 +96,26 @@ public class ActionCallMethod extends Action {
         for (long l = 0; l < numArgs; l++) {
             args.add(stack.pop());
         }
+        
+        if (methodName instanceof DirectValueActionItem) {
+            DirectValueActionItem dv = (DirectValueActionItem) methodName;
+            if (dv.isString()) {
+                String methodNameStr = dv.getAsString();
+                if (methodNameStr.startsWith("__get__") && args.isEmpty()) {
+                    String varName = methodNameStr.substring(7);
+                    GetMemberActionItem gm = new GetMemberActionItem(this, lineStartAction, scriptObject, new DirectValueActionItem(varName));
+                    gm.isGetter = true;
+                    stack.push(gm);
+                    return;
+                } else if (methodNameStr.startsWith("__set__") && args.size() == 1) {
+                    String varName = methodNameStr.substring(7);
+                    int outSize = output.size();
+                    ActionSetMember.handleSetMember(true, args.get(0), new DirectValueActionItem(varName), scriptObject, this, usedDeobfuscations, uninitializedClassTraits, secondPassData, insideDoInitAction, lineStartAction, stack, output, regNames, variables, functions, staticOperation, path);                   
+                    return;
+                }
+            }
+        }
+        
         stack.push(new CallMethodActionItem(this, lineStartAction, scriptObject, methodName, args));
     }
 

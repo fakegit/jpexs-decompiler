@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,18 +12,19 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
-import com.jpexs.decompiler.flash.types.annotations.HideInRawEdit;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.helpers.ByteArrayRange;
 import java.io.IOException;
 
 /**
+ * SoundStreamBlock tag - contains sound data for streaming sound.
  *
  * @author JPEXS
  */
@@ -34,13 +35,12 @@ public class SoundStreamBlockTag extends Tag {
 
     public static final String NAME = "SoundStreamBlock";
 
-    @HideInRawEdit
     public ByteArrayRange streamSoundData;
 
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public SoundStreamBlockTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -50,9 +50,9 @@ public class SoundStreamBlockTag extends Tag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public SoundStreamBlockTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -69,7 +69,7 @@ public class SoundStreamBlockTag extends Tag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {

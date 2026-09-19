@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.other;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -29,11 +30,15 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.List;
 
 /**
+ * throw instruction - throw an exception.
  *
  * @author JPEXS
  */
 public class ThrowIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public ThrowIns() {
         super(0x03, "throw", new int[]{}, true);
     }
@@ -46,7 +51,8 @@ public class ThrowIns extends InstructionDefinition {
 
     @Override
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
-        output.add(new ThrowAVM2Item(ins, localData.lineStartInstruction, stack.pop()));
+        GraphTargetItem value = stack.pop();
+        stack.addToOutput(new ThrowAVM2Item(ins, localData.lineStartInstruction, value));
     }
 
     @Override

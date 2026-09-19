@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types;
 
 import com.jpexs.decompiler.flash.types.annotations.Reserved;
@@ -20,12 +21,15 @@ import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import java.io.Serializable;
 
 /**
- * Represents 15-bit red, green and blue value
+ * 15-bit red, green and blue value
  *
  * @author JPEXS
  */
 public class PIX15 implements Serializable {
 
+    /**
+     * Reserved
+     */
     @SWFType(value = BasicType.UB, count = 1)
     @Reserved
     public int reserved;
@@ -47,4 +51,10 @@ public class PIX15 implements Serializable {
      */
     @SWFType(value = BasicType.UB, count = 5)
     public int blue;
+
+    /**
+     * Constructor.
+     */
+    public PIX15() {
+    }
 }

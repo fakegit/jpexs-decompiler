@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,27 +12,42 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.amf.amf3;
 
+/**
+ * Exception thrown when no deserializer exists for a given class.
+ */
 public class NoSerializerExistsException extends Exception {
 
     private final String className;
     private final Object incompleteData;
 
-    /*public NoSerializerExistsException(String className, Object incompleteData) {
-        this(className, incompleteData, null);
-    }*/
+    /**
+     * Constructor.
+     * @param className Class name
+     * @param incompleteData Incomplete data
+     * @param cause Cause
+     */
     public NoSerializerExistsException(String className, Object incompleteData, Throwable cause) {
         super("Cannot read AMF - no deserializer defined for class \"" + className + "\".", cause);
         this.className = className;
         this.incompleteData = incompleteData;
     }
 
+    /**
+     * Gets the class name.
+     * @return Class name
+     */
     public String getClassName() {
         return className;
     }
 
+    /**
+     * Gets the incomplete data.
+     * @return Incomplete data
+     */
     public Object getIncompleteData() {
         return incompleteData;
     }

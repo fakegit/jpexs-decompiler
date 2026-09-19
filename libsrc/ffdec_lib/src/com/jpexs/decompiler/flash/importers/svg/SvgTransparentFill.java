@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,12 +12,14 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.importers.svg;
 
 import java.awt.Color;
 
 /**
+ * SVG transparent fill.
  *
  * @author JPEXS
  */
@@ -25,6 +27,9 @@ class SvgTransparentFill extends SvgFill {
 
     private static final Color TRANSPARENT = new Color(0, true);
 
+    /**
+     * Singleton instance.
+     */
     public static SvgTransparentFill INSTANCE = new SvgTransparentFill();
 
     private SvgTransparentFill() {

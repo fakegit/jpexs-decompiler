@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,7 +21,10 @@ import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instructions;
 import com.jpexs.decompiler.flash.abc.avm2.model.AVM2Item;
+import com.jpexs.decompiler.flash.abc.types.MethodInfo;
 import com.jpexs.decompiler.flash.abc.types.ValueKind;
+import com.jpexs.decompiler.flash.abc.types.traits.Trait;
+import com.jpexs.decompiler.flash.abc.types.traits.TraitMethodGetterSetter;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.DottedChain;
@@ -33,31 +36,59 @@ import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
+ * Call.
  *
  * @author JPEXS
  */
 public class CallAVM2Item extends AVM2Item {
 
+    /**
+     * Name
+     */
     public GraphTargetItem name;
 
+    /**
+     * Arguments
+     */
     public List<GraphTargetItem> arguments;
 
+    /**
+     * Line
+     */
     public int line;
 
+    /**
+     * Opened namespaces
+     */
     public List<NamespaceItem> openedNamespaces;
 
+    /**
+     * ABC indexing
+     */
     private AbcIndexing abcIndex;
+    private final TypeItem thisType;
 
-    public CallAVM2Item(List<NamespaceItem> openedNamespaces, int line, GraphTargetItem name, List<GraphTargetItem> arguments, AbcIndexing abcIndex) {
+    /**
+     * Constructor.
+     * @param openedNamespaces Opened namespaces
+     * @param line Line
+     * @param name Name
+     * @param arguments Arguments
+     * @param abcIndex ABC indexing
+     * @param thisType This type
+     */
+    public CallAVM2Item(List<NamespaceItem> openedNamespaces, int line, GraphTargetItem name, List<GraphTargetItem> arguments, AbcIndexing abcIndex, TypeItem thisType) {
         super(null, null, NOPRECEDENCE);
         this.openedNamespaces = openedNamespaces;
         this.name = name;
         this.arguments = arguments;
         this.line = line;
         this.abcIndex = abcIndex;
+        this.thisType = thisType;
     }
 
     @Override
@@ -65,6 +96,14 @@ public class CallAVM2Item extends AVM2Item {
         return writer;
     }
 
+    /**
+     * Converts to source.
+     * @param localData Local data
+     * @param generator Generator
+     * @param needsReturn Needs return
+     * @return Source
+     * @throws CompilationException On compilation error
+     */
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator, boolean needsReturn) throws CompilationException {
 
         AVM2SourceGenerator g = (AVM2SourceGenerator) generator;
@@ -73,13 +112,10 @@ public class CallAVM2Item extends AVM2Item {
         if (callable instanceof UnresolvedAVM2Item) {
             callable = ((UnresolvedAVM2Item) callable).resolved;
         }
-        if (callable instanceof ImportedSlotConstItem) {
-            callable = ((ImportedSlotConstItem) callable).type;
-        }
         if (callable instanceof NameAVM2Item) {
             NameAVM2Item n = (NameAVM2Item) callable;
             if (!localData.registerVars.containsKey(n.getVariableName())) {
-                String cname = localData.currentClass;
+                String cname = localData.currentClassBaseName;
                 DottedChain pkgName = localData.pkg;
                 GraphTargetItem obj = null;
                 Reference<String> outName = new Reference<>("");
@@ -97,12 +133,13 @@ public class CallAVM2Item extends AVM2Item {
                         otherNs.add(on.getCpoolIndex(g.abcIndex));
                     }
                 }
-                if (cname != null && AVM2SourceGenerator.searchPrototypeChain(otherNs, localData.privateNs, localData.protectedNs, true, g.abcIndex, pkgName, cname, n.getVariableName(), outName, outNs, outPropNs, outPropNsKind, outPropNsIndex, outPropType, outPropValue, outPropValueABC, isType)) {
-                    NameAVM2Item nobj = new NameAVM2Item(new TypeItem(localData.getFullClass()), n.line, "this", null, false, n.openedNamespaces, abcIndex);
+                //For using this when appropriate: (Non ASC2 approach)
+                /*if (cname != null && AVM2SourceGenerator.searchPrototypeChain(null, otherNs, localData.privateNs, localData.protectedNs, true, g.abcIndex, pkgName, cname, n.getVariableName(), outName, outNs, outPropNs, outPropNsKind, outPropNsIndex, outPropType, outPropValue, outPropValueABC, isType)) {
+                    NameAVM2Item nobj = new NameAVM2Item(new TypeItem(localData.getFullClass()), n.line, false, "this", "", null, false, n.openedNamespaces, abcIndex);
                     nobj.setRegNumber(0);
                     obj = nobj;
-                }
-                PropertyAVM2Item p = new PropertyAVM2Item(obj, n.getVariableName(), g.abcIndex, n.openedNamespaces, new ArrayList<>());
+                }*/
+                PropertyAVM2Item p = new PropertyAVM2Item(obj, n.isAttribute(), n.getVariableName(), n.getNamespaceSuffix(), g.abcIndex, n.openedNamespaces, new ArrayList<>(), false, null, line, thisType);
                 p.setAssignedValue(n.getAssignedValue());
                 callable = p;
             }
@@ -113,17 +150,53 @@ public class CallAVM2Item extends AVM2Item {
             TypeItem t = (TypeItem) callable;
             propIndex = AVM2SourceGenerator.resolveType(localData, t, ((AVM2SourceGenerator) generator).abcIndex);
         }
+        
+        if (callable instanceof ScriptPropertyAVM2Item) {
+            TypeItem t = ((ScriptPropertyAVM2Item) callable).type;
+            propIndex = AVM2SourceGenerator.resolveType(localData, t, ((AVM2SourceGenerator) generator).abcIndex);;
+        }
+        
+        
         Object obj = null;
 
         if (callable instanceof PropertyAVM2Item) {
             PropertyAVM2Item prop = (PropertyAVM2Item) callable;
-            obj = prop.object;
-            if (obj == null) {
+            
+            Reference<GraphTargetItem> objType = new Reference<>(null);
+            Reference<GraphTargetItem> propType = new Reference<>(null);
+            Reference<Integer> propIndexX = new Reference<>(0);
+            Reference<ValueKind> outPropValue = new Reference<>(null);
+            Reference<ABC> outPropValueAbc = new Reference<>(null);
+            Reference<Boolean> isType = new Reference<>(false);
+            Reference<Trait> outPropTrait = new Reference<>(null);
 
-                /*List<ABC> allAbcs = new ArrayList<>();
-                 allAbcs.add(g.abc);
-                 allAbcs.addAll(g.allABCs);
-                 */ String cname = localData.currentClass;
+            prop.resolve(false, localData, isType, objType, propType, propIndexX, outPropValue, outPropValueAbc, outPropTrait);           
+            
+            if (outPropTrait.getVal() != null) {
+                Trait t = (Trait) outPropTrait.getVal();
+                if (t instanceof TraitMethodGetterSetter) {
+                    TraitMethodGetterSetter tm = (TraitMethodGetterSetter) t;
+                    ABC abc = outPropValueAbc.getVal();
+                    MethodInfo mi = abc.method_info.get(tm.method_info);
+                    for (int i = 0; i < mi.param_types.length; i++) {
+                        if (i >= arguments.size()) {
+                            break;
+                        }
+                        GraphTargetItem type;
+                        if (mi.param_types[i] == 0) {
+                            type = TypeItem.UNBOUNDED;
+                        } else {                     
+                            type = new TypeItem(abc.constants.getMultiname(mi.param_types[i]).getNameWithNamespace(new LinkedHashSet<>() /*???*/, abc, abc.constants, true /*??*/));
+                        }
+                        arguments.set(i, AVM2SourceGenerator.handleAndOrCoerce(arguments.get(i), type));
+                    }
+                }
+            }
+            
+            obj = prop.object;
+            //For using this when appropriate: (Non ASC2 approach)
+            /*if (obj == null) {
+                String cname = localData.currentClassBaseName;
                 DottedChain pkgName = localData.pkg;
                 Reference<String> outName = new Reference<>("");
                 Reference<DottedChain> outNs = new Reference<>(DottedChain.EMPTY);
@@ -141,16 +214,22 @@ public class CallAVM2Item extends AVM2Item {
                         otherNs.add(n.getCpoolIndex(g.abcIndex));
                     }
                 }
-
-                if (cname != null && AVM2SourceGenerator.searchPrototypeChain(otherNs, localData.privateNs, localData.protectedNs, true, g.abcIndex, pkgName, cname, prop.propertyName, outName, outNs, outPropNs, outPropNsKind, outPropNsIndex, outPropType, outPropValue, outPropValueAbc, isType) && (localData.getFullClass().equals(outNs.getVal().addWithSuffix(outName.getVal()).toRawString()))) {
-                    NameAVM2Item nobj = new NameAVM2Item(new TypeItem(localData.getFullClass()), 0, "this", null, false, new ArrayList<>(), abcIndex);
+                if (!localData.subMethod && cname != null && AVM2SourceGenerator.searchPrototypeChain(null, otherNs, localData.privateNs, localData.protectedNs, true, g.abcIndex, pkgName, cname, prop.propertyName, outName, outNs, outPropNs, outPropNsKind, outPropNsIndex, outPropType, outPropValue, outPropValueAbc, isType) && (localData.getFullClass().equals(outNs.getVal().addWithSuffix(outName.getVal()).toRawString()))) {
+                    NameAVM2Item nobj = new NameAVM2Item(new TypeItem(localData.getFullClass()), 0, false, "this", "", null, false, new ArrayList<>(), abcIndex);
                     nobj.setRegNumber(0);
                     obj = nobj;
                 }
-            }
+            }*/
             propIndex = prop.resolveProperty(localData);
         }
 
+        if (callable instanceof TypeItem && propIndex != -1 && arguments.size() == 1) {
+            AVM2Instruction ins = NameAVM2Item.generateConvert(localData, generator, callable);            
+            if (ins != null) {
+                return toSourceMerge(localData, generator, arguments, ins);
+            }
+        }
+        
         if (propIndex != -1) {
             if (obj == null) {
                 obj = new AVM2Instruction(0, AVM2Instructions.FindPropertyStrict, new int[]{propIndex});
@@ -173,7 +252,7 @@ public class CallAVM2Item extends AVM2Item {
             return ((NamespacedAVM2Item) callable).toSource(localData, generator, needsReturn, true, arguments, false, false);
         }
 
-        return toSourceMerge(localData, generator, callable, ins(AVM2Instructions.GetGlobalScope), arguments, ins(AVM2Instructions.Call, arguments.size()));
+        return toSourceMerge(localData, generator, callable, ins(AVM2Instructions.GetGlobalScope) /*ASC2 uses getlocal0 here*/, arguments, ins(AVM2Instructions.Call, arguments.size()), needsReturn ? null : ins(AVM2Instructions.Pop));
     }
 
     @Override

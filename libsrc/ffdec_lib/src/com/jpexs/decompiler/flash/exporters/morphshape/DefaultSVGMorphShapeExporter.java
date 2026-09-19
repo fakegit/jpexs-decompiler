@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.morphshape;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -23,25 +24,53 @@ import com.jpexs.decompiler.flash.types.RGB;
 import com.jpexs.decompiler.flash.types.SHAPE;
 
 /**
+ * Default SVG morph shape exporter.
  *
  * @author JPEXS, Claus Wahlers
  */
 public abstract class DefaultSVGMorphShapeExporter extends MorphShapeExporterBase {
 
+    /**
+     * Draw command L
+     */
     protected static final String DRAW_COMMAND_L = "L";
 
+    /**
+     * Draw command Q
+     */
     protected static final String DRAW_COMMAND_Q = "Q";
 
+    /**
+     * Current draw command
+     */
     protected String currentDrawCommand = "";
 
+    /**
+     * Path data
+     */
     protected StringBuilder pathData;
 
+    /**
+     * Path data end
+     */
     protected StringBuilder pathDataEnd;
 
+    /**
+     * Zoom
+     */
     protected double zoom;
 
-    public DefaultSVGMorphShapeExporter(SHAPE shape, SHAPE endShape, ColorTransform colorTransform, double zoom) {
-        super(shape, endShape, colorTransform);
+    /**
+     * Constructor.
+     *
+     * @param morphShapeNum Morph shape number
+     * @param shape Shape
+     * @param endShape End shape
+     * @param colorTransform Color transform
+     * @param zoom Zoom
+     */
+    public DefaultSVGMorphShapeExporter(int morphShapeNum, SHAPE shape, SHAPE endShape, ColorTransform colorTransform, double zoom) {
+        super(morphShapeNum, shape, endShape, colorTransform);
         this.zoom = zoom;
     }
 
@@ -66,7 +95,11 @@ public abstract class DefaultSVGMorphShapeExporter extends MorphShapeExporterBas
     }
 
     @Override
-    public void endLines() {
+    public void endLines(boolean close) {
+        if (close) {
+            pathData.append("Z");
+            pathDataEnd.append("Z");
+        }
         finalizePath();
     }
 
@@ -91,7 +124,7 @@ public abstract class DefaultSVGMorphShapeExporter extends MorphShapeExporterBas
     }
 
     @Override
-    public void lineStyle(double thickness, double thicknessEnd, RGB color, RGB colorEnd, boolean pixelHinting, String scaleMode, int startCaps, int endCaps, int joints, float miterLimit) {
+    public void lineStyle(double thickness, double thicknessEnd, RGB color, RGB colorEnd, boolean pixelHinting, String scaleMode, int startCaps, int endCaps, int joints, float miterLimit, boolean noClose) {
         finalizePath();
     }
 
@@ -140,12 +173,21 @@ public abstract class DefaultSVGMorphShapeExporter extends MorphShapeExporterBas
                 .append(roundPixels20(anchorY2 * zoom / SWF.unitDivisor)).append(" ");
     }
 
+    /**
+     * Finalizes path.
+     */
     protected void finalizePath() {
         pathData = new StringBuilder();
         pathDataEnd = new StringBuilder();
         currentDrawCommand = "";
     }
 
+    /**
+     * Rounds pixels 20.
+     *
+     * @param pixels Pixels
+     * @return Rounded pixels
+     */
     protected double roundPixels20(double pixels) {
         return Math.round(pixels * 100) / 100.0;
     }

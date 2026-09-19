@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,11 +31,17 @@ import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.List;
 
 /**
+ * NaN value.
  *
  * @author JPEXS
  */
 public class NanAVM2Item extends AVM2Item implements SimpleValue {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     */
     public NanAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns) {
         super(instruction, lineStartIns, NOPRECEDENCE);
     }

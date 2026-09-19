@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -39,7 +39,6 @@ import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 
 /**
- *
  * @author JPEXS
  */
 public class SearchDialog extends AppDialog {
@@ -78,7 +77,7 @@ public class SearchDialog extends AppDialog {
         }
     }
 
-    public SearchDialog(Window owner, boolean replace, String selection, boolean selectionFirst) {
+    public SearchDialog(Window owner, boolean replace, String selection, boolean selectionFirst, boolean currentAbc) {
         super(owner);
         setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
         ignoreCaseCheckBox.setSelected(true);
@@ -111,7 +110,7 @@ public class SearchDialog extends AppDialog {
         if (selection != null) {
             scopeItems.add(translate("scope.selection").replace("%selection%", selection));
         }
-        scopeItems.add(translate("scope.currentFile"));
+        scopeItems.add(translate(currentAbc ? "scope.currentFile.abc" : "scope.currentFile"));
         scopeItems.add(translate("scope.allFiles"));
         panField.add(new JLabel(translate("label.scope")));
         scopeComboBox = new JComboBox<>(scopeItems.toArray(new String[scopeItems.size()]));
@@ -119,13 +118,6 @@ public class SearchDialog extends AppDialog {
 
         if (selection != null && !selectionFirst) {
             scopeComboBox.setSelectedIndex(1);
-        }
-
-        if (replace) {
-            if (selection != null) {
-                scopeComboBox.setSelectedIndex(1);
-            }
-            scopeComboBox.setEnabled(false);
         }
 
         cnt.add(panField);
@@ -153,10 +145,6 @@ public class SearchDialog extends AppDialog {
             rbPanel.add(searchInPCodeRadioButton);
             rbPanel.add(searchInTextsRadioButton);
             cnt.add(rbPanel);
-
-            searchInASRadioButton.addActionListener(this::searchTypeActionPerformed);
-            searchInPCodeRadioButton.addActionListener(this::searchTypeActionPerformed);
-            searchInTextsRadioButton.addActionListener(this::searchTypeActionPerformed);
         }
 
         cnt.add(panButtons);
@@ -171,20 +159,7 @@ public class SearchDialog extends AppDialog {
         images.add(View.loadImage(replace ? "replace32" : "search32"));
         setIconImages(images);
     }
-
-    private void searchTypeActionPerformed(ActionEvent e) {
-        if (searchInTextsRadioButton.isSelected()) {
-            if (scopeComboBox.getModel().getSize() == 3) {
-                scopeComboBox.setSelectedIndex(1);
-            } else {
-                scopeComboBox.setSelectedIndex(0);
-            }
-            scopeComboBox.setEnabled(false);
-        } else {
-            scopeComboBox.setEnabled(true);
-        }
-    }
-
+   
     @Override
     public void setVisible(boolean b) {
         if (b) {

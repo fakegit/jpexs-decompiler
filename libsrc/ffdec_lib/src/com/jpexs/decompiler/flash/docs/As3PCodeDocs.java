@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -44,7 +44,7 @@ public class As3PCodeDocs extends AbstractDocs {
     static ResourceBundle prop;
     private static final Map<AVM2InstructionFlag, String> flagDescriptions = new HashMap<>();
 
-    private final static Map<String, InstructionDefinition> nameToDef = new HashMap<>();
+    private static final Map<String, InstructionDefinition> nameToDef = new HashMap<>();
 
     static final String NEWLINE = "\r\n";
 
@@ -62,6 +62,13 @@ public class As3PCodeDocs extends AbstractDocs {
             String flagDescription = getProperty("instructionFlag." + flagIdent);
             flagDescriptions.put(flg, flagDescription);
         }
+    }
+
+    /**
+     * Constructor.
+     */
+    public As3PCodeDocs() {
+
     }
 
     private static String makeIdent(String name) {
@@ -83,18 +90,38 @@ public class As3PCodeDocs extends AbstractDocs {
         return identName.toString();
     }
 
-    public static String getDocsForIns(String insName, boolean showDataSize, boolean ui, boolean withStyle, boolean nightMode) {
+    /**
+     * Get documentation for instruction.
+     * @param insName Name of the instruction
+     * @param showDataSize Show data size
+     * @param ui UI
+     * @param withStyle With style
+     * @param nightMode Night mode
+     * @param argumentToHilight Argument to hilight
+     * @return Documentation for instruction
+     */
+    public static String getDocsForIns(String insName, boolean showDataSize, boolean ui, boolean withStyle, boolean nightMode, int argumentToHilight) {
         if (!nameToDef.containsKey(insName)) {
             return null;
         }
-        return getDocsForIns(nameToDef.get(insName), showDataSize, ui, withStyle, nightMode);
+        return getDocsForIns(nameToDef.get(insName), showDataSize, ui, withStyle, nightMode, argumentToHilight);
     }
 
-    public static String getDocsForIns(InstructionDefinition def, boolean showDataSize, boolean ui, boolean standalone, boolean nightMode) {
+    /**
+     * Get documentation for instruction.
+     * @param def Instruction definition
+     * @param showDataSize Show data size
+     * @param ui UI
+     * @param standalone Standalone
+     * @param nightMode Night mode
+     * @param argumentToHilight Argument to hilight
+     * @return Documentation for instruction
+     */
+    public static String getDocsForIns(InstructionDefinition def, boolean showDataSize, boolean ui, boolean standalone, boolean nightMode, int argumentToHilight) {
         final String cacheKey = def.instructionName + "|" + (showDataSize ? 1 : 0) + "|" + (ui ? 1 : 0) + "|" + (standalone ? 1 : 0);
         String v = docsCache.get(cacheKey);
         if (v != null) {
-            return v;
+            return hilightArgument(v, argumentToHilight);
         }
 
         StringBuilder sb = new StringBuilder();
@@ -144,12 +171,18 @@ public class As3PCodeDocs extends AbstractDocs {
 
         if (def.hasFlag(AVM2InstructionFlag.UNKNOWN_OPERANDS)) {
             sb.append(" ").append(getProperty("ui.unknown")).append(NEWLINE);
+        } else if (ui && insName.equals("lookupswitch")) {
+            sb.append(" ");
+            sb.append("<span class=\"instruction-operands\">");
+            sb.append(getProperty("instruction.lookupswitch.operands.ui"));
+            sb.append("</span>");
         } else {
             String[] operandsDocs = operandsDoc.split(", ?");
             boolean first = true;
             if (def.operands.length > 0) {
                 sb.append(" ");
             }
+            sb.append("<span class=\"instruction-operands\">");
             for (int i = 0; i < def.operands.length; i++) {
                 int op = def.operands[i];
                 String opDoc = operandsDocs[i];
@@ -191,6 +224,7 @@ public class As3PCodeDocs extends AbstractDocs {
                     }
                 }
             }
+            sb.append("</span>");
         }
         sb.append("</div>").append(NEWLINE);
 
@@ -229,9 +263,13 @@ public class As3PCodeDocs extends AbstractDocs {
         }
         String r = sb.toString();
         docsCache.put(cacheKey, r);
-        return r;
+        return hilightArgument(r, argumentToHilight);
     }
 
+    /**
+     * Gets JavaScript.
+     * @return JavaScript
+     */
     public static String getJs() {
         String cached = docsCache.get("__js");
         if (cached != null) {
@@ -249,6 +287,11 @@ public class As3PCodeDocs extends AbstractDocs {
         return js;
     }
 
+    /**
+     * Gets all instruction documentation.
+     * @param nightMode Night mode
+     * @return All instruction documentation
+     */
     public static String getAllInstructionDocs(boolean nightMode) {
 
         String jsData = "";
@@ -266,7 +309,13 @@ public class As3PCodeDocs extends AbstractDocs {
             jsData += "flags_set[\"" + makeIdent(f.toString()) + "\"] = false;" + NEWLINE;
         }
 
-        AVM2InstructionFlag[] hideFlags = new AVM2InstructionFlag[]{AVM2InstructionFlag.NO_FLASH_PLAYER};
+        AVM2InstructionFlag[] hideFlags = new AVM2InstructionFlag[]{
+            AVM2InstructionFlag.UNDOCUMENTED,
+            AVM2InstructionFlag.UNKNOWN_STACK,
+            AVM2InstructionFlag.ES4_NUMERICS_MINOR,
+            AVM2InstructionFlag.FLOAT4_SUPPORT,
+            AVM2InstructionFlag.UNKNOWN_OPERANDS           
+        };
         for (AVM2InstructionFlag f : hideFlags) {
             jsData += "flags_set[\"" + makeIdent(f.toString()) + "\"] = true;" + NEWLINE;
         }
@@ -288,7 +337,7 @@ public class As3PCodeDocs extends AbstractDocs {
                 continue;
             }
             sb.append("\t\t\t<li class=\"instruction-item\">").append(NEWLINE);
-            sb.append("\t\t\t\t").append(getDocsForIns(def, true, false, false, nightMode).trim().replace(NEWLINE, NEWLINE + "\t\t\t\t")).append(NEWLINE);
+            sb.append("\t\t\t\t").append(getDocsForIns(def, true, false, false, nightMode, -1).trim().replace(NEWLINE, NEWLINE + "\t\t\t\t")).append(NEWLINE);
             sb.append("\t\t\t</li>").append(NEWLINE);
         }
         sb.append("\t\t</ul>").append(NEWLINE);
@@ -297,34 +346,51 @@ public class As3PCodeDocs extends AbstractDocs {
         return sb.toString();
     }
 
+    /**
+     * Main method.
+     * @param args Arguments
+     * @throws UnsupportedEncodingException On unsupported encoding
+     */
     public static void main(String[] args) throws UnsupportedEncodingException {
         System.out.println(getAllInstructionDocs(false));
     }
 
+    /**
+     * Gets HTML header.
+     * @param js JavaScript
+     * @param style Style
+     * @param nightMode Night mode
+     * @return HTML header
+     */
     protected static String htmlHeader(String js, String style, boolean nightMode) {
         Date dateGenerated = new Date();
         StringBuilder sb = new StringBuilder();
-        sb.append("<!DOCTYPE html>").append(NEWLINE).
-                append("<html>").append(NEWLINE).
-                append("\t<head>").append(NEWLINE);
+        sb.append("<!DOCTYPE html>").append(NEWLINE)
+                .append("<html>").append(NEWLINE)
+                .append("\t<head>").append(NEWLINE);
         if (style != null && !style.isEmpty()) {
             sb.append("\t\t<style>").append(style).append("</style>").append(NEWLINE);
         }
         if (js != null && !js.isEmpty()) {
             sb.append("\t\t<script>").append(js).append("</script>").append(NEWLINE);
         }
-        sb.append("\t\t<meta charset=\"UTF-8\">").append(NEWLINE).
-                append(meta("generator", ApplicationInfo.applicationVerName)).
-                append(meta("description", getProperty("ui.list.pageDescription"))).
-                append(metaProp("og:title", getProperty("ui.list.pageTitle"))).
-                append(metaProp("og:type", "article")).
-                append(metaProp("og:description", getProperty("ui.list.pageDescription"))).
-                append(meta("date", dateGenerated)).
-                append("\t\t<title>").append(getProperty("ui.list.documentTitle")).append("</title>").append(NEWLINE).
-                append("\t</head>").append(NEWLINE);
+        sb.append("\t\t<meta charset=\"UTF-8\">").append(NEWLINE)
+                .append(meta("generator", ApplicationInfo.applicationVerName))
+                .append(meta("description", getProperty("ui.list.pageDescription")))
+                .append(metaProp("og:title", getProperty("ui.list.pageTitle")))
+                .append(metaProp("og:type", "article"))
+                .append(metaProp("og:description", getProperty("ui.list.pageDescription")))
+                .append(meta("date", dateGenerated))
+                .append("\t\t<title>").append(getProperty("ui.list.documentTitle")).append("</title>").append(NEWLINE)
+                .append("\t</head>").append(NEWLINE);
         return sb.toString();
     }
 
+    /**
+     * Gets property.
+     * @param name Name
+     * @return Property
+     */
     protected static String getProperty(String name) {
         if (prop.containsKey(name)) {
             return Helper.escapeHTML(prop.getString(name));

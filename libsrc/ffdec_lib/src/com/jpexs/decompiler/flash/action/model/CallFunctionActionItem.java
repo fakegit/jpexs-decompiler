@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -33,21 +33,30 @@ import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Call function.
  *
  * @author JPEXS
  */
 public class CallFunctionActionItem extends ActionItem {
 
+    /**
+     * Function name.
+     */
     public final GraphTargetItem functionName;
 
+    /**
+     * Arguments.
+     */
     public final List<GraphTargetItem> arguments;
 
+    /**
+     * Calculated function.
+     */
     public GraphTargetItem calculatedFunction;
 
     @Override
@@ -55,6 +64,14 @@ public class CallFunctionActionItem extends ActionItem {
         visitor.visitAll(arguments);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param functionName Function name
+     * @param arguments Arguments
+     */
     public CallFunctionActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem functionName, List<GraphTargetItem> arguments) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.functionName = functionName;
@@ -82,11 +99,11 @@ public class CallFunctionActionItem extends ActionItem {
                 writer.append(")");
             }
         }
-        writer.spaceBeforeCallParenthesies(arguments.size());
+        writer.spaceBeforeCallParenthesis(arguments.size());
         writer.append("(");
         for (int t = 0; t < arguments.size(); t++) {
             if (t > 0) {
-                writer.append(",");
+                writer.allowWrapHere().append(",");
             }
             arguments.get(t).toStringNL(writer, localData);
         }

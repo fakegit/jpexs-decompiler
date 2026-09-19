@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,20 +18,33 @@ package com.jpexs.decompiler.graph.model;
 
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.GraphSourceItem;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TypeItem;
 import java.util.Set;
 
 /**
+ * Integer value.
  *
  * @author JPEXS
  */
 public class IntegerValueItem extends GraphTargetItem implements IntegerValueTypeItem {
 
+    /**
+     * Integer value
+     */
     private final int intValue;
 
-    public IntegerValueItem(GraphSourceItem src, GraphSourceItem lineStartIns, int value) {
-        super(src, lineStartIns, PRECEDENCE_PRIMARY);
+    /**
+     * Constructor.
+     * 
+     * @param dialect Dialect
+     * @param src Source
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     */
+    public IntegerValueItem(GraphTargetDialect dialect, GraphSourceItem src, GraphSourceItem lineStartIns, int value) {
+        super(dialect, src, lineStartIns, PRECEDENCE_PRIMARY);
         this.intValue = value;
     }
 

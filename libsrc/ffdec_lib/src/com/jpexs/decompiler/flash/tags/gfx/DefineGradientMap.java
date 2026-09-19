@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,16 +12,22 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.gfx;
 
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.decompiler.flash.tags.TagInfo;
 import com.jpexs.helpers.ByteArrayRange;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
+ * DefineGradientMap tag - gradient map.
  *
  * @author JPEXS
  */
@@ -37,7 +43,7 @@ public class DefineGradientMap extends Tag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -50,13 +56,18 @@ public class DefineGradientMap extends Tag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineGradientMap(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
         readData(sis, data, 0, false, false, false);
+    }
+
+    public DefineGradientMap(SWF swf) {
+        super(swf, ID, NAME, null);
+        indices = new int[0];
     }
 
     @Override
@@ -66,5 +77,17 @@ public class DefineGradientMap extends Tag {
         for (int i = 0; i < numGradients; i++) {
             indices[i] = sis.readUI16("index");
         }
+    }
+
+    @Override
+    public void getTagInfo(TagInfo tagInfo) {
+        super.getTagInfo(tagInfo);
+
+        List<String> indicesStr = new ArrayList<>();
+        for (int index : indices) {
+            indicesStr.add("" + index);
+        }
+
+        tagInfo.addInfo("general", "indices", String.join(", ", indicesStr));
     }
 }

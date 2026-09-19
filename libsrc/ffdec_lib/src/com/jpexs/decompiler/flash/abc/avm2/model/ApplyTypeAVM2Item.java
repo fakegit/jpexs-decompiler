@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,15 +31,30 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Apply type parameters to object.
  *
  * @author JPEXS
  */
 public class ApplyTypeAVM2Item extends AVM2Item {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
+    /**
+     * Parameters
+     */
     public List<GraphTargetItem> params;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     * @param params Parameters
+     */
     public ApplyTypeAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, List<GraphTargetItem> params) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.params = params;
@@ -114,13 +129,31 @@ public class ApplyTypeAVM2Item extends AVM2Item {
         //int qname = AVM2SourceGenerator.resolveType(localData, object, ((AVM2SourceGenerator)generator).abc, ((AVM2SourceGenerator)generator).allABCs);
         List<GraphSourceItem> nparams = new ArrayList<>();
         for (GraphTargetItem i : params) {
-            nparams.addAll(i.toSource(localData, generator));//ins(AVM2Instructions.GetLex, AVM2SourceGenerator.resolveType(localData, i, ((AVM2SourceGenerator)generator).abc,((AVM2SourceGenerator)generator).allABCs)));
+            nparams.addAll(i.toSource(localData, generator));
         }
         return toSourceMerge(localData, generator,
                 object,
                 nparams,
                 ins(AVM2Instructions.ApplyType, params.size())
         );
+    }
+
+    @Override
+    public String toString() {
+        String ret = object.toString();
+        if (!params.isEmpty()) {
+            ret += ".<";
+            boolean first = true;
+            for (GraphTargetItem param : params) {
+                if (!first) {
+                    ret += ", ";
+                }
+                ret += param.toString();
+                first = false;
+            }
+            ret += ">";
+        }
+        return ret;
     }
 
 }

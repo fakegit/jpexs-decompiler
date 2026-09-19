@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,23 +19,42 @@ package com.jpexs.decompiler.graph.model;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Unary operator.
  *
  * @author JPEXS
  */
 public abstract class UnaryOpItem extends GraphTargetItem implements UnaryOp {
 
+    /**
+     * Operator
+     */
     public String operator;
 
+    /**
+     * Coerce value to this type
+     */
     protected String coerce;
 
-    public UnaryOpItem(GraphSourceItem instruction, GraphSourceItem lineStartItem, int precedence, GraphTargetItem value, String operator, String coerce) {
-        super(instruction, lineStartItem, precedence, value);
+    /**
+     * Constructor.
+     *
+     * @param dialect Dialect
+     * @param instruction Instruction
+     * @param lineStartItem Line start item
+     * @param precedence Precedence
+     * @param value Value
+     * @param operator Operator
+     * @param coerce Coerce
+     */
+    public UnaryOpItem(GraphTargetDialect dialect, GraphSourceItem instruction, GraphSourceItem lineStartItem, int precedence, GraphTargetItem value, String operator, String coerce) {
+        super(dialect, instruction, lineStartItem, precedence, value);
         this.operator = operator;
         this.coerce = coerce;
     }
@@ -44,6 +63,9 @@ public abstract class UnaryOpItem extends GraphTargetItem implements UnaryOp {
     public GraphTargetItem simplify(String implicitCoerce) {
         GraphTargetItem r = clone();
         r.value = r.value.simplify(coerce);
+        if (r.value == this.value) {
+            r = this;
+        }
         return simplifySomething(r, implicitCoerce);
     }
 
@@ -53,10 +75,10 @@ public abstract class UnaryOpItem extends GraphTargetItem implements UnaryOp {
         if (value != null) {
             if (value.getPrecedence() > precedence) {
                 writer.append("(");
-                value.toString(writer, localData, coerce);
+                operandToString(value, writer, localData);
                 writer.append(")");
             } else {
-                value.toString(writer, localData, coerce);
+                operandToString(value, writer, localData);
             }
         } else {
             writer.append("null");
@@ -145,5 +167,17 @@ public abstract class UnaryOpItem extends GraphTargetItem implements UnaryOp {
     public int hashCode() {
         int hash = 3;
         return hash;
+    }
+
+    /**
+     * Converts operand to string.
+     *
+     * @param operand Operand
+     * @param writer Writer
+     * @param localData Local data
+     * @throws InterruptedException On interrupt
+     */
+    protected void operandToString(GraphTargetItem operand, GraphTextWriter writer, LocalData localData) throws InterruptedException {
+        operand.toString(writer, localData, "", false);
     }
 }

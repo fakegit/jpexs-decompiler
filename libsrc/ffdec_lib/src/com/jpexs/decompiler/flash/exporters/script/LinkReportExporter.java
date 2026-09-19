@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,15 +29,17 @@ import com.jpexs.decompiler.flash.abc.types.ScriptInfo;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitClass;
 import com.jpexs.decompiler.graph.DottedChain;
+import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 /**
  * Class LinkReportExporter - generates Linker reports similar to Flex
- * -link-report, but for SWF files
+ * -link-report, but for SWF files.
  *
  * @author JPEXS
  */
@@ -47,26 +49,26 @@ public class LinkReportExporter {
     private String indentStr = "  ";
 
     /**
-     * Constructs reporter with LF as newline, two spaces as indent
+     * Constructs reporter with LF as newline, two spaces as indent.
      */
     public LinkReportExporter() {
 
     }
 
     /**
-     * Constructs reporter with custom newline char, two spaces as indent
+     * Constructs reporter with custom newline char, two spaces as indent.
      *
-     * @param newLineChar
+     * @param newLineChar Newline char
      */
     public LinkReportExporter(String newLineChar) {
         this.newLineChar = newLineChar;
     }
 
     /**
-     * Constructs reporter with custom newline char and indent string
+     * Constructs reporter with custom newline char and indent string.
      *
-     * @param newLineChar
-     * @param indentStr
+     * @param newLineChar Newline char
+     * @param indentStr Indent string
      */
     public LinkReportExporter(String newLineChar, String indentStr) {
         this.newLineChar = newLineChar;
@@ -82,6 +84,14 @@ public class LinkReportExporter {
         return sb.toString();
     }
 
+    /**
+     * Generates report.
+     * @param swf SWF file
+     * @param as3scripts List of scripts
+     * @param evl Event listener
+     * @return Report
+     * @throws InterruptedException On interrupt
+     */
     public String generateReport(SWF swf, List<ScriptPack> as3scripts, EventListener evl) throws InterruptedException {
         StringBuilder sb = new StringBuilder();
         Set<String> extDeps = new HashSet<>();
@@ -98,7 +108,7 @@ public class LinkReportExporter {
         for (ScriptPack sp : revList) {
             String scriptName = "script" + sp.scriptIndex;
             sb.append(indent(2)).append("<script name=\"").append(scriptName).append("\">").append(newLineChar);
-            //TODO: additional atributes - mod="1469951734131" size="525" optimizedsize="508
+            //TODO: additional attributes - mod="1469951734131" size="525" optimizedsize="508
             ScriptInfo script = sp.abc.script_info.get(sp.scriptIndex);
             for (int traitIndex : sp.traitIndices) {
                 Trait trait = script.traits.traits.get(traitIndex);
@@ -119,7 +129,7 @@ public class LinkReportExporter {
             ns = abc.constants.getNamespace(nss.namespaces[0]);
         }
         String pkgName = ns == null ? "" : ns.getName(abc.constants).toRawString();
-        String clsName = multiName.getName(abc.constants, new ArrayList<>(), true, true);
+        String clsName = multiName.getName(new LinkedHashSet<>(), abc, abc.constants, new ArrayList<>(), true, true);
         return pkgName.isEmpty() ? clsName : pkgName + ":" + clsName;
     }
 
@@ -163,11 +173,9 @@ public class LinkReportExporter {
                 reportTrait(scriptIndex, externalDefs, existingObjects, swf, abc, it);
             }
             List<Dependency> dependencies = new ArrayList<>();
-            List<String> uses = new ArrayList<>();
-
             sb.append(indent(3)).append("<dep id=\"AS3\" />").append(newLineChar); //Automatic
 
-            tc.getDependencies(scriptIndex, -1, false, null, abc, dependencies, uses, new DottedChain(new String[]{"FAKE!PACKAGE"}, ""), new ArrayList<>());
+            tc.getDependencies(new LinkedHashSet<>(), swf.getAbcIndex(), scriptIndex, -1, false, null, abc, dependencies, new DottedChain(new String[]{"FAKE!PACKAGE"}), new ArrayList<>(), new ArrayList<>(), new Reference<>(null));
             for (Dependency dependency : dependencies) {
                 DottedChain dc = dependency.getId();
                 if (!"*".equals(dc.getLast())) {

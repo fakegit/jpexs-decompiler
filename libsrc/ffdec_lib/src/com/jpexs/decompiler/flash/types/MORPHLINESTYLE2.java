@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,74 +12,154 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types;
 
 import com.jpexs.decompiler.flash.types.annotations.Conditional;
+import com.jpexs.decompiler.flash.types.annotations.EnumValue;
 import com.jpexs.decompiler.flash.types.annotations.Reserved;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import java.io.Serializable;
 
 /**
+ * Morph line style, v2. Extends functionality of MORPHLINESTYLE.
  *
  * @author JPEXS
  */
 public class MORPHLINESTYLE2 implements Serializable {
 
+    /**
+     * Start width
+     */
     @SWFType(BasicType.UI16)
     public int startWidth;
 
+    /**
+     * End width
+     */
     @SWFType(BasicType.UI16)
     public int endWidth;
 
+    /**
+     * Start cap style
+     */
     @SWFType(value = BasicType.UB, count = 2)
+    @EnumValue(value = ROUND_CAP, text = "Round cap")
+    @EnumValue(value = NO_CAP, text = "No cap")
+    @EnumValue(value = SQUARE_CAP, text = "Square cap")
     public int startCapStyle;
 
+    /**
+     * End cap style
+     */
     @SWFType(value = BasicType.UB, count = 2)
+    @EnumValue(value = ROUND_JOIN, text = "Round join")
+    @EnumValue(value = BEVEL_JOIN, text = "Bevel join")
+    @EnumValue(value = MITER_JOIN, text = "Miter join")
     public int joinStyle;
 
+    /**
+     * Join style - round
+     */
     public static final int ROUND_JOIN = 0;
 
+    /**
+     * Join style - bevel
+     */
     public static final int BEVEL_JOIN = 1;
 
+    /**
+     * Join style - miter
+     */
     public static final int MITER_JOIN = 2;
 
+    /**
+     * Has fill flag
+     */
     public boolean hasFillFlag;
 
+    /**
+     * No horizontal scale flag
+     */
     public boolean noHScaleFlag;
 
+    /**
+     * No vertical scale flag
+     */
     public boolean noVScaleFlag;
 
+    /**
+     * Pixel hinting flag
+     */
     public boolean pixelHintingFlag;
 
+    /**
+     * Reserved
+     */
     @Reserved
     @SWFType(value = BasicType.UB, count = 5)
     public int reserved;
 
+    /**
+     * No close flag
+     */
     public boolean noClose;
 
+    /**
+     * End cap style
+     */
     @SWFType(value = BasicType.UB, count = 2)
+    @EnumValue(value = ROUND_CAP, text = "Round cap")
+    @EnumValue(value = NO_CAP, text = "No cap")
+    @EnumValue(value = SQUARE_CAP, text = "Square cap")
     public int endCapStyle;
 
+    /**
+     * Cap style - round
+     */
     public static final int ROUND_CAP = 0;
 
+    /**
+     * Cap style - no cap
+     */
     public static final int NO_CAP = 1;
 
+    /**
+     * Cap style - square
+     */
     public static final int SQUARE_CAP = 2;
 
-    @SWFType(value = BasicType.UI16)
+    /**
+     * Miter limit factor
+     */
+    @SWFType(value = BasicType.UFIXED8)
     @Conditional(value = "joinStyle", options = {MITER_JOIN})
-    public int miterLimitFactor;
+    public float miterLimitFactor;
 
+    /**
+     * Start color
+     */
     @Conditional("!hasFillFlag")
     public RGBA startColor;
 
+    /**
+     * End color
+     */
     @Conditional("!hasFillFlag")
     public RGBA endColor;
 
+    /**
+     * Fill type
+     */
     @Conditional(value = "hasFillFlag")
     public MORPHFILLSTYLE fillType;
 
+    /**
+     * Gets line style 2 at given ratio.
+     * @param ratio Ratio
+     * @return Line style 2
+     */
     public LINESTYLE2 getLineStyle2At(int ratio) {
         LINESTYLE2 ret = new LINESTYLE2();
         ret.width = startWidth + (endWidth - startWidth) * ratio / 65535;
@@ -100,6 +180,10 @@ public class MORPHLINESTYLE2 implements Serializable {
         return ret;
     }
 
+    /**
+     * Gets start line style 2.
+     * @return Start line style 2
+     */
     public LINESTYLE2 getStartLineStyle2() {
         LINESTYLE2 ret = new LINESTYLE2();
         ret.width = startWidth;
@@ -119,6 +203,10 @@ public class MORPHLINESTYLE2 implements Serializable {
         return ret;
     }
 
+    /**
+     * Gets end line style 2.
+     * @return End line style 2
+     */
     public LINESTYLE2 getEndLineStyle2() {
         LINESTYLE2 ret = new LINESTYLE2();
         ret.width = endWidth;

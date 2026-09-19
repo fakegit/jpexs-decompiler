@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,28 +12,48 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.settings;
 
 import com.jpexs.decompiler.flash.exporters.modes.ShapeExportMode;
 
 /**
+ * Shape export settings.
  *
  * @author JPEXS
  */
 public class ShapeExportSettings {
 
+    /**
+     * Export folder name
+     */
     public static final String EXPORT_FOLDER_NAME = "shapes";
 
+    /**
+     * Mode
+     */
     public ShapeExportMode mode;
 
+    /**
+     * Zoom
+     */
     public double zoom;
 
+    /**
+     * Constructor.
+     * @param mode Mode
+     * @param zoom Zoom
+     */
     public ShapeExportSettings(ShapeExportMode mode, double zoom) {
         this.mode = mode;
         this.zoom = zoom;
     }
 
+    /**
+     * Get file extension.
+     * @return File extension
+     */
     public String getFileExtension() {
         switch (mode) {
             case SVG:
@@ -44,10 +64,14 @@ public class ShapeExportSettings {
                 return ".bmp";
             case CANVAS:
                 return ".html";
+            case WEBP:
+                return ".webp";
             case SWF:
                 return ".swf";
+            case AS3:
+                return ".as";
             default:
-                throw new Error("Unsupported morphshape export mode: " + mode);
+                throw new Error("Unsupported shape export mode: " + mode);
         }
     }
 }

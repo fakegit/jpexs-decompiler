@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions;
 
 import com.jpexs.decompiler.flash.abc.AVM2LocalData;
@@ -21,10 +22,19 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.HashMap;
 
 /**
+ * IfType instruction interface.
  *
  * @author JPEXS
  */
 public interface IfTypeIns {
 
-    public abstract void translateInverted(AVM2LocalData localData, HashMap<Integer, GraphTargetItem> localRegs, TranslateStack stack, AVM2Instruction ins);
+    /**
+     * Translates the instruction as inverted.
+     *
+     * @param localData Local data
+     * @param localRegs Local registers
+     * @param stack Stack
+     * @param ins Instruction
+     */
+    public void translateInverted(AVM2LocalData localData, HashMap<Integer, GraphTargetItem> localRegs, TranslateStack stack, AVM2Instruction ins);
 }

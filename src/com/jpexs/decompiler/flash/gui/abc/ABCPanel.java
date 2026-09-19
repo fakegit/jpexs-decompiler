@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,10 +16,13 @@
  */
 package com.jpexs.decompiler.flash.gui.abc;
 
+import com.jpexs.debugger.flash.DebuggerCommands;
+import com.jpexs.debugger.flash.DebuggerMessage;
 import com.jpexs.debugger.flash.Variable;
 import com.jpexs.debugger.flash.VariableFlags;
 import com.jpexs.debugger.flash.VariableType;
 import com.jpexs.debugger.flash.messages.in.InGetVariable;
+import com.jpexs.debugger.flash.messages.out.OutAddWatch2;
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.ClassPath;
@@ -27,6 +30,9 @@ import com.jpexs.decompiler.flash.abc.ScriptPack;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instructions;
+import com.jpexs.decompiler.flash.abc.avm2.model.ApplyTypeAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.parser.script.AbcIndexing;
+import com.jpexs.decompiler.flash.abc.avm2.parser.script.ActionScript3SimpleParser;
 import com.jpexs.decompiler.flash.abc.types.ABCException;
 import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.abc.types.MethodInfo;
@@ -38,38 +44,37 @@ import com.jpexs.decompiler.flash.abc.types.traits.TraitClass;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitMethodGetterSetter;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst;
 import com.jpexs.decompiler.flash.abc.types.traits.Traits;
-import com.jpexs.decompiler.flash.abc.usages.MultinameUsage;
-import com.jpexs.decompiler.flash.abc.usages.TraitMultinameUsage;
+import com.jpexs.decompiler.flash.abc.usages.multinames.MultinameUsage;
+import com.jpexs.decompiler.flash.abc.usages.multinames.TraitMultinameUsage;
 import com.jpexs.decompiler.flash.action.parser.ActionParseException;
 import com.jpexs.decompiler.flash.action.parser.script.ActionScriptLexer;
 import com.jpexs.decompiler.flash.action.parser.script.ParsedSymbol;
 import com.jpexs.decompiler.flash.action.parser.script.SymbolType;
 import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.configuration.ConfigurationItemChangeListener;
+import com.jpexs.decompiler.flash.configuration.CustomConfigurationKeys;
+import com.jpexs.decompiler.flash.configuration.SwfSpecificCustomConfiguration;
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
 import com.jpexs.decompiler.flash.gui.AppDialog;
 import com.jpexs.decompiler.flash.gui.AppStrings;
 import com.jpexs.decompiler.flash.gui.DebugPanel;
 import com.jpexs.decompiler.flash.gui.DebuggerHandler;
+import com.jpexs.decompiler.flash.gui.DebuggerSession;
 import com.jpexs.decompiler.flash.gui.FasterScrollPane;
 import com.jpexs.decompiler.flash.gui.HeaderLabel;
 import com.jpexs.decompiler.flash.gui.Main;
 import com.jpexs.decompiler.flash.gui.MainPanel;
+import com.jpexs.decompiler.flash.gui.OpenableListLoaded;
+import com.jpexs.decompiler.flash.gui.PopupButton;
 import com.jpexs.decompiler.flash.gui.SearchListener;
 import com.jpexs.decompiler.flash.gui.SearchPanel;
 import com.jpexs.decompiler.flash.gui.TagEditorPanel;
 import com.jpexs.decompiler.flash.gui.View;
 import com.jpexs.decompiler.flash.gui.ViewMessages;
-import com.jpexs.decompiler.flash.gui.abc.tablemodels.DecimalTableModel;
-import com.jpexs.decompiler.flash.gui.abc.tablemodels.DoubleTableModel;
-import com.jpexs.decompiler.flash.gui.abc.tablemodels.IntTableModel;
-import com.jpexs.decompiler.flash.gui.abc.tablemodels.MultinameTableModel;
-import com.jpexs.decompiler.flash.gui.abc.tablemodels.NamespaceSetTableModel;
-import com.jpexs.decompiler.flash.gui.abc.tablemodels.NamespaceTableModel;
-import com.jpexs.decompiler.flash.gui.abc.tablemodels.StringTableModel;
-import com.jpexs.decompiler.flash.gui.abc.tablemodels.UIntTableModel;
 import com.jpexs.decompiler.flash.gui.controls.JPersistentSplitPane;
-import com.jpexs.decompiler.flash.gui.editor.LinkHandler;
-import com.jpexs.decompiler.flash.gui.tagtree.TagTreeModel;
+import com.jpexs.decompiler.flash.gui.editor.VariableMarker;
+import com.jpexs.decompiler.flash.gui.tagtree.AbstractTagTree;
+import com.jpexs.decompiler.flash.gui.tagtree.AbstractTagTreeModel;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.importers.As3ScriptReplaceException;
 import com.jpexs.decompiler.flash.importers.As3ScriptReplaceExceptionItem;
@@ -79,9 +84,19 @@ import com.jpexs.decompiler.flash.search.ABCSearchResult;
 import com.jpexs.decompiler.flash.search.ActionScriptSearch;
 import com.jpexs.decompiler.flash.search.ScriptSearchListener;
 import com.jpexs.decompiler.flash.search.ScriptSearchResult;
+import com.jpexs.decompiler.flash.simpleparser.LinkHandler;
+import com.jpexs.decompiler.flash.simpleparser.LinkType;
+import com.jpexs.decompiler.flash.simpleparser.Path;
 import com.jpexs.decompiler.flash.tags.ABCContainerTag;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.decompiler.flash.timeline.AS3Package;
+import com.jpexs.decompiler.flash.treeitems.AS3ClassTreeItem;
+import com.jpexs.decompiler.flash.treeitems.Openable;
+import com.jpexs.decompiler.flash.treeitems.OpenableList;
 import com.jpexs.decompiler.flash.treeitems.TreeItem;
+import com.jpexs.decompiler.graph.DottedChain;
+import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.helpers.CancellableWorker;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.Reference;
@@ -90,8 +105,10 @@ import de.hameister.treetable.MyTreeTableModel;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Insets;
+import java.awt.Point;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
@@ -105,26 +122,33 @@ import java.awt.event.MouseMotionListener;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
+import javax.swing.DefaultListModel;
 import javax.swing.JButton;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
-import javax.swing.JTabbedPane;
-import javax.swing.JTable;
 import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.ToolTipManager;
 import javax.swing.border.BevelBorder;
@@ -133,14 +157,13 @@ import javax.swing.event.EventListenerList;
 import javax.swing.event.TableModelListener;
 import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.text.Highlighter;
 import javax.swing.tree.TreePath;
+import jsyntaxpane.DefaultSyntaxKit;
 import jsyntaxpane.Token;
 import jsyntaxpane.TokenType;
+import natorder.NaturalOrderComparator;
 
 /**
- *
  * @author JPEXS
  */
 public class ABCPanel extends JPanel implements ItemListener, SearchListener<ScriptSearchResult>, TagEditorPanel {
@@ -155,13 +178,15 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
     public ABC abc;
 
+    private final JPanel toolbarPanel;
+
+    private final JComboBox<String> libraryComboBox;
+
     public final DecompiledEditorPane decompiledTextArea;
 
     public final JScrollPane decompiledScrollPane;
 
     private final JPersistentSplitPane splitPane;
-
-    private final JTable constantTable;
 
     public JComboBox<String> constantTypeList;
 
@@ -171,11 +196,9 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
     public final DetailPanel detailPanel;
 
-    private final JPanel navPanel;
+    public final JPanel navigatorPanel;
 
     public final JPanel brokenHintPanel;
-
-    public final JTabbedPane tabbedPane;
 
     public final SearchPanel<ScriptSearchResult> searchPanel;
 
@@ -187,6 +210,10 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
     private final JLabel experimentalLabel = new JLabel(AppStrings.translate("action.edit.experimental"));
 
+    private final JLabel flexLabel = new JLabel(AppStrings.translate("action.edit.flex"));
+
+    private final JLabel infoNotEditableLabel;
+
     private final JButton editDecompiledButton = new JButton(AppStrings.translate("button.edit.script.decompiled"), View.getIcon("edit16"));
 
     private final JButton saveDecompiledButton = new JButton(AppStrings.translate("button.save"), View.getIcon("save16"));
@@ -195,27 +222,41 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
     private String lastDecompiled = null;
 
+    private JLabel linksLabel = new JLabel("");
+
+    private boolean compound = false;
+
     public MainPanel getMainPanel() {
         View.checkAccess();
 
         return mainPanel;
     }
 
-    public List<ABCSearchResult> search(final SWF swf, final String txt, boolean ignoreCase, boolean regexp, boolean pcode, CancellableWorker<Void> worker, List<ScriptPack> scope) {
+    public ScriptPack getPack() {
+        return decompiledTextArea.getScriptLeaf();
+    }
+
+    public void setDecompiledEditEnabled(boolean value) {
+        decompiledTextArea.setEnabled(value);
+        editDecompiledButton.setEnabled(value && !compound);
+        toolbarPanel.setEnabled(value);
+    }
+
+    public List<ABCSearchResult> search(final Openable openable, final String txt, boolean ignoreCase, boolean regexp, boolean pcode, CancellableWorker<Void> worker, List<ScriptPack> scope) {
         if (txt != null && !txt.isEmpty()) {
             searchPanel.setOptions(ignoreCase, regexp);
 
             String workText = AppStrings.translate("work.searching");
             String decAdd = AppStrings.translate("work.decompiling");
-            return new ActionScriptSearch().searchAs3(swf, txt, ignoreCase, regexp, pcode, new ScriptSearchListener() {
+            return new ActionScriptSearch().searchAs3(openable, txt, ignoreCase, regexp, pcode, new ScriptSearchListener() {
                 @Override
                 public void onDecompile(int pos, int total, String name) {
-                    Main.startWork(workText + " \"" + txt + "\", " + decAdd + " - (" + pos + "/" + total + ") " + name + "... ", worker);
+                    Main.startWork(workText + " \"" + txt + "\", " + decAdd + " - (" + pos + "/" + total + ") " + name + "... ", worker, false);
                 }
 
                 @Override
                 public void onSearch(int pos, int total, String name) {
-                    Main.startWork(workText + " \"" + txt + "\" - (" + pos + "/" + total + ") " + name + "... ", worker);
+                    Main.startWork(workText + " \"" + txt + "\" - (" + pos + "/" + total + ") " + name + "... ", worker, false);
                 }
             }, scope);
         }
@@ -231,46 +272,23 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         }
 
         this.abc = abc;
+        if (Main.isSwfAir(abc.getOpenable())) {
+            libraryComboBox.setSelectedIndex(SWF.LIBRARY_AIR);
+        } else {
+            libraryComboBox.setSelectedIndex(SWF.LIBRARY_FLASH);
+        }
+        decompiledTextArea.setParser(new ActionScript3SimpleParser(abc));
         setDecompiledEditMode(false);
         navigator.setAbc(abc);
-        updateConstList();
-    }
-
-    public void updateConstList() {
-        View.checkAccess();
-
-        switch (constantTypeList.getSelectedIndex()) {
-            case 0:
-                View.autoResizeColWidth(constantTable, new UIntTableModel(abc));
-                break;
-            case 1:
-                View.autoResizeColWidth(constantTable, new IntTableModel(abc));
-                break;
-            case 2:
-                View.autoResizeColWidth(constantTable, new DoubleTableModel(abc));
-                break;
-            case 3:
-                View.autoResizeColWidth(constantTable, new DecimalTableModel(abc));
-                break;
-            case 4:
-                View.autoResizeColWidth(constantTable, new StringTableModel(abc));
-                break;
-            case 5:
-                View.autoResizeColWidth(constantTable, new NamespaceTableModel(abc));
-                break;
-            case 6:
-                View.autoResizeColWidth(constantTable, new NamespaceSetTableModel(abc));
-                break;
-            case 7:
-                View.autoResizeColWidth(constantTable, new MultinameTableModel(abc));
-                break;
-        }
-        //DefaultTableColumnModel colModel  = (DefaultTableColumnModel) constantTable.getColumnModel();
-        //colModel.getColumn(0).setMaxWidth(50);
+        updateLinksLabel();
     }
 
     public SWF getSwf() {
         return abc == null ? null : abc.getSwf();
+    }
+
+    public Openable getOpenable() {
+        return abc == null ? null : abc.getOpenable();
     }
 
     public List<ABCContainerTag> getAbcList() {
@@ -282,12 +300,16 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         View.checkAccess();
 
         this.abc = null;
-        constantTable.setModel(new DefaultTableModel());
         navigator.clearAbc();
         decompiledTextArea.clearScript();
     }
 
     public static class VariableNode {
+
+        private static Map<Integer, Thread> sessionIdToVariableLoaderThread = new HashMap<>();
+        private static Map<Integer, List<Runnable>> sessionIdToLoaderList = new HashMap<>();
+        private static Map<Integer, List<VariableNode>> sessionIdToLoadedVariableNode = new HashMap<>();
+        private static Map<Integer, Object> sessionIdToLoaderLock = new HashMap<>();
 
         public List<VariableNode> path = new ArrayList<>();
 
@@ -304,6 +326,28 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         public long traitId;
 
         private List<VariableNode> childs;
+
+        public List<Variable> traits = new ArrayList<>();
+        private DebuggerSession session;
+        private MyTreeTable treeTable;
+        private boolean as3;
+
+        public static void stopLoading(int sessionId) {
+            if (!sessionIdToLoadedVariableNode.containsKey(sessionId)) {
+                return;
+            }
+            sessionIdToLoaderList.get(sessionId).clear();
+            for (VariableNode node : sessionIdToLoadedVariableNode.get(sessionId)) {                
+                synchronized (node) {
+                    node.childs = new ArrayList<>();
+                    node.loading = false;
+                    node.loaded = true;
+                }
+            }
+            sessionIdToLoadedVariableNode.get(sessionId).clear();
+        }
+
+        private boolean sort;
 
         @Override
         public int hashCode() {
@@ -342,6 +386,8 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
         public boolean loaded = false;
 
+        private boolean loading = false;
+
         private static boolean isTraits(Variable v) {
             return (v.vType == VariableType.UNKNOWN && "traits".equals(v.typeName));
         }
@@ -361,21 +407,37 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         }
 
         private void reloadChildren() {
-            childs = new ArrayList<>();
+            List<VariableNode> newChilds = new ArrayList<>();
+            List<Variable> newTraits = new ArrayList<>();
 
             if ("".equals(var.name)) {
                 return;
             }
             InGetVariable igv;
 
-            Long objectId = varToObjectId(varInsideGetter);
+            Long objectId = varToObjectId(var);
 
-            if (parentObjectId == 0 && objectId != 0) {
-                igv = Main.getDebugHandler().getVariable(objectId, "", true);
+            boolean useGetter = (var.flags & VariableFlags.IS_CONST) == 0;
+
+            //boolean isAS3 = (Main.getMainFrame().getPanel().getCurrentSwf().isAS3());
+            DebuggerSession currentSession = Main.getCurrentDebugSession();
+
+            if (currentSession == null || !currentSession.isPaused()) {
+                return;
+            }
+            if (currentSession != session) {
+                return;
+            }
+            if (parentObjectId == 0 && objectId != 0L && as3) {
+                igv = currentSession.getVariable(objectId, "", true, useGetter);
             } else {
-                igv = Main.getDebugHandler().getVariable(parentObjectId, var.name, true);
+                igv = currentSession.getVariable(parentObjectId, var.name, true, useGetter);
+            }
+            if (igv == null) { //timeout
+                return;
             }
 
+            //Logger.getLogger(VariableNode.class.getName()).log(Level.FINE, "session{0}: Get var data: {1}", new Object[]{currentSession.getId(), Helper.byteArrayToHex(igv.data)});
             //current var is getter function - set it to value really got
             if ((var.flags & VariableFlags.HAS_GETTER) > 0) {
                 varInsideGetter = igv.parent;
@@ -383,33 +445,157 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
             Variable curTrait = null;
             for (int i = 0; i < igv.childs.size(); i++) {
+                if (!Configuration.showVarsWithDontEnumerateFlag.get() && (igv.childs.get(i).flags & VariableFlags.DONT_ENUMERATE) > 0) {
+                    continue;
+                }
+
                 if (!isTraits(igv.childs.get(i))) {
-                    Long parentObjectId = varToObjectId(var);
-                    childs.add(new VariableNode(path, level + 1, igv.childs.get(i), parentObjectId, curTrait));//igv.parentId
+                    Long parentObjectId = varToObjectId(varInsideGetter);
+                    newChilds.add(new VariableNode(currentSession, treeTable, as3, path, level + 1, igv.childs.get(i), parentObjectId, curTrait, sort));
                 } else {
                     curTrait = igv.childs.get(i);
+                    newTraits.add(curTrait);
                 }
             }
+            
+            if (sort) {
+                NaturalOrderComparator naturalOrder = new NaturalOrderComparator();
+                newChilds.sort(new Comparator<VariableNode>() {
+                    @Override
+                    public int compare(VariableNode o1, VariableNode o2) {
+                        return naturalOrder.compare(o1.var.name, o2.var.name);
+                    }                    
+                });
+            }
+            
+            this.childs = newChilds;
+            this.traits = newTraits;
         }
 
         private void ensureLoaded() {
-            if (!loaded) {
-                reloadChildren();
-                loaded = true;
+            synchronized (VariableNode.this) {
+                if (loaded || loading) {
+                    return;
+                }
+                loading = true;
             }
+            int sessionId = session.getId();
+            if (!sessionIdToVariableLoaderThread.containsKey(sessionId)) {
+                Runnable r = new Runnable() {
+                    @Override
+                    public void run() {
+                        while (true) {
+                            if (sessionIdToLoaderList.get(sessionId).isEmpty()) {
+                                Object lock = sessionIdToLoaderLock.get(session.getId());
+                                synchronized (lock) {
+                                    try {
+                                        lock.wait(500);
+                                    } catch (InterruptedException ex) {
+                                        //ignored
+                                    }
+                                }
+                            } else {
+                                Runnable toRun = sessionIdToLoaderList.get(sessionId).remove(0);
+                                toRun.run();
+                            }
+                        }
+                    }
+                };
+                sessionIdToLoaderList.put(sessionId, new ArrayList<>());
+                sessionIdToLoaderLock.put(sessionId, new Object());
+                Thread t = new Thread(r, "Variable loader for session " + sessionId);
+                sessionIdToVariableLoaderThread.put(sessionId, t);
+                t.setDaemon(true);
+                t.start();
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException ex) {
+                    //ignore
+                }
+            }
+
+            sessionIdToLoaderList.get(sessionId).add(new Runnable() {
+                @Override
+                public void run() {
+                    synchronized (VariableNode.this) {
+                        if (!loading) {
+                            Logger.getLogger(VariableNode.class.getName()).log(Level.FINE, "session{0}: Already loaded {1}, skipping", new Object[]{session.getId(), var.name});
+                            return;
+                        }
+                    }
+                    Logger.getLogger(VariableNode.class.getName()).log(Level.FINE, "session{0}: Loading children of {1}", new Object[]{session.getId(), var.name});
+
+                    reloadChildren();
+
+                    synchronized (VariableNode.this) {
+                        if (!loading) {
+                            Logger.getLogger(VariableNode.class.getName()).log(Level.FINE, "session{0}: Already loaded {1}, not firing", new Object[]{session.getId(), var.name});
+                            return;
+                        }
+                        loaded = true;
+                        loading = false;
+                        Logger.getLogger(VariableNode.class.getName()).log(Level.FINE, "session{0}: Children of {1} loaded", new Object[]{session.getId(), var.name});
+                    }
+
+                    DebuggerSession currentSession = Main.getCurrentDebugSession();
+                    if (currentSession == null || currentSession.getId() != sessionId) {
+                        return;
+                    }
+
+                    VariablesTableModel variableModel = (VariablesTableModel) treeTable.getTreeTableModel();
+                    Object[] changedPath = new Object[path.size()];
+                    for (int i = 0; i < path.size(); i++) {
+                        changedPath[i] = path.get(i);
+                    }
+                    View.execInEventDispatch(new Runnable() {
+                        @Override
+                        public void run() {
+                            Logger.getLogger(VariableNode.class.getName()).log(Level.FINE, "session{0}: Firing change of {1} - {2} childs", new Object[]{session.getId(), var.name, childs.size()});
+                            int[] childIds = new int[childs.size()];
+                            Object[] childObjs = new Object[childs.size()];
+
+                            for (int i = 0; i < childIds.length; i++) {
+                                childIds[i] = i;
+                                childObjs[i] = childs.get(i);
+                            }
+
+                            //variableModel.fireTreeStructureChanged(treeTable.getTree(), changedPath, new int[0], null);
+                            variableModel.fireTreeNodesInserted(treeTable.getTree(), changedPath, childIds, childObjs);
+                            treeTable.repaint();
+                        }
+                    });
+                }
+            });
+            if (!sessionIdToLoadedVariableNode.containsKey(sessionId)) {
+                sessionIdToLoadedVariableNode.put(sessionId, new ArrayList<>());
+            }
+            sessionIdToLoadedVariableNode.get(sessionId).add(this);
+            Object lock = sessionIdToLoaderLock.get(sessionId);
+            Logger.getLogger(VariableNode.class.getName()).log(Level.FINE, "session{0}: Scheduling loading children of {1}", new Object[]{session.getId(), var.name});
+            synchronized (lock) {
+                lock.notify();
+            }
+            /*reloadChildren();
+            loaded = true;*/
         }
 
         public VariableNode getChildAt(int index) {
             ensureLoaded();
+            if (!loaded) {
+                return null;
+            }
             return childs.get(index);
         }
 
         public int getChildCount() {
             ensureLoaded();
+            if (!loaded) {
+                return 0;
+            }
             return childs.size();
         }
 
-        public VariableNode(List<VariableNode> parentPath, int level, Variable var, Long parentObjectId, Variable trait) {
+        public VariableNode(DebuggerSession session, MyTreeTable treeTable, boolean as3, List<VariableNode> parentPath, int level, Variable var, Long parentObjectId, Variable trait, boolean sort) {
             this.var = var;
             this.varInsideGetter = var;
             this.parentObjectId = parentObjectId;
@@ -418,9 +604,13 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
             this.path.addAll(parentPath);
             this.path.add(this);
             loaded = false;
+            this.session = session;
+            this.treeTable = treeTable;
+            this.as3 = as3;
+            this.sort = sort;
         }
 
-        public VariableNode(List<VariableNode> parentPath, int level, Variable var, Long parentObjectId, Variable trait, List<VariableNode> subvars) {
+        public VariableNode(DebuggerSession session, MyTreeTable treeTable, boolean as3, List<VariableNode> parentPath, int level, Variable var, Long parentObjectId, Variable trait, List<VariableNode> subvars, boolean sort) {
             this.var = var;
             this.varInsideGetter = var;
             this.parentObjectId = parentObjectId;
@@ -436,16 +626,24 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
                 vn.path.add(vn);
             }
             loaded = true;
+            this.session = session;
+            this.treeTable = treeTable;
+            this.as3 = as3;
+            this.sort = sort;
         }
     }
 
     public static Long varToObjectId(Variable var) {
-        if (var != null && (var.vType == VariableType.OBJECT)) //|| var.vType == VariableType.MOVIECLIP)) {
-        {
-            return (Long) var.value;
-        } else {
+        if (var == null) {
             return 0L;
         }
+        if (var.vType == VariableType.OBJECT) {
+            return (Long) var.value;
+        }
+        if (var.vType == VariableType.MOVIECLIP) {
+            return (Long) var.value;
+        }
+        return 0L;
     }
 
     public static class VariablesTableModel implements MyTreeTableModel {
@@ -466,17 +664,33 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
         private static final int STRUCTURE_CHANGED = 3;
 
-        private final MyTreeTable ttable;
+        private final MyTreeTable treeTable;
+        
+        private final boolean sort;
 
-        public VariablesTableModel(MyTreeTable ttable, List<Variable> vars, List<Long> parentIds) {
-            this.ttable = ttable;
+        public VariablesTableModel(DebuggerSession session, boolean as3, MyTreeTable treeTable, List<Variable> vars, List<Long> parentIds, boolean sort) {
+            this.treeTable = treeTable;
 
             List<VariableNode> childs = new ArrayList<>();
 
             for (int i = 0; i < vars.size(); i++) {
-                childs.add(new VariableNode(new ArrayList<>(), 1, vars.get(i), 0L/*parentIds.get(i)*/, null));
+                childs.add(new VariableNode(session, treeTable, as3, new ArrayList<>(), 1, vars.get(i), parentIds == null ? 0L : parentIds.get(i), null, sort));
             }
-            root = new VariableNode(new ArrayList<>(), 0, null, 0L, null, childs);
+           
+            if (sort) {
+                NaturalOrderComparator naturalOrder = new NaturalOrderComparator();
+                childs.sort(new Comparator<VariableNode>() {
+                    @Override
+                    public int compare(VariableNode o1, VariableNode o2) {
+                        return naturalOrder.compare(o1.var.name, o2.var.name);
+                    }                    
+                });
+            }
+            
+            
+            root = new VariableNode(session, treeTable, as3, new ArrayList<>(), 0, null, 0L, null, childs, sort);
+            root.loaded = true;
+            this.sort = sort;
         }
 
         @Override
@@ -578,18 +792,12 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
          */
         private String flagsToString(int flags) {
 
-            Integer unknownFlags[] = new Integer[]{
-                2,
+            Integer[] unknownFlags = new Integer[]{
                 8,
                 16,
                 64,
-                128,
-                256,
                 512,
-                1024,
                 2048,
-                4096,
-                8192,
                 16384,
                 32768
             };
@@ -598,6 +806,35 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
             if ((flags & VariableFlags.DONT_ENUMERATE) > 0) {
                 flagsStr.add("dontEnumerate");
             }
+
+            if ((flags & VariableFlags.DONT_DELETE) > 0) {
+                flagsStr.add("dontDelete");
+            }
+
+            if ((flags & VariableFlags.ONLY_SWF6_UP) > 0) {
+                flagsStr.add("onlySWF6Up");
+            }
+
+            if ((flags & VariableFlags.IGNORE_SWF6) > 0) {
+                flagsStr.add("ignoreSWF6");
+            }
+
+            if ((flags & VariableFlags.ONLY_SWF7_UP) > 0) {
+                flagsStr.add("onlySWF7Up");
+            }
+
+            if ((flags & VariableFlags.ONLY_SWF8_UP) > 0) {
+                flagsStr.add("onlySWF8Up");
+            }
+
+            if ((flags & VariableFlags.ONLY_SWF9_UP) > 0) {
+                flagsStr.add("onlySWF9Up");
+            }
+
+            if ((flags & VariableFlags.ONLY_SWF10_UP) > 0) {
+                flagsStr.add("onlySWF10Up");
+            }
+
             for (Integer f : unknownFlags) {
                 if ((flags & f) > 0) {
                     flagsStr.add("unk" + f);
@@ -665,7 +902,26 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
                 case COLUMN_SCOPE:
                     return flagsToScopeString(var.flags);
                 case COLUMN_FLAGS:
-                    return flagsToString(var.flags);
+                    String flags = flagsToString(var.flags);
+                    DebuggerSession session = Main.getCurrentDebugSession();
+                    DebuggerCommands.Watch w = session == null ? null : session.getWatch(((VariableNode) node).var.name, ((VariableNode) node).parentObjectId);
+                    if (w != null) {
+                        if ((w.flags & OutAddWatch2.FLAG_READ) > 0) {
+                            if (!flags.isEmpty()) {
+                                flags += ", ";
+                            }
+
+                            flags += "watch:read";
+                        }
+                        if ((w.flags & OutAddWatch2.FLAG_WRITE) > 0) {
+                            if (!flags.isEmpty()) {
+                                flags += ", ";
+                            }
+
+                            flags += "watch:write";
+                        }
+                    }
+                    return flags;
                 case COLUMN_TYPE:
                     String typeStr = val.getTypeAsStr();
                     if ("Object".equals(typeStr)) {
@@ -733,7 +989,7 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
                 default:
                     return;
             }
-            Main.getDebugHandler().setVariable(((VariableNode) node).parentObjectId, ((VariableNode) node).var.name, valType, symb.value);
+            Main.getCurrentDebugSession().setVariable(((VariableNode) node).parentObjectId, ((VariableNode) node).var.name, valType, symb.value);
             //((VariableNode) node).refresh();
             Object[] path = new Object[((VariableNode) node).path.size()];
             for (int i = 0; i < path.length; i++) {
@@ -766,7 +1022,7 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
         @Override
         public void valueForPathChanged(TreePath path, Object newValue) {
-            fireTreeNodesChanged(ttable, path.getParentPath().getPath(), new int[0], new Object[]{path.getLastPathComponent()});
+            fireTreeNodesChanged(treeTable, path.getParentPath().getPath(), new int[0], new Object[]{path.getLastPathComponent()});
         }
 
         @Override
@@ -860,6 +1116,46 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         }
     }
 
+    private void hilightScriptClassTrait(ABC newAbc, int scriptIndex, int classIndex, Integer traitIndex) {
+        Runnable setTrait = new Runnable() {
+            @Override
+            public void run() {
+                decompiledTextArea.removeScriptListener(this);
+                decompiledTextArea.setClassIndex(classIndex);
+                if (traitIndex != null) {
+                    decompiledTextArea.gotoTrait(traitIndex);
+                } else {
+                    decompiledTextArea.gotoClassHeader();
+                }
+                Timer tim = new Timer();
+                tim.schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        Main.getMainFrame().getPanel().setLoadingScrollPosEnabled(true);
+                    }
+                }, 500);
+            }
+        };
+
+        Main.getMainFrame().getPanel().setLoadingScrollPosEnabled(false);
+        if (decompiledTextArea.getScriptIndex() == scriptIndex
+                && (decompiledTextArea.getClassIndex() == classIndex || classIndex == -1)
+                && abc == newAbc) {
+            setTrait.run();
+        } else {
+            decompiledTextArea.addScriptListener(setTrait);
+            String scriptName;
+            if (classIndex > -1) {
+                scriptName = newAbc.instance_info.get(classIndex).getName(newAbc.constants).getNameWithNamespace(new LinkedHashSet<>(), newAbc, newAbc.constants, true).toPrintableString(new LinkedHashSet<>(), newAbc.getSwf(), true);
+            } else if (scriptIndex > -1) {
+                scriptName = newAbc.script_info.get(classIndex).getSimplePackName(newAbc, new LinkedHashSet<>()).toPrintableString(new LinkedHashSet<>(), newAbc.getSwf(), true);
+            } else {
+                scriptName = "";
+            }
+            hilightScript(newAbc.getOpenable(), scriptName);
+        }
+    }
+
     public ABCPanel(MainPanel mainPanel) {
 
         this.mainPanel = mainPanel;
@@ -870,19 +1166,232 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
         decompiledTextArea.setLinkHandler(new LinkHandler() {
             @Override
-            public boolean isLink(Token token) {
-                return hasDeclaration(token);
+            public LinkType getClassLinkType(Path className) {
+                AbcIndexing.ClassIndex ci = abc.getSwf().getAbcIndex().findClass(new TypeItem(className.toString()), abc, decompiledTextArea.getScriptIndex());
+                if (ci == null) {
+
+                    AbcIndexing.TraitIndex ti = abc.getSwf().getAbcIndex().findScriptProperty(DottedChain.parseNoSuffix(className.toString()));
+                    if (ti == null) {
+                        return LinkType.NO_LINK;
+                    }
+                    if (ti.abc.getSwf() == abc.getSwf()) {
+                        if (ti.abc == abc
+                                && ti.scriptIndex == decompiledTextArea.getScriptIndex()) {
+                            return LinkType.LINK_THIS_SCRIPT;
+                        }
+                        return LinkType.LINK_OTHER_SCRIPT;
+                    }
+                    return LinkType.LINK_OTHER_FILE;
+                }
+                if (ci.abc.getSwf() == abc.getSwf()) {
+                    if (ci.abc == abc
+                            && ci.scriptIndex != null
+                            && ci.scriptIndex == decompiledTextArea.getScriptIndex()) {
+                        return LinkType.LINK_THIS_SCRIPT;
+                    }
+
+                    return LinkType.LINK_OTHER_SCRIPT;
+                }
+                return LinkType.LINK_OTHER_FILE;
             }
 
             @Override
-            public void handleLink(Token token) {
-                gotoDeclaration(token.start);
+            public boolean traitExists(Path className, String traitName) {
+                Reference<Boolean> foundStatic = new Reference<>(null);
+                AbcIndexing.TraitIndex ti = abc.getSwf().getAbcIndex().findProperty(new AbcIndexing.PropertyDef(traitName, new TypeItem(className.toString()), abc, -1),
+                        true,
+                        true,
+                        true,
+                        foundStatic);
+                return ti != null;
             }
 
             @Override
-            public Highlighter.HighlightPainter linkPainter() {
-                return decompiledTextArea.linkPainter();
+            public void handleClassLink(Path scriptName) {
+                Reference<SWF> swfRef = new Reference<>(null);
+                AbcIndexing.ClassIndex ci = abc.getSwf().getAbcIndex().findClass(new TypeItem(scriptName.toString()), abc, decompiledTextArea.getScriptIndex());
+                if (ci == null) {
+                    AbcIndexing.TraitIndex ti = abc.getSwf().getAbcIndex().findScriptProperty(DottedChain.parseNoSuffix(scriptName.toString()));
+                    if (ti == null) {
+                        return;
+                    }
+                    swfRef.setVal(ti.abc.getSwf());
+                } else {
+                    //scriptName = ci.abc.instance_info.get(ci.index).getName(ci.abc.constants).getNameWithNamespace(ci.abc.constants, true).toPrintableString(true);
+                    swfRef.setVal(ci.abc.getSwf());
+                }
+
+                String scriptNamePrintable = DottedChain.parseWithSuffix(scriptName.toString()).toPrintableString(new LinkedHashSet<>(), swfRef.getVal(), true);
+
+                if (swfRef.getVal() == abc.getSwf()) {
+                    hilightScript(getOpenable(), scriptNamePrintable);
+                    return;
+                }
+
+                hilightScript(swfRef.getVal(), scriptNamePrintable);
             }
+
+            @Override
+            public void handleTraitLink(Path className, String traitName) {
+                Reference<Boolean> foundStatic = new Reference<>(null);
+                AbcIndexing.TraitIndex ti = abc.getSwf().getAbcIndex().findProperty(new AbcIndexing.PropertyDef(traitName, new TypeItem(className.toString()), abc, -1),
+                        true,
+                        true,
+                        true,
+                        foundStatic);
+                if (ti.objType instanceof TypeItem) {
+                    AbcIndexing.ClassIndex ci = abc.getSwf().getAbcIndex().findClass(ti.objType, abc, decompiledTextArea.getScriptIndex());
+                    int i = 0;
+                    Integer traitIndex = null;
+                    for (Trait t : ci.abc.class_info.get(ci.index).static_traits.traits) {
+                        if (t == ti.trait) {
+                            traitIndex = i;
+                            break;
+                        }
+                        i++;
+                    }
+                    if (traitIndex == null) {
+                        for (Trait t : ci.abc.instance_info.get(ci.index).instance_traits.traits) {
+                            if (t == ti.trait) {
+                                traitIndex = i;
+                                break;
+                            }
+                            i++;
+                        }
+                    }
+                    if (traitIndex != null) {
+                        hilightScriptClassTrait(ti.abc, ti.scriptIndex, ci.index, traitIndex);
+                    }
+                }
+            }
+
+            @Override
+            public Path getTraitType(Path className, String traitName) {
+                Reference<Boolean> foundStatic = new Reference<>(null);
+                AbcIndexing.TraitIndex ti = abc.getSwf().getAbcIndex().findProperty(new AbcIndexing.PropertyDef(traitName, new TypeItem(className.toString()), abc, -1),
+                        true,
+                        true,
+                        true,
+                        foundStatic);
+                if (ti == null) {
+                    return null;
+                }
+                if (ti.returnType instanceof ApplyTypeAVM2Item) {
+                    ApplyTypeAVM2Item at = (ApplyTypeAVM2Item) ti.returnType;
+                    return typeToPath(at.object);
+                }
+                return typeToPath(ti.returnType);
+            }
+
+            private Path typeToPath(GraphTargetItem type) {
+                if (type instanceof TypeItem) {
+                    TypeItem ti = (TypeItem) type;
+                    return new Path(ti.fullTypeName.getStringParts());
+                }
+                return new Path(Helper.splitString(".", type.toString())); //Arrays.asList(type.toString().split("\\.")));
+            }
+
+            @Override
+            public Path getTraitSubType(Path className, String traitName, int level) {
+                Reference<Boolean> foundStatic = new Reference<>(null);
+                AbcIndexing.TraitIndex ti = abc.getSwf().getAbcIndex().findProperty(new AbcIndexing.PropertyDef(traitName, new TypeItem(className.toString()), abc, -1),
+                        true,
+                        true,
+                        true,
+                        foundStatic);
+                if (ti == null) {
+                    return null;
+                }
+                GraphTargetItem it = ti.returnType;
+                for (int i = 0; i < level; i++) {
+                    if (!(it instanceof ApplyTypeAVM2Item)) {
+                        return null;
+                    }
+                    it = ((ApplyTypeAVM2Item) it).params.get(0);
+                }
+
+                return typeToPath(it);
+            }
+
+            @Override
+            public Path getTraitCallType(Path className, String traitName) {
+                Reference<Boolean> foundStatic = new Reference<>(null);
+                AbcIndexing.TraitIndex ti = abc.getSwf().getAbcIndex().findProperty(new AbcIndexing.PropertyDef(traitName, new TypeItem(className.toString()), abc, -1),
+                        true,
+                        true,
+                        true,
+                        foundStatic);
+                if (ti == null) {
+                    return null;
+                }
+                if (ti.callReturnType instanceof ApplyTypeAVM2Item) {
+                    ApplyTypeAVM2Item at = (ApplyTypeAVM2Item) ti.callReturnType;
+                    return typeToPath(at.object);
+                }
+                return typeToPath(ti.callReturnType);
+            }
+
+            @Override
+            public Path getTraitCallSubType(Path className, String traitName, int level) {
+                Reference<Boolean> foundStatic = new Reference<>(null);
+                AbcIndexing.TraitIndex ti = abc.getSwf().getAbcIndex().findProperty(new AbcIndexing.PropertyDef(traitName, new TypeItem(className.toString()), abc, -1),
+                        true,
+                        true,
+                        true,
+                        foundStatic);
+                if (ti == null) {
+                    return null;
+                }
+                GraphTargetItem it = ti.callReturnType;
+                for (int i = 0; i < level; i++) {
+                    if (!(it instanceof ApplyTypeAVM2Item)) {
+                        return null;
+                    }
+                    it = ((ApplyTypeAVM2Item) it).params.get(0);
+                }
+
+                return typeToPath(it);
+            }
+
+            @Override
+            public List<com.jpexs.decompiler.flash.simpleparser.Variable> getClassTraits(Path className, boolean getStatic, boolean getInstance, boolean getInheritance) {
+                List<AbcIndexing.PropertyDef> propertyDefList = new ArrayList<>();
+                List<Boolean> isStaticList = new ArrayList<>();
+                abc.getSwf().getAbcIndex().getClassTraits(new LinkedHashSet<>(), new TypeItem(className.toString()), abc, decompiledTextArea.getScriptIndex(), getStatic, getInstance, getInheritance, true, true, propertyDefList, isStaticList);
+                List<com.jpexs.decompiler.flash.simpleparser.Variable> ret = new ArrayList<>();
+                for (int i = 0; i < propertyDefList.size(); i++) {
+                    AbcIndexing.PropertyDef def = propertyDefList.get(i);
+                    AbcIndexing.TraitIndex ti = abc.getSwf().getAbcIndex().findProperty(def, getStatic, getInstance, false, new Reference<>(null));
+                    Path type = null;
+                    Path callType = null;
+                    if (ti != null) {
+                        type = typeToPath(ti.returnType);
+                        callType = typeToPath(ti.callReturnType);
+                    }
+                    if (ti.trait instanceof TraitSlotConst) {
+                        callType = null;
+                    }
+                    if (ti.trait instanceof TraitMethodGetterSetter) {
+                        TraitMethodGetterSetter tmgs = (TraitMethodGetterSetter) ti.trait;
+                        if (tmgs.kindType == Trait.TRAIT_SETTER) {
+                            int[] paramTypes = ti.abc.method_info.get(tmgs.method_info).param_types;
+                            if (paramTypes.length == 1) {
+                                type = new Path(ti.abc.constants.getMultiname(paramTypes[0]).getNameWithNamespace(new LinkedHashSet<>(), ti.abc, ti.abc.constants, false).getStringParts());
+                                callType = null;
+                            } else {
+                                continue;
+                            }
+                        }
+                        if (tmgs.kindType == Trait.TRAIT_GETTER) {
+                            type = callType;
+                            callType = null;
+                        }
+                    }
+                    ret.add(new com.jpexs.decompiler.flash.simpleparser.Variable(true, new Path(def.getPropertyName()), 0, isStaticList.get(i), type, callType));
+                }
+                return ret;
+            }
+
         });
         decompiledTextArea.addScriptListener(new Runnable() {
             @Override
@@ -922,9 +1431,9 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         decompiledScrollPane = new FasterScrollPane(decompiledTextArea);
 
         JPanel iconDecPanel = new JPanel();
-        iconDecPanel.setLayout(new BoxLayout(iconDecPanel, BoxLayout.Y_AXIS));
-        JPanel iconsPanel = new JPanel();
-        iconsPanel.setLayout(new BoxLayout(iconsPanel, BoxLayout.X_AXIS));
+        iconDecPanel.setLayout(new BorderLayout());
+        JPanel iconsPanel = new JPanel(new FlowLayout());
+        //iconsPanel.setLayout(new BoxLayout(iconsPanel, BoxLayout.X_AXIS));
 
         JButton newTraitButton = new JButton(View.getIcon("traitadd16"));
         newTraitButton.setMargin(new Insets(5, 5, 5, 5));
@@ -938,27 +1447,161 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         removeTraitButton.setToolTipText(AppStrings.translate("button.removetrait"));
         iconsPanel.add(removeTraitButton);
 
+        JButton abcExplorerButton = new JButton(View.getIcon("abcexplorer16"));
+        abcExplorerButton.setMargin(new Insets(5, 5, 5, 5));
+        abcExplorerButton.addActionListener(this::abcExplorerTraitButtonActionPerformed);
+        abcExplorerButton.setToolTipText(AppStrings.translate("button.abcexploretrait"));
+        iconsPanel.add(abcExplorerButton);
+
+        JToggleButton deobfuscateButton = new JToggleButton(View.getIcon("deobfuscate16"));
+        deobfuscateButton.setMargin(new Insets(5, 5, 5, 5));
+        deobfuscateButton.addActionListener(this::deobfuscateButtonActionPerformed);
+        deobfuscateButton.setToolTipText(AppStrings.translate("button.deobfuscate"));
+        deobfuscateButton.setSelected(Configuration.autoDeobfuscate.get());
+        Configuration.autoDeobfuscate.addListener(new ConfigurationItemChangeListener<Boolean>() {
+            @Override
+            public void configurationItemChanged(Boolean newValue) {
+                deobfuscateButton.setSelected(newValue);
+            }
+        });
+
+        PopupButton deobfuscateOptionsButton = new PopupButton(View.getIcon("medkit16")) {
+            @Override
+            protected JPopupMenu getPopupMenu() {
+                JPopupMenu popupMenu = new JPopupMenu();
+                JCheckBoxMenuItem deobfuscateIdentifiersMenuItem = new JCheckBoxMenuItem(AppStrings.translate("deobfuscate_options.deobfuscateIdentifiers"));
+                deobfuscateIdentifiersMenuItem.setSelected(Configuration.autoDeobfuscateIdentifiers.get());
+                deobfuscateIdentifiersMenuItem.addActionListener(ABCPanel.this::autoDeobfuscateIdentifiersMenuItemActionPerformed);
+
+                JCheckBoxMenuItem simplifyExpressionsMenuItem = new JCheckBoxMenuItem(AppStrings.translate("deobfuscate_options.simplify_expressions"));
+                simplifyExpressionsMenuItem.setSelected(Configuration.simplifyExpressions.get());
+                simplifyExpressionsMenuItem.addActionListener(ABCPanel.this::simplifyExpressionsMenuItemActionPerformed);
+                /*JCheckBoxMenuItem removeObfuscatedDeclarationsMenuItem = new JCheckBoxMenuItem(AppStrings.translate("deobfuscate_options.remove_obfuscated_declarations"));
+                removeObfuscatedDeclarationsMenuItem.setSelected(Configuration.deobfuscateAs12RemoveInvalidNamesAssignments.get());
+                removeObfuscatedDeclarationsMenuItem.addActionListener(this::removeObfuscatedDeclarationsMenuItemActionPerformed);
+                 */
+
+                JCheckBoxMenuItem disableDecompilationMenuItem = new JCheckBoxMenuItem(AppStrings.translate("menu.settings.disabledecompilation"));
+                disableDecompilationMenuItem.setSelected(!Configuration.decompile.get());
+                disableDecompilationMenuItem.addActionListener(ABCPanel.this::disableDecompilationMenuItemActionPerformed);
+
+                popupMenu.add(deobfuscateIdentifiersMenuItem);
+                popupMenu.add(simplifyExpressionsMenuItem);
+                //popupMenu.add(removeObfuscatedDeclarationsMenuItem);
+                popupMenu.add(disableDecompilationMenuItem);
+
+                return popupMenu;
+            }
+        };
+        deobfuscateOptionsButton.setToolTipText(AppStrings.translate("button.deobfuscate_options"));
+        deobfuscateOptionsButton.setMargin(new Insets(0, 0, 0, 0));
+        deobfuscateOptionsButton.setPreferredSize(new Dimension(30, deobfuscateButton.getPreferredSize().height));
+
+        iconsPanel.add(deobfuscateButton);
+        iconsPanel.add(deobfuscateOptionsButton);
+
+        JButton breakpointListButton = new JButton(View.getIcon("breakpointlist16"));
+        breakpointListButton.setMargin(new Insets(5, 5, 5, 5));
+        breakpointListButton.addActionListener(this::breakPointListButtonActionPerformed);
+        breakpointListButton.setToolTipText(AppStrings.translate("button.breakpointList"));
+        iconsPanel.add(breakpointListButton);
+
         scriptNameLabel = new JLabel("-");
-        scriptNameLabel.setAlignmentX(0);
-        iconsPanel.setAlignmentX(0);
-        decompiledScrollPane.setAlignmentX(0);
-        iconDecPanel.add(scriptNameLabel);
-        iconDecPanel.add(iconsPanel);
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        //iconsPanel.setAlignmentX(0);
+        topPanel.add(scriptNameLabel, BorderLayout.NORTH);
+
+        toolbarPanel = new JPanel(new BorderLayout());
+        toolbarPanel.add(iconsPanel, BorderLayout.WEST);
+
+        JPanel libraryAndLinkPanel = new JPanel(new FlowLayout());
+
+        JToggleButton linkButton = new JToggleButton(View.getIcon("link16"));
+
+        LinkDialog linkDialog = new LinkDialog(mainPanel, linkButton);
+
+        libraryComboBox = new JComboBox<>();
+        libraryComboBox.addItem("AIR (airglobal.swc)");
+        libraryComboBox.addItem("Flash (playerglobal.swc)");
+        libraryComboBox.setSelectedIndex(SWF.LIBRARY_FLASH);
+        libraryComboBox.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                SWF swf = getSwf();
+                if (swf == null) {
+                    return;
+                }
+                SwfSpecificCustomConfiguration conf = Configuration.getOrCreateSwfSpecificCustomConfiguration(swf.getShortPathTitle());
+                conf.setCustomData(CustomConfigurationKeys.KEY_LIBRARY, "" + libraryComboBox.getSelectedIndex());
+                linkDialog.load(getSwf());
+                linkDialog.save(getSwf(), true);
+            }
+        });
+
+        libraryAndLinkPanel.add(new JLabel(AppStrings.translate("library")));
+        libraryAndLinkPanel.add(libraryComboBox);
+
+        libraryAndLinkPanel.add(linksLabel);
+
+        linkButton.setToolTipText(AppStrings.translate("button.abc.linkedSwfs.hint"));
+
+        linkDialog.addSaveListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                reload();
+            }
+        });
+
+        linkButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!linkButton.isSelected()) {
+                    return;
+                }
+                linkDialog.setLocationRelativeTo(linkButton);
+                Point loc = new Point(0, linkButton.getHeight());
+                SwingUtilities.convertPointToScreen(loc, linkButton);
+                linkDialog.setLocation(loc);
+
+                linkDialog.show(getSwf());
+            }
+        });
+        libraryAndLinkPanel.add(linkButton);
+
+        toolbarPanel.add(libraryAndLinkPanel, BorderLayout.EAST);
+
+        topPanel.add(toolbarPanel, BorderLayout.CENTER);
+
+        iconDecPanel.add(topPanel, BorderLayout.NORTH);
 
         JPanel panelWithHint = new JPanel(new BorderLayout());
-        panelWithHint.setAlignmentX(0);
+        panelWithHint.setAlignmentX(CENTER_ALIGNMENT);
         panelWithHint.add(brokenHintPanel, BorderLayout.NORTH);
         panelWithHint.add(decompiledScrollPane, BorderLayout.CENTER);
 
         brokenHintPanel.setVisible(false);
 
-        iconDecPanel.add(panelWithHint);
+        infoNotEditableLabel = new JLabel(View.getIcon("information16"));
+        infoNotEditableLabel.setToolTipText(AppStrings.translate("info.noteditable.compound"));
+
+        iconDecPanel.add(panelWithHint, BorderLayout.CENTER);
         final JPanel decButtonsPan = new JPanel(new FlowLayout());
         decButtonsPan.setBorder(new BevelBorder(BevelBorder.RAISED));
         decButtonsPan.add(editDecompiledButton);
         decButtonsPan.add(experimentalLabel);
+        decButtonsPan.add(flexLabel);
+        decButtonsPan.add(infoNotEditableLabel);
         decButtonsPan.add(saveDecompiledButton);
         decButtonsPan.add(cancelDecompiledButton);
+
+        if (Configuration.useFlexAs3Compiler.get()) {
+            experimentalLabel.setVisible(false);
+        } else {
+            flexLabel.setVisible(false);
+        }
+
+        infoNotEditableLabel.setVisible(false);
 
         editDecompiledButton.setMargin(new Insets(3, 3, 3, 10));
         saveDecompiledButton.setMargin(new Insets(3, 3, 3, 10));
@@ -970,30 +1613,33 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
         saveDecompiledButton.setVisible(false);
         cancelDecompiledButton.setVisible(false);
+
         decButtonsPan.setAlignmentX(0);
 
         JPanel decPanel = new JPanel(new BorderLayout());
         decPanel.add(searchPanel, BorderLayout.NORTH);
         decPanel.add(iconDecPanel, BorderLayout.CENTER);
         decPanel.add(decButtonsPan, BorderLayout.SOUTH);
-        detailPanel = new DetailPanel(this);
+        detailPanel = new DetailPanel(this, mainPanel);
         JPanel panB = new JPanel();
         panB.setLayout(new BorderLayout());
         panB.add(decLabel, BorderLayout.NORTH);
 
         Main.getDebugHandler().addConnectionListener(new DebuggerHandler.ConnectionListener() {
             @Override
-            public void connected() {
+            public void connected(DebuggerSession session) {
                 decButtonsPan.setVisible(false);
             }
 
             @Override
-            public void disconnected() {
-                decButtonsPan.setVisible(true);
+            public void disconnected(DebuggerSession session) {
+                if (!Main.getDebugHandler().isAnySessionConnected()) {
+                    decButtonsPan.setVisible(true);
+                }
             }
         });
 
-        debugPanel = new DebugPanel();
+        debugPanel = new DebugPanel(true);
 
         JPersistentSplitPane sp2;
 
@@ -1004,10 +1650,10 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
         decLabel.setHorizontalAlignment(SwingConstants.CENTER);
         //decLabel.setBorder(new BevelBorder(BevelBorder.RAISED));
-        splitPane = new JPersistentSplitPane(JSplitPane.HORIZONTAL_SPLIT, panB, detailPanel, Configuration.guiAvm2SplitPaneDividerLocationPercent);
-        splitPane.setContinuousLayout(true);
 
         decompiledTextArea.changeContentType("text/actionscript3");
+        DefaultSyntaxKit kit = (DefaultSyntaxKit) decompiledTextArea.getEditorKit();
+        kit.installComponent(decompiledTextArea, VariableMarker.class.getName());
         decompiledTextArea.setFont(Configuration.getSourceFont());
 
         View.addEditorAction(decompiledTextArea, new AbstractAction() {
@@ -1016,18 +1662,11 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
                 Reference<ABC> usedAbc = new Reference<>(null);
                 int multinameIndex = decompiledTextArea.getMultinameUnderCaret(usedAbc);
                 if (multinameIndex > -1) {
-                    UsageFrame usageFrame = new UsageFrame(usedAbc.getVal(), multinameIndex, ABCPanel.this, false);
+                    UsageFrame usageFrame = new UsageFrame(usedAbc.getVal(), multinameIndex, false, ABCPanel.this, false);
                     usageFrame.setVisible(true);
                 }
             }
         }, "find-usages", AppStrings.translate("abc.action.find-usages"), "control U");
-
-        View.addEditorAction(decompiledTextArea, new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                gotoDeclaration(decompiledTextArea.getCaretPosition());
-            }
-        }, "find-declaration", AppStrings.translate("abc.action.find-declaration"), "control B");
 
         CtrlClickHandler cch = new CtrlClickHandler();
         decompiledTextArea.addKeyListener(cch);
@@ -1036,14 +1675,17 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
         navigator = new TraitsList(this);
 
-        navPanel = new JPanel(new BorderLayout());
+        navigatorPanel = new JPanel(new BorderLayout());
         JPanel navIconsPanel = new JPanel();
         navIconsPanel.setLayout(new BoxLayout(navIconsPanel, BoxLayout.X_AXIS));
         final JToggleButton sortButton = new JToggleButton(View.getIcon("sort16"));
         sortButton.setMargin(new Insets(3, 3, 3, 3));
+        sortButton.setToolTipText(AppStrings.translate("sort.alphabetically"));
         navIconsPanel.add(sortButton);
-        navPanel.add(navIconsPanel, BorderLayout.SOUTH);
-        navPanel.add(new FasterScrollPane(navigator), BorderLayout.CENTER);
+        //JLabel navigatorLabel = new JLabel(AppStrings.translate("traits"), JLabel.CENTER);
+        //navigatorPanel.add(navigatorLabel, BorderLayout.NORTH);
+        navigatorPanel.add(navIconsPanel, BorderLayout.SOUTH);
+        navigatorPanel.add(new FasterScrollPane(navigator), BorderLayout.CENTER);
         sortButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -1052,43 +1694,16 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
             }
         });
 
-        tabbedPane = new JTabbedPane();
-        tabbedPane.addTab(AppStrings.translate("traits"), navPanel);
-        add(splitPane, BorderLayout.CENTER);
-
-        JPanel panConstants = new JPanel();
-        panConstants.setLayout(new BorderLayout());
-
-        constantTypeList = new JComboBox<>(new String[]{"UINT", "INT", "DOUBLE", "DECIMAL", "STRING", "NAMESPACE", "NAMESPACESET", "MULTINAME"});
-        constantTable = new JTable();
-        if (abc != null) {
-            View.autoResizeColWidth(constantTable, new UIntTableModel(abc));
+        if (Configuration.displayAs3PCodePanel.get()) {
+            splitPane = new JPersistentSplitPane(JSplitPane.HORIZONTAL_SPLIT, panB, detailPanel, Configuration.guiAvm2SplitPaneDividerLocationPercent);
+            splitPane.setContinuousLayout(true);
+            add(splitPane, BorderLayout.CENTER);
+        } else {
+            splitPane = null;
+            add(panB, BorderLayout.CENTER);
         }
-        constantTable.setAutoCreateRowSorter(true);
 
-        final ABCPanel t = this;
-        constantTable.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2) {
-                    if (constantTypeList.getSelectedIndex() == 7) { //MULTINAME
-                        int rowIndex = constantTable.getSelectedRow();
-                        if (rowIndex == -1) {
-                            return;
-                        }
-                        int multinameIndex = constantTable.convertRowIndexToModel(rowIndex);
-                        if (multinameIndex > 0) {
-                            UsageFrame usageFrame = new UsageFrame(abc, multinameIndex, t, false);
-                            usageFrame.setVisible(true);
-                        }
-                    }
-                }
-            }
-        });
-        constantTypeList.addItemListener(this);
-        panConstants.add(constantTypeList, BorderLayout.NORTH);
-        panConstants.add(new FasterScrollPane(constantTable), BorderLayout.CENTER);
-        tabbedPane.addTab(AppStrings.translate("constants"), panConstants);
+        debugPanel.refresh();
     }
 
     private void decompiledTextAreaTextChanged() {
@@ -1108,13 +1723,13 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         cancelDecompiledButton.setEnabled(value);
     }
 
-    private boolean hasDeclaration(Token t) {
+    private LinkType hasDeclaration(Token t) {
         if (decompiledTextArea == null) {
-            return false; //?
+            return LinkType.NO_LINK; //?
         }
 
         if (t == null || (t.type != TokenType.IDENTIFIER && t.type != TokenType.KEYWORD && t.type != TokenType.REGEX)) {
-            return false;
+            return LinkType.NO_LINK;
         }
         int pos = t.start;
         Reference<Integer> abcIndex = new Reference<>(0);
@@ -1123,19 +1738,27 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         Reference<Integer> multinameIndexRef = new Reference<>(0);
         Reference<Boolean> classTrait = new Reference<>(false);
         Reference<ABC> usedAbcRef = new Reference<>(null);
-        if (decompiledTextArea.getPropertyTypeAtPos(pos, abcIndex, classIndex, traitIndex, classTrait, multinameIndexRef, usedAbcRef)) {
-            return true;
+        Reference<Integer> scriptIndexRef = new Reference<>(-1);
+        if (getSwf() == null) {
+            return LinkType.NO_LINK;
+        }
+        LinkType propLinkType = decompiledTextArea.getPropertyTypeAtPos(getSwf().getAbcIndex(), pos, abcIndex, classIndex, traitIndex, classTrait, multinameIndexRef, usedAbcRef, false, scriptIndexRef);
+        if (propLinkType != LinkType.NO_LINK) {
+            if (usedAbcRef.getVal() == abc && scriptIndexRef.getVal() == decompiledTextArea.getScriptIndex()) {
+                return LinkType.LINK_THIS_SCRIPT;
+            }
+            return propLinkType;
         }
         ABC usedAbc = usedAbcRef.getVal();
         int multinameIndex = decompiledTextArea.getMultinameAtPos(pos, usedAbcRef);
         if (multinameIndex > -1) {
             if (multinameIndex == 0) {
-                return false;
+                return LinkType.NO_LINK;
             }
 
             Multiname m = usedAbc.constants.getMultiname(multinameIndex);
             if (m == null) {
-                return false;
+                return LinkType.NO_LINK;
             }
             if (m.kind == Multiname.TYPENAME) {  //Assuming it's a Vector with single parameter
                 multinameIndex = m.params[0];
@@ -1151,7 +1774,7 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
                         continue;
                     }
 
-                    List<Integer> mids = a.constants.getMultinameIds(m, usedAbc.constants);
+                    List<Integer> mids = a.constants.getMultinameIds(m, a, usedAbc, usedAbc.constants);
                     for (int mid : mids) {
                         usages.addAll(a.findMultinameDefinition(mid));
                     }
@@ -1160,11 +1783,14 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
             //more than one? display list
             if (!usages.isEmpty()) {
-                return true;
+                return LinkType.NO_LINK;
             }
         }
 
-        return decompiledTextArea.getLocalDeclarationOfPos(pos, new Reference<>(null)) != -1;
+        Reference<LinkType> linkTypeRef = new Reference<>(null);
+        decompiledTextArea.getLocalDeclarationOfPos(pos, new Reference<>(null), linkTypeRef);
+
+        return linkTypeRef.getVal();
     }
 
     private void gotoDeclaration(int pos) {
@@ -1175,9 +1801,10 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         Reference<Integer> traitIndex = new Reference<>(0);
         Reference<Boolean> classTrait = new Reference<>(false);
         Reference<Integer> multinameIndexRef = new Reference<>(0);
+        Reference<Integer> scriptIndexRef = new Reference<>(-1);
         Reference<ABC> usedAbcRef = new Reference<>(null);
-        if (decompiledTextArea.getPropertyTypeAtPos(pos, abcIndex, classIndex, traitIndex, classTrait, multinameIndexRef, usedAbcRef)) {
-            UsageFrame.gotoUsage(ABCPanel.this, new TraitMultinameUsage(getAbcList().get(abcIndex.getVal()).getABC(), multinameIndexRef.getVal(), decompiledTextArea.getScriptLeaf().scriptIndex, classIndex.getVal(), traitIndex.getVal(), classTrait.getVal() ? TraitMultinameUsage.TRAITS_TYPE_CLASS : TraitMultinameUsage.TRAITS_TYPE_INSTANCE, null, -1) {
+        if (decompiledTextArea.getPropertyTypeAtPos(getSwf().getAbcIndex(), pos, abcIndex, classIndex, traitIndex, classTrait, multinameIndexRef, usedAbcRef, false, scriptIndexRef) != LinkType.NO_LINK) {
+            UsageFrame.gotoUsage(ABCPanel.this, new TraitMultinameUsage(usedAbcRef.getVal(), multinameIndexRef.getVal(), scriptIndexRef.getVal(), classIndex.getVal(), traitIndex.getVal(), classTrait.getVal() ? TraitMultinameUsage.TRAITS_TYPE_CLASS : TraitMultinameUsage.TRAITS_TYPE_INSTANCE, null, -1) {
             });
             return;
         }
@@ -1200,7 +1827,7 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
                     if (a == usedAbc) {
                         continue;
                     }
-                    List<Integer> mids = a.constants.getMultinameIds(m, usedAbc.constants);
+                    List<Integer> mids = a.constants.getMultinameIds(m, a, usedAbc, usedAbc.constants);
                     for (int mid : mids) {
                         usages.addAll(a.findMultinameDefinition(mid));
                     }
@@ -1209,7 +1836,7 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
             //more than one? display list
             if (usages.size() > 1) {
-                UsageFrame usageFrame = new UsageFrame(usedAbc, multinameIndex, ABCPanel.this, true);
+                UsageFrame usageFrame = new UsageFrame(usedAbc, multinameIndex, false, ABCPanel.this, true);
                 usageFrame.setVisible(true);
                 return;
             } else if (!usages.isEmpty()) { //one
@@ -1218,7 +1845,7 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
             }
         }
 
-        int dpos = decompiledTextArea.getLocalDeclarationOfPos(pos, new Reference<>(null));
+        int dpos = decompiledTextArea.getLocalDeclarationOfPos(pos, new Reference<>(null), new Reference<>(null));
         if (dpos > -1) {
             decompiledTextArea.setCaretPosition(dpos);
         }
@@ -1247,7 +1874,7 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
         @Override
         public void mouseClicked(MouseEvent e) {
-            if (ctrlDown && e.getButton() == MouseEvent.BUTTON1 && e.getClickCount() == 1 && !decompiledTextArea.isEditable()) {
+            if (ctrlDown && SwingUtilities.isLeftMouseButton(e) && e.getClickCount() == 1 && !decompiledTextArea.isEditable()) {
                 ctrlDown = false;
                 //decompiledTextArea.setCursor(Cursor.getDefaultCursor());
                 //gotoDeclaration();
@@ -1297,6 +1924,21 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
 
         decompiledTextArea.reloadClass();
         detailPanel.methodTraitPanel.methodCodePanel.clear();
+        updateLinksLabel();
+    }
+
+    public void updateLinksLabel() {
+        SWF swf = getSwf();
+        if (swf == null) {
+            linksLabel.setText("");
+        } else {
+            int num = swf.getNumAbcIndexDependencies();
+            if (num == 0) {
+                linksLabel.setText("");
+            } else {
+                linksLabel.setText(AppStrings.translate(num == 1 ? "abc.linkedSwfs.one" : "abc.linkedSwfs.more").replace("%num%", "" + num));
+            }
+        }
     }
 
     @Override
@@ -1308,7 +1950,6 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
             if (index == -1) {
                 return;
             }
-            updateConstList();
         }
     }
 
@@ -1318,46 +1959,178 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         setVisible(true);
     }
 
-    public void hilightScript(SWF swf, String name) {
+    public void hilightScript(String nameIncludingSwfHash) {
+        if (!nameIncludingSwfHash.contains(":")) {
+            throw new RuntimeException("Script name should contain swfHash");
+        }
+        String swfHash = nameIncludingSwfHash.substring(nameIncludingSwfHash.indexOf(":"));
+        String name = nameIncludingSwfHash.substring(nameIncludingSwfHash.indexOf(":") + 1);
+        Openable openable = Main.findOpenedSwfByHash(swfHash);
+
+        if (openable != null) {
+            hilightScript(openable, name);
+        }
+    }
+
+    /**
+     * Hilights specific script.
+     *
+     * @param openable Openable to hilight
+     * @param name Full name of the script. It must be printable - deobfuscated,
+     * not raw!
+     */
+    public boolean hilightScript(Openable openable, String name) {
+
+        TreeItem scriptNode = null;
+        if (openable instanceof SWF) {
+
+            SWF swf = (SWF) openable;
+
+            OpenableListLoaded afterOpen = new OpenableListLoaded() {
+                @Override
+                public void openableListLoaded(OpenableList openableList) {
+                    for (Openable op : openableList.items) {
+                        if (op instanceof SWF) {
+                            SWF swf = (SWF) op;
+                            if ("library.swf".equals(swf.getFileTitle())) {
+                                hilightScript(swf, name);
+                                return;
+                            }
+                        }
+                    }
+                }
+            };
+
+            if (swf.getFile() == null && "__playerglobal".equals(swf.getFileTitle())) {
+                mainPanel.findOrLoadOpenableListByFilePath(Configuration.getPlayerSWC().getAbsolutePath(), afterOpen, false);
+                return true;
+            } else if (swf.getFile() == null && "__airglobal".equals(swf.getFileTitle())) {
+                mainPanel.findOrLoadOpenableListByFilePath(Configuration.getAirSWC().getAbsolutePath(), afterOpen, false);
+                return true;
+            }
+
+            if (mainPanel.getCurrentView() == MainPanel.VIEW_RESOURCES) {
+                scriptNode = mainPanel.tagTree.getFullModel().getScriptsNode(swf);
+            } else {
+                List<ABC> allAbcs = new ArrayList<>();
+                for (ABCContainerTag container : swf.getAbcList()) {
+                    allAbcs.add(container.getABC());
+                }
+                loopcontainer:
+                for (ABCContainerTag container : swf.getAbcList()) {
+                    List<ScriptPack> packs = container.getABC().getScriptPacks(null, allAbcs);
+                    for (ScriptPack pack : packs) {
+                        ClassPath classPath = pack.getClassPath();
+                        if (name.endsWith(classPath.className + classPath.namespaceSuffix) && classPath.toRawString().equals(name)) {
+                            scriptNode = (Tag) container;
+                            break loopcontainer;
+                        }
+                    }
+                }
+            }
+        } else if (openable instanceof ABC) {
+            scriptNode = (ABC) openable;
+        }
+
+        if (scriptNode != null) {
+            return hilightScript(openable, name, scriptNode);
+        }
+        return false;
+    }
+
+    public boolean hilightScript(Openable openable, String name, TreeItem scriptNode) {
         View.checkAccess();
 
-        TagTreeModel ttm = (TagTreeModel) mainPanel.tagTree.getModel();
-        TreeItem scriptsNode = ttm.getScriptsNode(swf);
-        if (scriptsNode instanceof ClassesListTreeModel) {
-            ClassesListTreeModel clModel = (ClassesListTreeModel) scriptsNode;
-            ScriptPack pack = null;
-            for (ScriptPack item : clModel.getList()) {
-                if (!item.isSimple && Configuration.ignoreCLikePackages.get()) {
-                    continue;
-                }
+        Object item;
 
-                ClassPath classPath = item.getClassPath();
+        if ((mainPanel.getCurrentView() == MainPanel.VIEW_RESOURCES) && (openable instanceof SWF)) {
+            item = mainPanel.tagTree.getFullModel().getScriptsNode((SWF) openable);
+        } else if (openable instanceof ABC) {
+            item = openable;
+        } else { //SWF on taglist, should be DoABCContainer
+            item = scriptNode;
+        }
 
-                // first check the className to avoid calling unnecessary toString
-                if (name.endsWith(classPath.className + classPath.namespaceSuffix) && classPath.toRawString().equals(name)) {
-                    pack = item;
+        AbstractTagTree tree = mainPanel.getCurrentTree();
+
+        String pkg = name.contains(".") ? name.substring(0, name.lastIndexOf(".")) : "";
+        String[] parts = name.split("\\.");
+
+        List<Object> rootNodes = new ArrayList<>();
+        rootNodes.add(item);
+
+        boolean found = false;
+
+        List<? extends TreeItem> firstLevelNodes = tree.getFullModel().getAllChildren(item);
+        for (TreeItem ti : firstLevelNodes) {
+            if ((ti instanceof AS3Package) && (((AS3Package) ti).isCompoundScript())) {
+                rootNodes.add(ti);
+                if (parts.length == 1 && parts[0].equals("script_" + ((AS3Package) ti).getCompoundScriptIndex())) {
+                    found = true;
+                    item = ti;
                     break;
                 }
             }
+        }
 
-            if (pack != null) {
-                hilightScript(pack);
+        if (!found) {
+            looproot:
+            for (Object root : rootNodes) {
+                item = root;
+                loopparts:
+                for (int i = 0; i < parts.length; i++) {
+                    found = false;
+                    for (TreeItem ti : tree.getFullModel().getAllChildren(item)) {
+                        if ((ti instanceof AS3Package) && ((AS3Package) ti).isFlat()) {
+                            AS3Package pti = (AS3Package) ti;
+                            if ((pkg.isEmpty() && pti.isDefaultPackage()) || (!pti.isDefaultPackage() && pkg.equals(pti.packageName))) {
+                                item = pti;
+                                i = parts.length - 1 - 1;
+                                found = true;
+                                break;
+                            }
+                            continue;
+                        }
+                        if ((ti instanceof AS3Package) && (((AS3Package) ti).isCompoundScript())) {
+                            continue;
+                        }
+                        if (ti instanceof AS3ClassTreeItem) {
+                            AS3ClassTreeItem cti = (AS3ClassTreeItem) ti;
+
+                            if (parts[i].equals(cti.getPrintableNameWithNamespaceSuffix())) {
+                                item = ti;
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!found) {
+                        continue looproot;
+                    }
+                }
+                break; //found
             }
         }
+        if (!found) {
+            return false;
+        }
+        mainPanel.setTagTreeSelectedNode(mainPanel.getCurrentTree(), (TreeItem) item);
+        mainPanel.reload(true);
+        return true;
     }
 
     public void hilightScript(ScriptPack pack) {
         View.checkAccess();
 
-        TagTreeModel ttm = (TagTreeModel) mainPanel.tagTree.getModel();
+        AbstractTagTreeModel ttm = mainPanel.getCurrentTree().getFullModel();
         TreePath tp = ttm.getTreePath(pack);
         if (tp == null) {
-            mainPanel.closeTagTreeSearch();
+            mainPanel.hideQuickTreeFind();
             tp = ttm.getTreePath(pack);
         }
 
-        mainPanel.tagTree.setSelectionPath(tp);
-        mainPanel.tagTree.scrollPathToVisible(tp);
+        mainPanel.getCurrentTree().setSelectionPath(tp);
+        mainPanel.getCurrentTree().scrollPathToVisible(tp);
     }
 
     @Override
@@ -1422,20 +2195,26 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         saveDecompiledButton.setVisible(val);
         saveDecompiledButton.setEnabled(false);
         editDecompiledButton.setVisible(!val);
-        experimentalLabel.setVisible(!val);
+
+        boolean useFlex = Configuration.useFlexAs3Compiler.get();
+
+        experimentalLabel.setVisible(!useFlex && !val);
+        flexLabel.setVisible(useFlex && !val);
         cancelDecompiledButton.setVisible(val);
+
         decompiledTextArea.getCaret().setVisible(true);
         decLabel.setIcon(val ? View.getIcon("editing16") : null);
         detailPanel.setVisible(!val);
 
-        decompiledTextArea.ignoreCarret = val;
+        decompiledTextArea.ignoreCaret = val;
         if (val) {
             decompiledTextArea.requestFocusInWindow();
         }
+        toolbarPanel.setVisible(!val);
     }
 
     private void editDecompiledButtonActionPerformed(ActionEvent evt) {
-        scriptReplacer = mainPanel.getAs3ScriptReplacer();
+        scriptReplacer = mainPanel.getAs3ScriptReplacer(Main.isSwfAir(getOpenable()));
         if (scriptReplacer == null) {
             return;
         }
@@ -1443,10 +2222,11 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         if (ViewMessages.showConfirmDialog(this, AppStrings.translate("message.confirm.experimental.function"), AppStrings.translate("message.warning"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE, Configuration.warningExperimentalAS3Edit, JOptionPane.OK_OPTION) == JOptionPane.OK_OPTION) {
             pack = decompiledTextArea.getScriptLeaf();
             setDecompiledEditMode(true);
+            mainPanel.setEditingStatus();
             SwingWorker initReplaceWorker = new SwingWorker() {
                 @Override
                 protected Object doInBackground() throws Exception {
-                    scriptReplacer.initReplacement(pack);
+                    scriptReplacer.initReplacement(pack, Main.getDependencies(pack.abc.getSwf()));
                     return null;
                 }
             };
@@ -1459,26 +2239,48 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         if (scriptReplacer != null) {
             scriptReplacer.deinitReplacement(pack);
         }
+        mainPanel.clearEditingStatus();
     }
 
-    private void saveDecompiledButtonActionPerformed(ActionEvent evt) {
+    public TreeItem getScriptNodeForPack(ScriptPack pack) {
+        TreePath scriptsPath = mainPanel.getCurrentTree().getFullModel().getTreePath(pack);
+        while (!(scriptsPath.getLastPathComponent() instanceof ClassesListTreeModel)
+                && !(scriptsPath.getLastPathComponent() instanceof ABC)
+                && !(scriptsPath.getLastPathComponent() instanceof ABCContainerTag)) {
+            scriptsPath = scriptsPath.getParentPath();
+        }
+        return (TreeItem) scriptsPath.getLastPathComponent();
+    }
+
+    private void saveDecompiled(boolean refreshTree) {
+        final ABC localAbc = abc;
         int oldIndex = pack.scriptIndex;
         SWF.uncache(pack);
         try {
             String oldSp = pack.getClassPath().toRawString();
+
+            TreeItem scriptNode = getScriptNodeForPack(pack);
+
             String as = decompiledTextArea.getText();
-            abc.replaceScriptPack(scriptReplacer, pack, as);
+
+            localAbc.replaceScriptPack(scriptReplacer, pack, as, Main.getDependencies(pack.abc.getSwf()));
             scriptReplacer.deinitReplacement(pack);
             lastDecompiled = as;
             setDecompiledEditMode(false);
             mainPanel.updateClassesList();
 
             if (oldSp != null) {
-                hilightScript(getSwf(), oldSp);
+                hilightScript(localAbc.getOpenable(), oldSp, scriptNode);
+                TreeItem sel = mainPanel.getCurrentTree().getCurrentTreeItem();
+                if ((sel instanceof ScriptPack) && (sel != pack)) {
+                    mainPanel.replaceItemPin(pack, sel);
+                }
             }
-
             reload();
-            ViewMessages.showMessageDialog(this, AppStrings.translate("message.action.saved"), AppStrings.translate("dialog.message.title"), JOptionPane.INFORMATION_MESSAGE, Configuration.showCodeSavedMessage);
+            mainPanel.clearEditingStatus();
+            if (refreshTree) {
+                ViewMessages.showMessageDialog(this, AppStrings.translate("message.action.saved"), AppStrings.translate("dialog.message.title"), JOptionPane.INFORMATION_MESSAGE, Configuration.showCodeSavedMessage);
+            }
         } catch (As3ScriptReplaceException asre) {
             StringBuilder sb = new StringBuilder();
             int firstErrorLine = As3ScriptReplaceExceptionItem.LINE_UNKNOWN;
@@ -1518,6 +2320,94 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         } catch (Throwable ex) {
             Logger.getLogger(ABCPanel.class.getName()).log(Level.SEVERE, null, ex);
         }
+    }
+
+    private void saveDecompiledButtonActionPerformed(ActionEvent evt) {
+        saveDecompiled(true);
+    }
+
+    private void deobfuscateButtonActionPerformed(ActionEvent evt) {
+        JToggleButton toggleButton = (JToggleButton) evt.getSource();
+        boolean selected = toggleButton.isSelected();
+
+        if (ViewMessages.showConfirmDialog(Main.getDefaultMessagesComponent(), AppStrings.translate("message.confirm.autodeobfuscate") + "\r\n" + (selected ? AppStrings.translate("message.confirm.on") : AppStrings.translate("message.confirm.off")), AppStrings.translate("message.confirm"), JOptionPane.OK_CANCEL_OPTION, Configuration.warningDeobfuscation, JOptionPane.OK_OPTION) == JOptionPane.OK_OPTION) {
+            Configuration.autoDeobfuscate.set(selected);
+            mainPanel.autoDeobfuscateChanged();
+        } else {
+            toggleButton.setSelected(Configuration.autoDeobfuscate.get());
+        }
+    }
+
+    private void simplifyExpressionsMenuItemActionPerformed(ActionEvent evt) {
+        JCheckBoxMenuItem menuItem = (JCheckBoxMenuItem) evt.getSource();
+        Configuration.simplifyExpressions.set(menuItem.isSelected());
+        mainPanel.autoDeobfuscateChanged();
+    }
+
+    private void autoDeobfuscateIdentifiersMenuItemActionPerformed(ActionEvent evt) {
+        JCheckBoxMenuItem menuItem = (JCheckBoxMenuItem) evt.getSource();
+        Configuration.autoDeobfuscateIdentifiers.set(menuItem.isSelected());
+        mainPanel.autoDeobfuscateChanged();
+    }
+
+    private void disableDecompilationMenuItemActionPerformed(ActionEvent evt) {
+        JCheckBoxMenuItem menuItem = (JCheckBoxMenuItem) evt.getSource();
+        Configuration.decompile.set(!menuItem.isSelected());
+        mainPanel.disableDecompilationChanged();
+    }
+
+    /*private void removeObfuscatedDeclarationsMenuItemActionPerformed(ActionEvent evt) {
+        JCheckBoxMenuItem menuItem = (JCheckBoxMenuItem) evt.getSource();
+        Configuration.deobfuscateAs12RemoveInvalidNamesAssignments.set(menuItem.isSelected());
+        mainPanel.autoDeobfuscateChanged();
+    }*/
+    private void abcExplorerTraitButtonActionPerformed(ActionEvent evt) {
+        int classIndex = decompiledTextArea.getClassIndex();
+        int globalTraitIndex = decompiledTextArea.lastTraitIndex;
+
+        if ((globalTraitIndex == GraphTextWriter.TRAIT_SCRIPT_INITIALIZER)
+                || (globalTraitIndex == GraphTextWriter.TRAIT_CLASS_INITIALIZER)
+                || (globalTraitIndex == GraphTextWriter.TRAIT_INSTANCE_INITIALIZER)) {
+            ABCExplorerDialog dialog = mainPanel.showAbcExplorer(abc.getOpenable(), abc);
+            dialog.selectTrait(decompiledTextArea.getScriptLeaf().scriptIndex, classIndex, globalTraitIndex, globalTraitIndex);
+            return;
+        }
+
+        int traitType;
+        int traitIndex = -1;
+        if (globalTraitIndex == GraphTextWriter.TRAIT_UNKNOWN && classIndex >= 0) {
+            Traits traits = abc.script_info.get(decompiledTextArea.getScriptLeaf().scriptIndex).traits;
+            for (int i = 0; i < traits.traits.size(); i++) {
+                if (traits.traits.get(i) instanceof TraitClass) {
+                    TraitClass tc = (TraitClass) traits.traits.get(i);
+                    if (tc.class_info == classIndex) {
+                        traitIndex = i;
+                        break;
+                    }
+                }
+            }
+            traitType = GraphTextWriter.TRAIT_SCRIPT_INITIALIZER;
+        } else if (classIndex < 0) {
+            traitIndex = globalTraitIndex;
+            traitType = GraphTextWriter.TRAIT_SCRIPT_INITIALIZER;
+        } else {
+            Traits staticTraits = abc.class_info.get(classIndex).static_traits;
+            Traits instanceTraits = abc.instance_info.get(classIndex).instance_traits;
+            if (globalTraitIndex >= 0 && globalTraitIndex < abc.class_info.get(classIndex).static_traits.traits.size()) {
+                traitIndex = globalTraitIndex;
+                traitType = GraphTextWriter.TRAIT_CLASS_INITIALIZER;
+            } else {
+                if (globalTraitIndex >= 0 && globalTraitIndex < staticTraits.traits.size() + instanceTraits.traits.size()) {
+                    traitIndex = globalTraitIndex - staticTraits.traits.size();
+                    traitType = GraphTextWriter.TRAIT_INSTANCE_INITIALIZER;
+                } else {
+                    return;
+                }
+            }
+        }
+
+        ABCExplorerDialog dialog = mainPanel.showAbcExplorer(abc.getOpenable(), abc);
+        dialog.selectTrait(decompiledTextArea.getScriptLeaf().scriptIndex, classIndex, traitIndex, traitType);
     }
 
     private void removeTraitButtonActionPerformed(ActionEvent evt) {
@@ -1571,7 +2461,7 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         }
 
         if (ViewMessages.showConfirmDialog(this, AppStrings.translate("message.confirm.removetrait"), AppStrings.translate("message.warning"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.OK_OPTION) {
-
+            navigator.setModel(new DefaultListModel<>());
             if (scriptTraitsUsed) {
                 final int fTraitIndex = traitIndex;
                 final Traits fTraits = traits;
@@ -1585,15 +2475,21 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
                             abc.pack();
                         }
                         ((Tag) abc.parentTag).setModified(true);
+                        abc.fireChanged();
                     }
                 });
             } else {
                 traits.traits.remove(traitIndex);
                 ((Tag) abc.parentTag).setModified(true);
                 reload();
+                abc.fireChanged();
             }
 
         }
+    }
+
+    private void breakPointListButtonActionPerformed(ActionEvent evt) {
+        Main.showBreakpointsList();
     }
 
     private void addTraitButtonActionPerformed(ActionEvent evt) {
@@ -1604,8 +2500,8 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
         if (newTraitDialog == null) {
             newTraitDialog = new NewTraitDialog(Main.getDefaultDialogsOwner());
         }
-        int void_type = abc.constants.getPublicQnameId("void", true);//abc.constants.forceGetMultinameId(new Multiname(Multiname.QNAME, abc.constants.forceGetStringId("void"), abc.constants.forceGetNamespaceId(new Namespace(Namespace.KIND_PACKAGE, abc.constants.forceGetStringId("")), 0), -1, -1, new ArrayList<Integer>()));
-        int int_type = abc.constants.getPublicQnameId("int", true); //abc.constants.forceGetMultinameId(new Multiname(Multiname.QNAME, abc.constants.forceGetStringId("int"), abc.constants.forceGetNamespaceId(new Namespace(Namespace.KIND_PACKAGE, abc.constants.forceGetStringId("")), 0), -1, -1, new ArrayList<Integer>()));
+        int void_type = abc.constants.getPublicQnameId("void", true);
+        int int_type = abc.constants.getPublicQnameId("int", true);
 
         Trait t = null;
         int kind;
@@ -1647,6 +2543,7 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
                 }
             }
         } while (again);
+        navigator.setModel(new DefaultListModel<>());
         switch (kind) {
             case Trait.TRAIT_GETTER:
             case Trait.TRAIT_SETTER:
@@ -1696,8 +2593,15 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
                 abc.script_info.get(scriptIndex).setModified(true);
             }
             ((Tag) abc.parentTag).setModified(true);
+            decompiledTextArea.addScriptListener(new Runnable() {
+                @Override
+                public void run() {
+                    decompiledTextArea.gotoTrait(traitId);
+                    decompiledTextArea.removeScriptListener(this);
+                }
+            });
             reload();
-            decompiledTextArea.gotoTrait(traitId);
+            abc.fireChanged();
         }
     }
 
@@ -1705,18 +2609,44 @@ public class ABCPanel extends JPanel implements ItemListener, SearchListener<Scr
     public boolean tryAutoSave() {
         View.checkAccess();
 
-        // todo: implement
-        return false;
+        boolean ok = true;
+        if (saveDecompiledButton.isVisible() && saveDecompiledButton.isEnabled() && Configuration.autoSaveTagModifications.get()) {
+            saveDecompiled(false);
+            ok = ok && !(saveDecompiledButton.isVisible() && saveDecompiledButton.isEnabled());
+        }
+
+        ok = ok && detailPanel.tryAutoSave();
+
+        return ok;
     }
 
     @Override
     public boolean isEditing() {
         View.checkAccess();
 
-        return detailPanel.isEditing() || isModified();
+        return (detailPanel.saveButton.isVisible() && detailPanel.saveButton.isEnabled())
+                || (saveDecompiledButton.isVisible() && saveDecompiledButton.isEnabled());
     }
 
     public DebugPanel getDebugPanel() {
         return debugPanel;
+    }
+
+    public void setCompound(boolean value) {
+        infoNotEditableLabel.setVisible(value);
+        boolean useFlex = Configuration.useFlexAs3Compiler.get();
+        experimentalLabel.setVisible(!useFlex && !value);
+        flexLabel.setVisible(useFlex && !value);
+        editDecompiledButton.setEnabled(!value);
+        this.compound = value;
+    }
+
+    public void setScript(ScriptPack scriptPack) {
+        setDecompiledEditMode(false);
+        detailPanel.setEditMode(false);
+        detailPanel.methodTraitPanel.methodCodePanel.clear();
+        decompiledTextArea.setNoTrait();
+        setAbc(scriptPack.abc);
+        decompiledTextArea.setScript(scriptPack, true);
     }
 }

@@ -1,4 +1,7 @@
 # JPEXS Free Flash Decompiler
+![Build passing badge](https://github.com/jindrapetrik/jpexs-decompiler/actions/workflows/build.yml/badge.svg?branch=dev)
+
+English | [简体中文](README_zh.md)
 
 Open Source Flash SWF decompiler and editor. Extract resources, convert SWF to FLA, edit ActionScript, replace images, sounds, texts and fonts. Various output formats available. Works with Java on Windows, Linux and macOS.
 
@@ -6,11 +9,11 @@ Open Source Flash SWF decompiler and editor. Extract resources, convert SWF to F
 For information about using the software, list of features, etc., visit [FFDec Wiki](https://github.com/jindrapetrik/jpexs-decompiler/wiki).
 
 ## Free-Decompiler.com website
-In the past (before 2018), we were using *free-decompiler.com* domain as homepage and GitHub for the source code, We've now moved all information to GitHub.
+In the past (before 2018), we were using *free-decompiler.com* domain as homepage and GitHub for the source code, We've now moved all information (except the issue tracker) to GitHub.
 
 ## Download application
 For downloading the app, see [latest release](https://github.com/jindrapetrik/jpexs-decompiler/releases/latest).
-Older versions and nightly builds are availabe at the [releases section](https://github.com/jindrapetrik/jpexs-decompiler/releases)
+Older versions and nightly builds are available at the [releases section](https://github.com/jindrapetrik/jpexs-decompiler/releases)
 
 ### How to install
 See [installation section of the wiki](https://github.com/jindrapetrik/jpexs-decompiler/wiki/Installation)
@@ -35,7 +38,7 @@ git checkout dev
 ```
 
 ### GIT recommended
-It is recommended to have [GIT] commandline executables installed. Building script uses GIT to include revision number in to the binary. (For Windows, you must enable Git in windows command line during installation.)
+It is recommended to have [GIT] commandline executables installed. Building script uses GIT to include revision number into the binary. (For Windows, you must enable Git in windows command line during installation.)
 
 ### Netbeans project
 
@@ -53,15 +56,7 @@ To only build, execute build task:
 ```
 ant build
 ```
-For creating EXE, Installer and ZIP version, there exist Ant tasks "exe","installer","release". These tasks require additional software installed:
-* [launch4j] (3.5 or newer) - creates windows executable
-* [NSIS] (Nullsoft Scriptable Install System) (3.0b3 or newer) - creates installer
 
-You must configure installation path of these tools in tools.properties file, which could look like this for windows:
-```
-nsis.path = c:\\program files (x86)\\NSIS
-launch4j.path = c:\\program files (x86)\\launch4j
-```
 ### Building libraries
 
 There are few libraries which need to be built too. These libraries are placed in "libsrc" directory.
@@ -76,17 +71,31 @@ There are few libraries which need to be built too. These libraries are placed i
 * **ttf** - used for TTF font export (Netbeans/Ant project)
 * **gnujpdf** - used for PDF export (Netbeans/Ant project)
 
+## Docker
+We have `Dockerfile` for headless running for not needing to install Java or FFDec locally.
+(Original script by Mahdi Lazraq)
+### Build
+```
+docker build -t ffdec .
+```
+### Usage
+FFDec CLI is the entrypoint, so you can pass arguments directly:
+```
+docker run --rm -v ./input:/work/input -v ./output:/work/output ffdec [args]
+```
+
 ## Change log
 All notable changes are listed in the file [CHANGELOG.md](CHANGELOG.md)
 
 ## Deployment
 
 ### Nightly builds
-When a commit is pushed/merged into `dev` branch, a new prerelease version is created automatically by the Travis CI.
+When a commit is pushed/merged into `dev` branch, a new prerelease version is created automatically by GitHub actions CI.
 These prerelease versions are called nightly builds. On releasing a new nightly build, the previous nightly build is removed.
 
 ### Stable versions
-A new stable version is created automatically by the Travis CI when marking a revision in `master` branch with a tag in format `versionx.y.z`.
+A new stable version is created automatically by the GitHub Actions CI when merging  `dev` branch into `master`.
+To such version a tag is added in format `versionx.y.z`.
 
 ## Contributing
 
@@ -96,9 +105,10 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduc
 
 Versions are in format `x.y.z`, for example `9.1.2`.
 For the versions available, see the [tags on this repository](https://github.com/jindrapetrik/jpexs-decompiler/tags).
+We try to use semantic versioning.
 
-Nightly builds have additional suffix `_nightlyN` where `N` is number which increments with every (automatic) nightly releleas
-and does not depend on the `x.y.z` numbers. (This means nightly number is *NOT* reseted to 0 when releasing stable)
+Nightly builds have additional suffix `_nightlyN` where `N` is number which increments with every (automatic) nightly release
+and does not depend on the `x.y.z` numbers. (This means nightly number is *NOT* reset to 0 when releasing stable)
 Older nightly builds are *NOT* available through git tags.
 
 ## Authors
@@ -114,7 +124,7 @@ The application was made in Czech Republic.
 ### Translators
 * **Jaume Badiella Aguilera** - catalan translation
 * **Capasha** - swedish translation
-* **王晨旭** (Chenxu Wang) - chinese translation
+* **王晨旭** (Chenxu Wang), **晓之车**, **安安**, **Liushui**, **老biu** - chinese translation
 * **focus** - russian translation
 * **honfika** - hungarian translation
 * **kalip** - italian translation
@@ -125,15 +135,18 @@ The application was made in Czech Republic.
 * **Osman ÖZ** - turkish translation
 * **pepka** - ukrainian and dutch translation
 * **poxyran** - spanish translation
-* **realmaster42** - portuguese-brasil translation
+* **realmaster42**, **alimsoftware** - portuguese-brasil translation
 * **Rtsjx** - chinese translation
 * **koiru** - japanese translation
+* **J. Kramer** - dutch translation
+* **Andrew Poženel** - slovenian translation
+* **GitHub Copilot (Claude AI)** - german, slovak translation
 
 ## Contact
-You can use our Issue tracker to report bugs, but our support is VERY limited.
-[https://www.free-decompiler.com/flash/issues](https://www.free-decompiler.com/flash/issues)
+If you want to report a problem or request new feature, use our issue tracker at [https://www.free-decompiler.com/flash/issues](https://www.free-decompiler.com/flash/issues)
 
-See [Frequently Asked Questions (FAQ) in wiki](https://github.com/jindrapetrik/jpexs-decompiler/wiki/FAQ) before you try to contact me.
+You should see [Frequently Asked Questions (FAQ) in wiki](https://github.com/jindrapetrik/jpexs-decompiler/wiki/FAQ) before.
+Also see [Known problems list in wiki](https://github.com/jindrapetrik/jpexs-decompiler/wiki/Known-problems)
 
 ### Email contact
 Emergency contact to JPEXS developer is `jindra.petrik@gmail.com`.
@@ -146,7 +159,6 @@ FFDec Application is licensed under the GNU GPL v3 (GPL-3.0-or-later) licence, s
 It uses modified code of these libraries:
 
 * [JSyntaxPane] (Code editor) - Apache License 2.0
-* [Muffin] (Proxy) - GPL
 
 And links also these libraries:
 
@@ -156,35 +168,19 @@ And links also these libraries:
 * [flashdebugger library] (Debugging ActionScript) - LGPLv3
 * FFDec Library (LGPLv3) - see below
 
-Application uses also some icons of the [Silk icons pack], [Silk companion 1] and [FatCow icons pack].
-### Library
+Application uses also some icons of the [Silk icons pack], [Silk companion 1], [FatCow icons pack] and [Aha-Soft icons pack].
 
-FFDec Library is licensed under GNU LGPL v3 (LGPL-3.0-or-later), see [license.txt](libsrc/ffdec_lib/license.txt) for details.
-It uses modified code of these libraries:
+For EXE launchers we use [Launch5j] - MIT.
 
-* [sfntly] (WOFF font export) - Apache License 2.0
-* [JLayer] (Decoding MP3) - LGPL
-* UAB "DKD" NellyMoser ASAO codec (Decoding Nelly Moser sound format) - LGPL
-* [Animated GIF Writer] (Frames to GIF export) - Creative Commons Attribution 3.0 Unported
-* [Animated GIF Encoder] (Frames to GIF export)
-
-And also links to these libraries:
-
-* [LZMA SDK] (SWF de/compress) - public domain
-* [Monte Media Library] (Frames to AVI export) - LGPL
-* [Fontastic] (Font TTF export) - LGPL
-* [DoubleType] (Font TTF export) - GPLv2
-* [jPacker] (Canvas scripts compression) - MIT License
-* [gnujpdf] (PDF export) - LGPL License
-* [DDSReader] (DDS reading) - MIT License
+## Library
+See [library README](libsrc/ffdec_lib/README.md) for more info about FFDec library.
 
 [GIT]: http://git-scm.com/downloads
 [Netbeans IDE]: http://www.netbeans.org/
 [Apache Ant]: http://ant.apache.org/
-[launch4j]: http://launch4j.sourceforge.net/
+[Launch5j]: https://github.com/lordmulder/Launch5j
 [NSIS]: http://nsis.sourceforge.net/
 [JSyntaxPane]: https://code.google.com/p/jsyntaxpane/
-[Muffin]: https://web.archive.org/web/20171025082558/http://muffin.doit.org/ (original: http://muffin.doit.org/)
 [Java Native Access - JNA]: https://github.com/twall/jna
 [Insubstantial]: http://shemnon.com/speling/2011/04/insubstantial-62-release.html
 [javactivex]:https://github.com/jindrapetrik/javactivex
@@ -192,14 +188,4 @@ And also links to these libraries:
 [Silk icons pack]: http://www.famfamfam.com/lab/icons/silk/
 [Silk companion 1]: http://damieng.com/creative/icons/silk-companion-1-icons
 [FatCow icons pack]: http://www.fatcow.com/free-icons
-[sfntly]: https://code.google.com/p/sfntly/
-[JLayer]: http://www.javazoom.net/javalayer/javalayer.html
-[Animated GIF Writer]: http://elliot.kroo.net/software/java/GifSequenceWriter/
-[Animated GIF Encoder]: http://www.fmsware.com/stuff/gif.html
-[LZMA SDK]: http://www.7-zip.org/sdk.html
-[Monte Media Library]: http://www.randelshofer.ch/monte/
-[Fontastic]: http://code.andreaskoller.com/libraries/fontastic/
-[DoubleType]: http://sourceforge.net/projects/doubletype/
-[jPacker]: https://code.google.com/p/jpacker/
-[gnujpdf]: http://gnujpdf.sourceforge.net/
-[DDSReader]: https://github.com/npedotnet/DDSReader/
+[Aha-Soft icons pack]: http://www.aha-soft.com

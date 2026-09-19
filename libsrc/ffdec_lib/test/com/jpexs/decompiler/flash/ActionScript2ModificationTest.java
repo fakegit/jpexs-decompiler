@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.decompiler.flash.action.Action;
@@ -27,6 +28,7 @@ import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.helpers.CodeFormatting;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.tags.DoActionTag;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -69,7 +71,7 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
 
     public void testRemoveActionNormal(String actionsString, String expectedResult, int[] actionsToRemove) {
         try {
-            ActionList actions = ASMParser.parse(0, true, actionsString, swf.version, false);
+            ActionList actions = ASMParser.parse(0, true, actionsString, swf.version, false, swf.getCharset());
 
             for (int i : actionsToRemove) {
                 actions.removeAction(i);
@@ -79,6 +81,7 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
             doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
             HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
             doa.getASMSource(ScriptExportMode.PCODE, writer, null);
+            writer.finishHilights();
             String actualResult = normalizeLabels(writer.toString());
 
             actualResult = cleanPCode(actualResult);
@@ -92,7 +95,7 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
 
     public void testRemoveActionFast(String actionsString, String expectedResult, int[] actionsToRemove) {
         try {
-            ActionList actions = ASMParser.parse(0, true, actionsString, swf.version, false);
+            ActionList actions = ASMParser.parse(0, true, actionsString, swf.version, false, swf.getCharset());
             FastActionList fastActions = new FastActionList(actions);
 
             for (int i : actionsToRemove) {
@@ -105,6 +108,7 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
             doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
             HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
             doa.getASMSource(ScriptExportMode.PCODE, writer, null);
+            writer.finishHilights();
             String actualResult = normalizeLabels(writer.toString());
 
             actualResult = cleanPCode(actualResult);
@@ -123,7 +127,7 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
 
     public void testAddActionNormal(String actionsString, String expectedResult, Action action, int index) {
         try {
-            ActionList actions = ASMParser.parse(0, true, actionsString, swf.version, false);
+            ActionList actions = ASMParser.parse(0, true, actionsString, swf.version, false, swf.getCharset());
 
             actions.addAction(index, action);
 
@@ -131,6 +135,7 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
             doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
             HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
             doa.getASMSource(ScriptExportMode.PCODE, writer, null);
+            writer.finishHilights();
             String actualResult = normalizeLabels(writer.toString());
 
             actualResult = cleanPCode(actualResult);
@@ -144,7 +149,7 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
 
     public void testAddActionFast(String actionsString, String expectedResult, Action action, int index) {
         try {
-            ActionList actions = ASMParser.parse(0, true, actionsString, swf.version, false);
+            ActionList actions = ASMParser.parse(0, true, actionsString, swf.version, false, swf.getCharset());
             FastActionList fastActions = new FastActionList(actions);
 
             fastActions.insertItemBefore(fastActions.get(index), action);
@@ -154,6 +159,7 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
             doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
             HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
             doa.getASMSource(ScriptExportMode.PCODE, writer, null);
+            writer.finishHilights();
             String actualResult = normalizeLabels(writer.toString());
 
             actualResult = cleanPCode(actualResult);
@@ -168,8 +174,7 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
     @Test
     public void testRemoveJumpAction() {
         String actionsString
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Push 1\n"
                 + "Return\n"
                 + "}\n"
@@ -178,20 +183,19 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
                 + // remove this action
                 "label_1:Push 3";
         String expectedResult
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Push 1\n"
                 + "Return\n"
                 + "}\n"
-                + "Push 2 3";
-        testRemoveAction(actionsString, expectedResult, new int[]{5});
+                + "Push 2\n"
+                + "Push 3";
+        testRemoveAction(actionsString, expectedResult, new int[]{4});
     }
 
     @Test
     public void testRemoveActionFromContainer() {
         String actionsString
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Push 1\n" // remove this action
                 + "Return\n"
                 + "}\n"
@@ -199,9 +203,28 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
                 + "Jump label_1\n"
                 + "label_1:Push 3";
         String expectedResult
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Return\n"
+                + "}\n"
+                + "Push 2\n"
+                + "Jump label_1\n"
+                + "label_1:Push 3";
+        testRemoveAction(actionsString, expectedResult, new int[]{1});
+    }
+
+    @Test
+    public void testRemoveLastActionFromContainer() {
+        String actionsString
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
+                + "Push 1\n"
+                + "GetVariable\n" // remove this action
+                + "}\n"
+                + "Push 2\n"
+                + "Jump label_1\n"
+                + "label_1:Push 3";
+        String expectedResult
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
+                + "Push 1\n"
                 + "}\n"
                 + "Push 2\n"
                 + "Jump label_1\n"
@@ -210,32 +233,9 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
     }
 
     @Test
-    public void testRemoveLastActionFromContainer() {
-        String actionsString
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
-                + "Push 1\n"
-                + "GetVariable\n" // remove this action
-                + "}\n"
-                + "Push 2\n"
-                + "Jump label_1\n"
-                + "label_1:Push 3";
-        String expectedResult
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
-                + "Push 1\n"
-                + "}\n"
-                + "Push 2\n"
-                + "Jump label_1\n"
-                + "label_1:Push 3";
-        testRemoveAction(actionsString, expectedResult, new int[]{3});
-    }
-
-    @Test
     public void testRemoveIfTargetAction() {
         String actionsString
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Push 1\n"
                 + "GetVariable\n"
                 + "}\n"
@@ -245,8 +245,7 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
                 + "label_1:Push 4\n" // remove this action
                 + "Push 5"; // after removing the previous action the if action should jump here
         String expectedResult
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Push 1\n"
                 + "GetVariable\n"
                 + "}\n"
@@ -254,14 +253,13 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
                 + "If label_1\n"
                 + "Push 3\n"
                 + "label_1:Push 5";
-        testRemoveAction(actionsString, expectedResult, new int[]{7});
+        testRemoveAction(actionsString, expectedResult, new int[]{6});
     }
 
     @Test
     public void testRemoveIfTargetLastAction() {
         String actionsString
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Push 1\n"
                 + "GetVariable\n"
                 + "}\n"
@@ -270,8 +268,7 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
                 + "Push 3\n"
                 + "label_1:Push 4"; // remove this action
         String expectedResult
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Push 1\n"
                 + "GetVariable\n"
                 + "}\n"
@@ -279,14 +276,13 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
                 + "If label_1\n"
                 + "Push 3\n"
                 + "label_1:";
-        testRemoveAction(actionsString, expectedResult, new int[]{7});
+        testRemoveAction(actionsString, expectedResult, new int[]{6});
     }
 
     @Test
-    public void testAddAtionFirst() {
+    public void testAddActionFirst() {
         String actionsString
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Push 1\n"
                 + "GetVariable\n"
                 + "}\n"
@@ -296,8 +292,7 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
                 + "label_1:Push 4";
         String expectedResult
                 = "GetMember\n"
-                + "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                + "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Push 1\n"
                 + "GetVariable\n"
                 + "}\n"
@@ -310,10 +305,9 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
     }
 
     @Test
-    public void testAddAtion1() {
+    public void testAddAction1() {
         String actionsString
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Push 1\n"
                 + "GetVariable\n"
                 + "}\n"
@@ -322,9 +316,33 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
                 + "Push 3\n"
                 + "label_1:Push 4";
         String expectedResult
-                = "ConstantPool\n"
+                = "GetMember\n"
+                + "DefineFunction \"test\", 1, \"p1\" {\n"
+                + "Push 1\n"
+                + "GetVariable\n"
+                + "}\n"
+                + "Push 2\n"
+                + "If label_1\n"
+                + "Push 3\n"
+                + "label_1:Push 4";
+        testAddActionNormal(actionsString, expectedResult, new ActionGetMember(), 0);
+        testAddActionFast(actionsString, expectedResult, new ActionGetMember(), 0);
+    }
+
+    @Test
+    public void testAddActionToContainer() {
+        String actionsString
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
+                + "Push 1\n"
+                + "GetVariable\n"
+                + "}\n"
+                + "Push 2\n"
+                + "If label_1\n"
+                + "Push 3\n"
+                + "label_1:Push 4";
+        String expectedResult
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "GetMember\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
                 + "Push 1\n"
                 + "GetVariable\n"
                 + "}\n"
@@ -337,37 +355,9 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
     }
 
     @Test
-    public void testAddAtionToContainer() {
-        String actionsString
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
-                + "Push 1\n"
-                + "GetVariable\n"
-                + "}\n"
-                + "Push 2\n"
-                + "If label_1\n"
-                + "Push 3\n"
-                + "label_1:Push 4";
-        String expectedResult
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
-                + "GetMember\n"
-                + "Push 1\n"
-                + "GetVariable\n"
-                + "}\n"
-                + "Push 2\n"
-                + "If label_1\n"
-                + "Push 3\n"
-                + "label_1:Push 4";
-        testAddActionNormal(actionsString, expectedResult, new ActionGetMember(), 2);
-        testAddActionFast(actionsString, expectedResult, new ActionGetMember(), 2);
-    }
-
-    @Test
     public void testAddActionIf() {
         String actionsString
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Push 1\n"
                 + "GetVariable\n"
                 + "}\n"
@@ -376,8 +366,7 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
                 + "Push 3\n"
                 + "label_1:Push 4";
         String expectedResult
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Push 1\n"
                 + "GetVariable\n"
                 + "}\n"
@@ -386,15 +375,14 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
                 + "Push 3\n"
                 + "GetMember\n"
                 + "label_1:Push 4";
-        testAddActionNormal(actionsString, expectedResult, new ActionGetMember(), 7);
-        testAddActionFast(actionsString, expectedResult, new ActionGetMember(), 7);
+        testAddActionNormal(actionsString, expectedResult, new ActionGetMember(), 6);
+        testAddActionFast(actionsString, expectedResult, new ActionGetMember(), 6);
     }
 
     @Test
     public void testAddActionAfterContainer() {
         String actionsString
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Push 1\n"
                 + "GetVariable\n"
                 + "}\n"
@@ -403,8 +391,7 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
                 + "Push 3\n"
                 + "label_1:Push 4";
         String expectedResult
-                = "ConstantPool\n"
-                + "DefineFunction \"test\" 1 \"p1\" {\n"
+                = "DefineFunction \"test\", 1, \"p1\" {\n"
                 + "Push 1\n"
                 + "GetVariable\n"
                 + "}\n"
@@ -413,33 +400,31 @@ public class ActionScript2ModificationTest extends ActionScript2TestBase {
                 + "If label_1\n"
                 + "Push 3\n"
                 + "label_1:Push 4";
-        testAddActionNormal(actionsString, expectedResult, new ActionGetMember(), 4);
-        testAddActionFast(actionsString, expectedResult, new ActionGetMember(), 4);
+        testAddActionNormal(actionsString, expectedResult, new ActionGetMember(), 3);
+        testAddActionFast(actionsString, expectedResult, new ActionGetMember(), 3);
     }
 
     @Test
     public void testAddToJumpTarget() {
         String actionsString
-                = "ConstantPool\n"
-                + "If label_1\n"
+                = "If label_1\n"
                 + "GetMember\n"
-                + "label_1:Jump label_2\n" // address 9
+                + "label_1:Jump label_2\n" // address 6
                 + "label_2:Jump label_3\n"
                 + "label_3:Jump labelend\n"
-                + "labelend:End"; // address 24
+                + "labelend:End"; // address 21
         String expectedResult
-                = "ConstantPool\n"
-                + "If label_1\n"
+                = "If label_1\n"
                 + "GetMember\n"
                 + "Jump label_4\n"
                 + "label_1:Jump label_2\n"
                 + "label_2:Jump label_3\n"
                 + "label_3:Jump label_4\n"
                 + "label_4:";
-        ActionJump jump = new ActionJump(0);
-        jump.setAddress(9);
-        jump.setJumpOffset(24 - 9 - 5);
-        testAddActionNormal(actionsString, expectedResult, jump, 3);
-        testAddActionFast(actionsString, expectedResult, jump, 3);
+        ActionJump jump = new ActionJump(0, Utf8Helper.charsetName);
+        jump.setAddress(6);
+        jump.setJumpOffset(21 - 6 - 5);
+        testAddActionNormal(actionsString, expectedResult, jump, 2);
+        testAddActionFast(actionsString, expectedResult, jump, 2);
     }
 }

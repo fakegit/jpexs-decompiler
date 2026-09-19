@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.helpers;
 
 import java.awt.Component;
@@ -25,15 +26,15 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 /**
- * Adapted from
+ * BMP file writer. Adapted from
  * http://www.javaworld.com/article/2077561/learn-java/java-tip-60--saving-bitmap-files-in-java.html
  */
 public class BMPFile extends Component {
 
     //--- Private constants
-    private final static int BITMAPFILEHEADER_SIZE = 14;
+    private static final int BITMAPFILEHEADER_SIZE = 14;
 
-    private final static int BITMAPINFOHEADER_SIZE = 40;
+    private static final int BITMAPINFOHEADER_SIZE = 40;
 
     //--- Private variable declaration
     //--- Bitmap file header
@@ -84,6 +85,12 @@ public class BMPFile extends Component {
     private BMPFile() {
     }
 
+    /**
+     * Save bitmap to file.
+     * @param image Image to save
+     * @param file File to save to
+     * @throws IOException On I/O error
+     */
     public static void saveBitmap(Image image, File file) throws IOException {
         BMPFile b = new BMPFile();
         try (OutputStream fos = new BufferedOutputStream(new FileOutputStream(file))) {

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,11 +16,10 @@
  */
 package com.jpexs.decompiler.flash.gui.abc;
 
-import com.jpexs.decompiler.flash.abc.usages.MultinameUsage;
+import com.jpexs.decompiler.flash.abc.usages.multinames.MultinameUsage;
 import javax.swing.DefaultListModel;
 
 /**
- *
  * @author JPEXS
  */
 public class UsageListModel extends DefaultListModel<Object> {

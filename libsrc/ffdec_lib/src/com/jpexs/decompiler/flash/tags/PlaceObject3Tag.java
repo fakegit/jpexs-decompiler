@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,6 +24,7 @@ import com.jpexs.decompiler.flash.amf.amf3.Amf3Value;
 import com.jpexs.decompiler.flash.tags.base.ASMSourceContainer;
 import com.jpexs.decompiler.flash.tags.base.PlaceObjectTypeTag;
 import com.jpexs.decompiler.flash.types.BasicType;
+import com.jpexs.decompiler.flash.types.BlendMode;
 import com.jpexs.decompiler.flash.types.CLIPACTIONRECORD;
 import com.jpexs.decompiler.flash.types.CLIPACTIONS;
 import com.jpexs.decompiler.flash.types.CXFORMWITHALPHA;
@@ -31,6 +32,8 @@ import com.jpexs.decompiler.flash.types.ColorTransform;
 import com.jpexs.decompiler.flash.types.MATRIX;
 import com.jpexs.decompiler.flash.types.RGBA;
 import com.jpexs.decompiler.flash.types.annotations.Conditional;
+import com.jpexs.decompiler.flash.types.annotations.DottedIdentifier;
+import com.jpexs.decompiler.flash.types.annotations.EnumValue;
 import com.jpexs.decompiler.flash.types.annotations.Internal;
 import com.jpexs.decompiler.flash.types.annotations.Reserved;
 import com.jpexs.decompiler.flash.types.annotations.SWFArray;
@@ -38,13 +41,16 @@ import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.decompiler.flash.types.filters.FILTER;
 import com.jpexs.helpers.ByteArrayRange;
+import com.jpexs.helpers.Helper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
- * Extends the functionality of the PlaceObject2Tag
+ * PlaceObject3 tag - adds character to the display list. Extends the
+ * functionality of the PlaceObject2Tag.
  *
  * @author JPEXS
  */
@@ -175,6 +181,7 @@ public class PlaceObject3Tag extends PlaceObjectTypeTag implements ASMSourceCont
      * If PlaceFlagHasName, Name of character
      */
     @Conditional("placeFlagHasName")
+    @DottedIdentifier
     public String name;
 
     /**
@@ -196,6 +203,21 @@ public class PlaceObject3Tag extends PlaceObjectTypeTag implements ASMSourceCont
      */
     @SWFType(BasicType.UI8)
     @Conditional("placeFlagHasBlendMode")
+    @EnumValue(value = 0, text = "normal")
+    @EnumValue(value = BlendMode.NORMAL, text = "normal")
+    @EnumValue(value = BlendMode.LAYER, text = "layer")
+    @EnumValue(value = BlendMode.MULTIPLY, text = "multiply")
+    @EnumValue(value = BlendMode.SCREEN, text = "screen")
+    @EnumValue(value = BlendMode.LIGHTEN, text = "lighten")
+    @EnumValue(value = BlendMode.DARKEN, text = "darken")
+    @EnumValue(value = BlendMode.DIFFERENCE, text = "difference")
+    @EnumValue(value = BlendMode.ADD, text = "add")
+    @EnumValue(value = BlendMode.SUBTRACT, text = "subtract")
+    @EnumValue(value = BlendMode.INVERT, text = "invert")
+    @EnumValue(value = BlendMode.ALPHA, text = "alpha")
+    @EnumValue(value = BlendMode.ERASE, text = "erase")
+    @EnumValue(value = BlendMode.OVERLAY, text = "overlay")
+    @EnumValue(value = BlendMode.HARDLIGHT, text = "hardlight")
     public int blendMode;
 
     /**
@@ -234,7 +256,7 @@ public class PlaceObject3Tag extends PlaceObjectTypeTag implements ASMSourceCont
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public PlaceObject3Tag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -276,9 +298,9 @@ public class PlaceObject3Tag extends PlaceObjectTypeTag implements ASMSourceCont
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public PlaceObject3Tag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -358,7 +380,7 @@ public class PlaceObject3Tag extends PlaceObjectTypeTag implements ASMSourceCont
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -424,6 +446,68 @@ public class PlaceObject3Tag extends PlaceObjectTypeTag implements ASMSourceCont
     }
 
     @Override
+    public void getDataNoScript(SWFOutputStream sos) throws IOException {
+        sos.writeUB(1, 0); //no clip actions
+        sos.writeUB(1, placeFlagHasClipDepth ? 1 : 0);
+        sos.writeUB(1, placeFlagHasName ? 1 : 0);
+        sos.writeUB(1, placeFlagHasRatio ? 1 : 0);
+        sos.writeUB(1, placeFlagHasColorTransform ? 1 : 0);
+        sos.writeUB(1, placeFlagHasMatrix ? 1 : 0);
+        sos.writeUB(1, placeFlagHasCharacter ? 1 : 0);
+        sos.writeUB(1, placeFlagMove ? 1 : 0);
+        sos.writeUB(1, reserved ? 1 : 0);
+        sos.writeUB(1, placeFlagOpaqueBackground ? 1 : 0); //SWF11
+        sos.writeUB(1, placeFlagHasVisible ? 1 : 0); //SWF11
+        sos.writeUB(1, placeFlagHasImage ? 1 : 0);
+        sos.writeUB(1, placeFlagHasClassName ? 1 : 0);
+        sos.writeUB(1, placeFlagHasCacheAsBitmap ? 1 : 0);
+        sos.writeUB(1, placeFlagHasBlendMode ? 1 : 0);
+        sos.writeUB(1, placeFlagHasFilterList ? 1 : 0);
+        sos.writeUI16(depth);
+
+        if (placeFlagHasClassName) {
+            sos.writeString(className);
+        }
+        if (placeFlagHasCharacter) {
+            sos.writeUI16(characterId);
+        }
+        if (placeFlagHasMatrix) {
+            sos.writeMatrix(matrix);
+        }
+        if (placeFlagHasColorTransform) {
+            sos.writeCXFORMWITHALPHA(colorTransform);
+        }
+        if (placeFlagHasRatio) {
+            sos.writeUI16(ratio);
+        }
+        if (placeFlagHasName) {
+            sos.writeString(name);
+        }
+        if (placeFlagHasClipDepth) {
+            sos.writeUI16(clipDepth);
+        }
+        if (placeFlagHasFilterList) {
+            sos.writeFILTERLIST(surfaceFilterList);
+        }
+        if (placeFlagHasBlendMode) {
+            sos.writeUI8(blendMode);
+        }
+        if (placeFlagHasCacheAsBitmap) {
+            if (!bitmapCacheBug) {
+                sos.writeUI8(bitmapCache);
+            }
+        }
+        if (placeFlagHasVisible) {
+            sos.writeUI8(visible);
+        }
+        if (placeFlagOpaqueBackground) {
+            sos.writeRGBA(backgroundColor);
+        }
+    }
+    
+    
+
+    @Override
     public int getPlaceObjectNum() {
         return 3;
     }
@@ -459,9 +543,17 @@ public class PlaceObject3Tag extends PlaceObjectTypeTag implements ASMSourceCont
     }
 
     @Override
-    public void getNeededCharacters(Set<Integer> needed) {
+    public void getNeededCharacters(Set<Integer> needed, Set<String> neededClasses, SWF swf) {
         if (placeFlagHasCharacter) {
             needed.add(characterId);
+        }
+        if (placeFlagHasClassName) {
+            int chId = swf.getCharacterId(swf.getCharacterByClass(className));
+            if (chId != -1) {
+                needed.add(chId);
+            } else {
+                neededClasses.add(className);
+            }
         }
     }
 
@@ -499,6 +591,11 @@ public class PlaceObject3Tag extends PlaceObjectTypeTag implements ASMSourceCont
     @Override
     public int getDepth() {
         return depth;
+    }
+
+    @Override
+    public void setDepth(int depth) {
+        this.depth = depth;
     }
 
     @Override
@@ -547,7 +644,7 @@ public class PlaceObject3Tag extends PlaceObjectTypeTag implements ASMSourceCont
 
     @Override
     public boolean cacheAsBitmap() {
-        return placeFlagHasCacheAsBitmap;
+        return placeFlagHasCacheAsBitmap && bitmapCache == 1;
     }
 
     @Override
@@ -600,12 +697,13 @@ public class PlaceObject3Tag extends PlaceObjectTypeTag implements ASMSourceCont
     }
 
     @Override
-    public String getName() {
+    public Map<String, String> getNameProperties() {
+        Map<String, String> ret = super.getNameProperties();
         if (placeFlagHasName) {
-            return super.getName() + " (" + name + ")";
-        } else {
-            return super.getName();
+            ret.put("nm", "\"" + Helper.escapePCodeString(name) + "\"");
+            //ret.put("nm", DottedChain.parseNoSuffix(name).toPrintableString(new LinkedHashSet<>(), getSwf(), false));
         }
+        return ret;
     }
 
     @Override
@@ -660,8 +758,84 @@ public class PlaceObject3Tag extends PlaceObjectTypeTag implements ASMSourceCont
     }
 
     @Override
+    public void setPlaceFlagMove(boolean placeFlagMove) {
+        this.placeFlagMove = placeFlagMove;
+    }
+
+    @Override
     public boolean hasImage() {
         return placeFlagHasImage;
     }
 
+    @Override
+    public void setColorTransform(ColorTransform colorTransform) {
+        this.colorTransform = new CXFORMWITHALPHA(colorTransform);
+        placeFlagHasColorTransform = true;
+    }
+
+    @Override
+    public void setVisible(int value) {
+        this.visible = value;
+        placeFlagHasVisible = true;
+    }
+
+    @Override
+    public void setPlaceFlagHasVisible(boolean value) {
+        this.placeFlagHasVisible = value;
+    }
+
+    @Override
+    public void setBlendMode(int value) {
+        this.blendMode = value;
+        this.placeFlagHasBlendMode = true;
+    }
+
+    @Override
+    public void setPlaceFlagHasBlendMode(boolean value) {
+        this.placeFlagHasBlendMode = value;
+    }
+
+    @Override
+    public void setBitmapCache(int value) {
+        this.bitmapCache = value;
+        this.placeFlagHasCacheAsBitmap = true;
+    }
+
+    @Override
+    public void setPlaceFlagHasCacheAsBitmap(boolean value) {
+        this.placeFlagHasCacheAsBitmap = value;
+    }
+
+    @Override
+    public void setBackgroundColor(RGBA value) {
+        this.backgroundColor = value;
+        this.placeFlagOpaqueBackground = true;
+    }
+
+    @Override
+    public void setPlaceFlagOpaqueBackground(boolean value) {
+        this.placeFlagOpaqueBackground = value;
+    }
+
+    @Override
+    public void setPlaceFlagHasFilterList(boolean placeFlagHasFilterList) {
+        this.placeFlagHasFilterList = placeFlagHasFilterList;
+    }
+
+    @Override
+    public void setFilters(List<FILTER> filters) {
+        this.surfaceFilterList = new ArrayList<>(filters);
+        this.placeFlagHasFilterList = true;
+    }
+
+    @Override
+    public void setPlaceFlagHasRatio(boolean placeFlagHasRatio) {
+        this.placeFlagHasRatio = placeFlagHasRatio;
+    }
+
+    @Override
+    public void setRatio(int ratio) {
+        this.ratio = ratio;
+        placeFlagHasRatio = true;
+    }
 }

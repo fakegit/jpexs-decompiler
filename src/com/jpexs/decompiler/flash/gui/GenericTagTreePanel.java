@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -24,20 +24,30 @@ import com.jpexs.decompiler.flash.gui.generictageditors.BinaryDataEditor;
 import com.jpexs.decompiler.flash.gui.generictageditors.BooleanEditor;
 import com.jpexs.decompiler.flash.gui.generictageditors.ColorEditor;
 import com.jpexs.decompiler.flash.gui.generictageditors.EnumEditor;
+import com.jpexs.decompiler.flash.gui.generictageditors.FloatEditor;
 import com.jpexs.decompiler.flash.gui.generictageditors.FullSized;
 import com.jpexs.decompiler.flash.gui.generictageditors.GenericTagEditor;
 import com.jpexs.decompiler.flash.gui.generictageditors.NumberEditor;
 import com.jpexs.decompiler.flash.gui.generictageditors.StringEditor;
+import com.jpexs.decompiler.flash.gui.generictageditors.UUIDEditor;
+import com.jpexs.decompiler.flash.gui.tagtree.AbstractTagTree;
 import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.decompiler.flash.tags.base.ASMSource;
+import com.jpexs.decompiler.flash.tags.base.CharacterIdTag;
+import com.jpexs.decompiler.flash.tags.base.CharacterTag;
+import com.jpexs.decompiler.flash.tags.base.ShapeTag;
+import com.jpexs.decompiler.flash.timeline.Timelined;
 import com.jpexs.decompiler.flash.types.ARGB;
 import com.jpexs.decompiler.flash.types.BasicType;
 import com.jpexs.decompiler.flash.types.CLIPACTIONRECORD;
 import com.jpexs.decompiler.flash.types.CLIPACTIONS;
+import com.jpexs.decompiler.flash.types.GRADRECORD;
+import com.jpexs.decompiler.flash.types.HasSwfAndTag;
 import com.jpexs.decompiler.flash.types.RGB;
 import com.jpexs.decompiler.flash.types.RGBA;
 import com.jpexs.decompiler.flash.types.annotations.Conditional;
 import com.jpexs.decompiler.flash.types.annotations.ConditionalType;
+import com.jpexs.decompiler.flash.types.annotations.DottedIdentifier;
 import com.jpexs.decompiler.flash.types.annotations.EnumValue;
 import com.jpexs.decompiler.flash.types.annotations.EnumValues;
 import com.jpexs.decompiler.flash.types.annotations.HideInRawEdit;
@@ -46,10 +56,13 @@ import com.jpexs.decompiler.flash.types.annotations.Multiline;
 import com.jpexs.decompiler.flash.types.annotations.SWFArray;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.Table;
+import com.jpexs.decompiler.flash.types.annotations.UUID;
 import com.jpexs.decompiler.flash.types.annotations.parser.AnnotationParseException;
 import com.jpexs.decompiler.flash.types.annotations.parser.ConditionEvaluator;
+import com.jpexs.decompiler.flash.types.filters.CONVOLUTIONFILTER;
 import com.jpexs.helpers.ByteArrayRange;
 import com.jpexs.helpers.ConcreteClasses;
+import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.ReflectionTools;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -63,6 +76,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -83,19 +97,22 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JTree;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.event.TreeModelListener;
+import javax.swing.event.TreeSelectionEvent;
+import javax.swing.event.TreeSelectionListener;
 import javax.swing.plaf.basic.BasicLabelUI;
 import javax.swing.plaf.basic.BasicTreeUI;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.DefaultTreeSelectionModel;
 import javax.swing.tree.TreeCellEditor;
 import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 
 /**
- *
  * @author JPEXS
  */
 public class GenericTagTreePanel extends GenericTagPanel {
@@ -109,6 +126,26 @@ public class GenericTagTreePanel extends GenericTagPanel {
     private static final Map<Class, List<Field>> fieldCache = new HashMap<>();
 
     private static final int FIELD_INDEX = 0;
+
+    private List<TreeModelListener> modelListeners = new ArrayList<>();
+
+    public void addTreeModelListener(TreeModelListener listener) {
+        modelListeners.add(listener);
+        ((DefaultTreeModel) tree.getModel()).addTreeModelListener(listener);
+    }
+
+    public void addTreeSelectionListener(TreeSelectionListener listener) {
+        tree.addTreeSelectionListener(listener);
+    }
+
+    public void removeTreeSelectionListener(TreeSelectionListener listener) {
+        tree.removeTreeSelectionListener(listener);
+    }
+
+    public void removeTreeModelListener(TreeModelListener listener) {
+        modelListeners.remove(listener);
+        ((DefaultTreeModel) tree.getModel()).removeTreeModelListener(listener);
+    }
 
     private class MyTree extends JTree {
 
@@ -124,9 +161,126 @@ public class GenericTagTreePanel extends GenericTagPanel {
                 }
             });
             setCellRenderer(new MyTreeCellRenderer());
-            setCellEditor(new MyTreeCellEditor(this));
             setInvokesStopCellEditing(true);
 
+        }
+    }
+
+    private static SWFType evalSwfType(MyTreeModel mod, String parentPath, SWFType swfType) {
+        if (swfType == null) {
+            return null;
+        }
+        if ("".equals(swfType.alternateCondition())) {
+            return swfType;
+        }
+        Conditional cond = new Conditional() {
+            @Override
+            public String[] value() {
+                return new String[]{swfType.alternateCondition()};
+            }
+
+            @Override
+            public int[] tags() {
+                return new int[0];
+            }
+
+            @Override
+            public int minSwfVersion() {
+                return 1;
+            }
+
+            @Override
+            public int maxSwfVersion() {
+                return Integer.MAX_VALUE;
+            }
+
+            @Override
+            public int[] options() {
+                return new int[0];
+            }
+
+            @Override
+            public boolean revert() {
+                return false;
+            }
+
+            @Override
+            public Class<? extends Annotation> annotationType() {
+                return Conditional.class;
+            }
+        };
+        ConditionEvaluator ev = new ConditionEvaluator(cond);
+        try {
+            Map<String, Boolean> fieldMap = new HashMap<>();
+            for (String sf : ev.getFields()) {
+                String fulldf = parentPath + "." + sf;
+                FieldNode condnode = (FieldNode) (mod).getNodeByPath(fulldf);
+
+                if (condnode != null) {
+                    Object value = ReflectionTools.getValue(condnode.obj, condnode.fieldSet.get(FIELD_INDEX), condnode.index);
+                    if (value instanceof Boolean) {
+                        fieldMap.put(sf, (Boolean) value);
+                    } else if (value instanceof Integer) {
+                        int intValue = (Integer) value;
+                        boolean found = false;
+                        for (int i : cond.options()) {
+                            if (i == intValue) {
+                                found = true;
+                            }
+                        }
+                        fieldMap.put(sf, found);
+                    }
+                } else {
+                    fieldMap.put(sf, true);
+                }
+            }
+            if (!ev.eval(fieldMap, 0)) {
+                return swfType;
+            }
+            return new SWFType() {
+                @Override
+                public BasicType value() {
+                    return swfType.alternateValue();
+                }
+
+                @Override
+                public BasicType alternateValue() {
+                    return BasicType.NONE;
+                }
+
+                @Override
+                public String alternateCondition() {
+                    return "";
+                }
+
+                @Override
+                public int count() {
+                    return swfType.count();
+                }
+
+                @Override
+                public String countField() {
+                    return swfType.countField();
+                }
+
+                @Override
+                public int countAdd() {
+                    return swfType.countAdd();
+                }
+
+                @Override
+                public Class<? extends Annotation> annotationType() {
+                    return SWFType.class;
+                }
+
+                @Override
+                public boolean canAdd() {
+                    return swfType.canAdd();
+                }
+            };
+        } catch (AnnotationParseException | IllegalArgumentException | IllegalAccessException ex) {
+            logger.log(Level.SEVERE, null, ex);
+            return swfType;
         }
     }
 
@@ -137,9 +291,11 @@ public class GenericTagTreePanel extends GenericTagPanel {
         private final JTree tree;
 
         private FieldNode fnode;
+        private final SWF swf;
 
-        public MyTreeCellEditor(JTree tree) {
+        public MyTreeCellEditor(JTree tree, SWF swf) {
             this.tree = tree;
+            this.swf = swf;
         }
 
         @Override
@@ -155,9 +311,9 @@ public class GenericTagTreePanel extends GenericTagPanel {
                 JPanel panSum = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
                 panSum.setOpaque(false);
                 for (int i = 0; i < fnode.fieldSet.size(); i++) {
-                    Field field = fnode.fieldSet.get(i);//fnode.fieldSet.get(FIELD_INDEX);
+                    Field field = fnode.fieldSet.get(i);
                     int index = fnode.index;
-                    Object obj = fnode.obj;
+                    final Object obj = fnode.obj;
                     Class<?> type;
                     boolean isByteArray = field.getType().equals(byte[].class);
                     try {
@@ -168,25 +324,44 @@ public class GenericTagTreePanel extends GenericTagPanel {
                     }
                     GenericTagEditor editor = null;
                     SWFType swfType = field.getAnnotation(SWFType.class);
+                    MyTreeModel model = (MyTreeModel) tree.getModel();
+
+                    SWFArray swfArray = field.getAnnotation(SWFArray.class);
+                    boolean isArray = ReflectionTools.needsIndex(field) || swfArray != null;
+                    boolean isArrayParent = isArray && index == -1;
+
+                    String thisPath = model.getNodePathName(value);
+                    String parentPath = thisPath.substring(0, thisPath.lastIndexOf("."));
+                    if (isArray && !isArrayParent) {
+                        parentPath = parentPath.substring(0, parentPath.lastIndexOf("."));
+                    }
+
+                    swfType = evalSwfType(model, parentPath, swfType);
+
+                    UUID uuid = field.getAnnotation(UUID.class);
+
                     Multiline multiline = field.getAnnotation(Multiline.class);
                     EnumValues enumValues = field.getAnnotation(EnumValues.class);
-                    if (enumValues != null && (type.equals(int.class) || type.equals(Integer.class))) {
+                    if (uuid != null) {
+                        editor = new UUIDEditor(field.getName(), obj, field, index, type);
+                    } else if (enumValues != null && (type.equals(int.class) || type.equals(Integer.class))) {
                         Map<Integer, String> values = new HashMap<>();
                         for (EnumValue enumValue : enumValues.value()) {
                             values.put(enumValue.value(), enumValue.text());
                         }
 
                         editor = new EnumEditor(field.getName(), obj, field, index, type, swfType, values);
+                    } else if (type.equals(double.class) || type.equals(Double.class)
+                            || type.equals(float.class) || type.equals(Float.class)) {
+                        editor = new FloatEditor(field.getName(), obj, field, index, type, swfType);
                     } else if (type.equals(int.class) || type.equals(Integer.class)
                             || type.equals(short.class) || type.equals(Short.class)
-                            || type.equals(long.class) || type.equals(Long.class)
-                            || type.equals(double.class) || type.equals(Double.class)
-                            || type.equals(float.class) || type.equals(Float.class)) {
+                            || type.equals(long.class) || type.equals(Long.class)) {
                         editor = new NumberEditor(field.getName(), obj, field, index, type, swfType);
                     } else if (type.equals(boolean.class) || type.equals(Boolean.class)) {
                         editor = new BooleanEditor(field.getName(), obj, field, index, type);
                     } else if (type.equals(String.class)) {
-                        editor = new StringEditor(field.getName(), obj, field, index, type, multiline != null);
+                        editor = new StringEditor(field.getName(), obj, field, index, type, multiline != null, swf);
                     } else if (type.equals(RGB.class) || type.equals(RGBA.class) || type.equals(ARGB.class)) {
                         editor = new ColorEditor(field.getName(), obj, field, index, type);
                     } else if (type.equals(byte[].class) || type.equals(ByteArrayRange.class)) {
@@ -204,7 +379,7 @@ public class GenericTagTreePanel extends GenericTagPanel {
                     FlowLayout fl = new FlowLayout(FlowLayout.LEFT, 0, 0);
                     fl.setAlignOnBaseline(true);
                     pan.setLayout(fl);
-                    JLabel nameLabel = new JLabel(fnode.getNameType(i) + " = ") {
+                    JLabel nameLabel = new JLabel(fnode.getNameType(i) + (editor == null ? "" : " = ")) {
                         @Override
                         public BaselineResizeBehavior getBaselineResizeBehavior() {
                             return Component.BaselineResizeBehavior.CONSTANT_ASCENT;
@@ -268,18 +443,41 @@ public class GenericTagTreePanel extends GenericTagPanel {
             }
             Object obj = path.getLastPathComponent();
 
+            FieldNode fnode = (FieldNode) obj;
+            Field field = fnode.fieldSet.get(FIELD_INDEX);
+
             boolean ret = super.isCellEditable(e)
-                    && tree.getModel().isLeaf(obj);
+                    && tree.getModel().isLeaf(obj) && hasEditor(fnode.obj, field, fnode.index);
             return ret;
         }
 
         @Override
         public boolean stopCellEditing() {
+            boolean modified = false;
             if (editors != null) {
                 for (GenericTagEditor editor : editors) {
                     try {
                         editor.validateValue();
-                        editor.save();
+                        if (editor.save()) {
+
+                            if (editor.getObject() instanceof CONVOLUTIONFILTER) {
+                                String fname = editor.getFieldName();
+                                if ("matrixX".equals(fname) || "matrixY".equals(fname)) {
+                                    CONVOLUTIONFILTER cf = (CONVOLUTIONFILTER) editor.getObject();
+                                    if (cf.matrix.length != cf.matrixX * cf.matrixY) {
+                                        float[] newmatrix = new float[cf.matrixX * cf.matrixY];
+                                        int copycount = cf.matrix.length;
+                                        if (copycount > cf.matrixX * cf.matrixY) {
+                                            copycount = cf.matrixX * cf.matrixY;
+                                        }
+                                        System.arraycopy(cf.matrix, 0, newmatrix, 0, copycount);
+                                        cf.matrix = newmatrix;
+                                    }
+                                }
+                            }
+
+                            modified = true;
+                        }
                     } catch (IllegalArgumentException iex) {
                         return false;
                     }
@@ -289,21 +487,40 @@ public class GenericTagTreePanel extends GenericTagPanel {
 
             editors = null;
 
-            TreePath sp = tree.getSelectionPath();
-            if (sp != null) {
-                ((MyTreeModel) tree.getModel()).vchanged(sp);
+            if (modified) {
+                TreePath sp = tree.getSelectionPath();
+                if (sp != null) {
+                    ((MyTreeModel) tree.getModel()).vchanged(sp);
+                }
+                refreshTree();
             }
-            refreshTree();
             return true;
         }
+    }
+
+    @Override
+    public boolean tryAutoSave() {
+        if (Configuration.autoSaveTagModifications.get()) {
+            if (tag == null) {
+                return true;
+            }
+            return save();
+        }
+        return true;
     }
 
     public GenericTagTreePanel(MainPanel mainPanel) {
         super(mainPanel);
         setLayout(new BorderLayout());
         tree = new MyTree();
-
+        tree.setRootVisible(false);
+        tree.setShowsRootHandles(true);
         add(new FasterScrollPane(tree), BorderLayout.CENTER);
+        tree.addTreeSelectionListener(new TreeSelectionListener() {
+            @Override
+            public void valueChanged(TreeSelectionEvent e) {
+            }
+        });
         tree.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
@@ -314,13 +531,14 @@ public class GenericTagTreePanel extends GenericTagPanel {
                 TreePath selPath = tree.getPathForLocation(e.getX(), e.getY());
                 if (selRow != -1 && selPath != null) {
                     if (e.getClickCount() == 1) {
-                        if (e.getButton() == MouseEvent.BUTTON3) { //right click
+                        if (SwingUtilities.isRightMouseButton(e)) { //right click
                             Object selObject = selPath.getLastPathComponent();
                             if (selObject instanceof FieldNode) {
                                 final FieldNode fnode = (FieldNode) selObject;
                                 Field field = fnode.fieldSet.get(FIELD_INDEX);
                                 if (ReflectionTools.needsIndex(field)) {
                                     SWFArray swfArray = fnode.fieldSet.get(FIELD_INDEX).getAnnotation(SWFArray.class);
+                                    SWFType swfType = fnode.fieldSet.get(FIELD_INDEX).getAnnotation(SWFType.class);
 
                                     String itemStr = "";
                                     if (swfArray != null) {
@@ -337,6 +555,17 @@ public class GenericTagTreePanel extends GenericTagPanel {
                                     if (!ReflectionTools.canAddToField(fnode.obj, fnode.fieldSet.get(FIELD_INDEX))) {
                                         canAdd = false;
                                     }
+                                    if (swfArray != null) {
+                                        if (swfArray.count() > 0) {
+                                            canAdd = false;
+                                        }
+                                    }
+                                    if (swfType != null) {
+                                        if (!swfType.canAdd()) {
+                                            canAdd = false;
+                                        }
+                                    }
+
                                     JPopupMenu p = new JPopupMenu();
                                     JMenuItem mi;
                                     Class<?> subtype = ReflectionTools.getFieldSubType(fnode.obj, fnode.fieldSet.get(FIELD_INDEX));
@@ -345,12 +574,14 @@ public class GenericTagTreePanel extends GenericTagPanel {
                                         JMenu mBegin = new JMenu(AppStrings.translate("generictag.array.insertbeginning").replace("%item%", itemStr));
                                         p.add(mBegin);
                                         JMenu mBefore = new JMenu(AppStrings.translate("generictag.array.insertbefore").replace("%item%", itemStr));
-                                        p.add(mBefore);
+                                        if (fnode.index > -1) {
+                                            p.add(mBefore);
+                                        }
                                         mi = new JMenuItem(AppStrings.translate("generictag.array.remove").replace("%item%", itemStr));
                                         mi.addActionListener(new ActionListener() {
                                             @Override
                                             public void actionPerformed(ActionEvent e) {
-                                                TreePath tps[] = tree.getSelectionPaths();
+                                                TreePath[] tps = tree.getSelectionPaths();
                                                 if (tps == null) {
                                                     tps = new TreePath[]{selPath};
                                                 }
@@ -369,9 +600,15 @@ public class GenericTagTreePanel extends GenericTagPanel {
                                                 }
                                             }
                                         });
-                                        p.add(mi);
+
+                                        if (fnode.index > -1) {
+                                            p.add(mi);
+                                        }
                                         JMenu mAfter = new JMenu(AppStrings.translate("generictag.array.insertafter").replace("%item%", itemStr));
-                                        p.add(mAfter);
+
+                                        if (fnode.index > -1) {
+                                            p.add(mAfter);
+                                        }
 
                                         JMenu mEnd = new JMenu(AppStrings.translate("generictag.array.insertend").replace("%item%", itemStr));
                                         p.add(mEnd);
@@ -432,7 +669,7 @@ public class GenericTagTreePanel extends GenericTagPanel {
                                             mi.addActionListener(new ActionListener() {
                                                 @Override
                                                 public void actionPerformed(ActionEvent e) {
-                                                    TreePath tps[] = tree.getSelectionPaths();
+                                                    TreePath[] tps = tree.getSelectionPaths();
                                                     if (tps == null) {
                                                         tps = new TreePath[]{selPath};
                                                     }
@@ -453,6 +690,9 @@ public class GenericTagTreePanel extends GenericTagPanel {
                                                     }
                                                 }
                                             });
+                                            if (!canAdd) {
+                                                mi.setEnabled(false);
+                                            }
                                             p.add(mi);
 
                                             mi = new JMenuItem(AppStrings.translate("generictag.array.insertafter").replace("%item%", itemStr));
@@ -504,6 +744,22 @@ public class GenericTagTreePanel extends GenericTagPanel {
                 setBackgroundNonSelectionColor(Color.white);
             }
         }
+
+        @Override
+        public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
+            Component component = super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
+            if (component instanceof JLabel) {
+                JLabel lab = (JLabel) component;
+                if (value == tree.getModel().getRoot()) {
+                    //It still does not matter since root is hidden
+                    if (editedTag != null) {
+                        lab.setIcon(AbstractTagTree.getIconForType(AbstractTagTree.getTreeNodeType(editedTag)));
+                    }
+                }
+            }
+            return component;
+        }
+
     }
 
     @Override
@@ -511,6 +767,7 @@ public class GenericTagTreePanel extends GenericTagPanel {
         tag = null;
         editedTag = null;
         tree.setModel(new DefaultTreeModel(new DefaultMutableTreeNode("root")));
+        tree.setSelectionModel(new DefaultTreeSelectionModel());
         revalidate();
         repaint();
     }
@@ -524,7 +781,7 @@ public class GenericTagTreePanel extends GenericTagPanel {
         }
     }
 
-    private static final class FieldNode extends DefaultMutableTreeNode {
+    public static final class FieldNode extends DefaultMutableTreeNode {
 
         private Tag tag;
 
@@ -534,11 +791,22 @@ public class GenericTagTreePanel extends GenericTagPanel {
 
         private int index;
 
-        public FieldNode(Tag tag, Object obj, FieldSet fieldSet, int index) {
+        private MyTreeModel model;
+
+        private Object parentObject;
+        private final SWF swf;
+
+        public Object getParentObject() {
+            return parentObject;
+        }
+
+        public FieldNode(Object parent, MyTreeModel model, Tag tag, Object obj, FieldSet fieldSet, int index, SWF swf) {
             this.tag = tag;
             this.obj = obj;
             this.fieldSet = fieldSet;
             this.index = index;
+            this.model = model;
+            this.parentObject = parent;
 
             for (int i = 0; i < fieldSet.size(); i++) {
                 if (getValue(i) == null) {
@@ -553,6 +821,7 @@ public class GenericTagTreePanel extends GenericTagPanel {
                     }
                 }
             }
+            this.swf = swf;
         }
 
         @Override
@@ -572,6 +841,7 @@ public class GenericTagTreePanel extends GenericTagPanel {
                     }
                     ret.append(toString(i));
                 }
+                ret.insert(0, "<html>").append("</html>");
                 return ret.toString();
             }
 
@@ -579,12 +849,15 @@ public class GenericTagTreePanel extends GenericTagPanel {
                 ret.append(toString(0));
             } else {
                 ret.append(fieldSet.name);
-                SWFArray t = fieldSet.get(0).getAnnotation(SWFArray.class);
-                if (t != null) {
+                /*SWFArray a = fieldSet.get(0).getAnnotation(SWFArray.class);
+                SWFType t = fieldSet.get(0).getAnnotation(SWFType.class);
+                if (t != null && !"".equals(t.countField())) {
                     ret.append(" [").append(t.countField()).append("]");
+                } else if (a != null) {
+                    ret.append(" [").append(a.countField()).append("]");
                 } else {
                     ret.append(" []");
-                }
+                }*/
             }
 
             ret.insert(0, "<html>").append("</html>");
@@ -594,7 +867,22 @@ public class GenericTagTreePanel extends GenericTagPanel {
         public String toString(int fieldIndex) {
             String valStr = "";
             Field field = fieldSet.get(fieldIndex);
-            if (ReflectionTools.needsIndex(field) && (index == -1)) {
+
+            if (field.getAnnotation(UUID.class) != null) {
+                StringBuilder sb = new StringBuilder();
+                byte[] val = (byte[]) getValue(fieldIndex);
+                for (int i = 0; i < val.length; i++) {
+                    String h = Integer.toHexString(val[i] & 0xff);
+                    if (h.length() == 1) {
+                        h = "0" + h;
+                    }
+                    sb.append(h);
+                    if (i == 3 || i == 5 || i == 7 || i == 9) {
+                        sb.append("-");
+                    }
+                }
+                valStr += " = " + sb.toString();
+            } else if (ReflectionTools.needsIndex(field) && (index == -1)) {
                 valStr += "";
             } else if (hasEditor(obj, field, index)) {
                 Object val = getValue(fieldIndex);
@@ -622,23 +910,50 @@ public class GenericTagTreePanel extends GenericTagPanel {
                     enumAdd = " - " + values.get(val);
                 }
 
-                if (val instanceof byte[]) {
+                DottedIdentifier di = field.getAnnotation(DottedIdentifier.class);
+                if (val instanceof String && di != null) {
+                    if (di.exportName()) {
+                        valStr += " = " + escapeHtml(Helper.escapeExportname(swf, val.toString(), true));
+                    } else {
+                        valStr += " = " + escapeHtml("\"" + Helper.escapePCodeString(val.toString()) + "\"");
+                        //escapeHtml(DottedChain.parseNoSuffix(val.toString()).toPrintableString(new LinkedHashSet<>(), swf, di.as3()));
+                    }
+                } else if (val instanceof byte[]) {
                     valStr += " = " + ((byte[]) val).length + " byte";
                 } else if (val instanceof ByteArrayRange) {
                     valStr += " = " + ((ByteArrayRange) val).getLength() + " byte";
+                } else if (val instanceof String) {
+                    valStr += " = \"" + escapeHtml(Helper.escapePCodeString(val.toString())) + "\"";
                 } else {
-                    valStr += " = " + colorAdd + val.toString() + enumAdd;
+                    valStr += " = " + colorAdd + escapeHtml(val.toString()) + enumAdd;
                 }
             }
             return getNameType(fieldIndex) + valStr;
         }
 
+        private String escapeHtml(String val) {
+            return val.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;");
+        }
+
         public String getType(int fieldIndex) {
-            SWFType swfType = fieldSet.get(fieldIndex).getAnnotation(SWFType.class);
+            UUID uuid = fieldSet.get(fieldIndex).getAnnotation(UUID.class);
+            if (uuid != null) {
+                return "UUID";
+            }
             SWFArray swfArray = fieldSet.get(fieldIndex).getAnnotation(SWFArray.class);
             Class<?> declaredType = fieldSet.get(fieldIndex).getType();
             boolean isArray = ReflectionTools.needsIndex(fieldSet.get(fieldIndex)) || swfArray != null;
             boolean isArrayParent = isArray && index == -1;
+
+            SWFType swfType = fieldSet.get(fieldIndex).getAnnotation(SWFType.class);
+            String thisPath = model.getNodePathName(this);
+            String parentPath = thisPath.substring(0, thisPath.lastIndexOf("."));
+            if (isArray && !isArrayParent) {
+                parentPath = parentPath.substring(0, parentPath.lastIndexOf("."));
+            }
+            swfType = evalSwfType(model, parentPath, swfType);
 
             Class<?> declaredSubType = isArray ? ReflectionTools.getFieldSubType(obj, fieldSet.get(fieldIndex)) : null;
 
@@ -661,25 +976,41 @@ public class GenericTagTreePanel extends GenericTagPanel {
 
             String typeStr = type.getSimpleName();
 
-            if (swfType != null && swfType.value() != BasicType.OTHER) {
-                typeStr = "" + swfType.value();
+            if ("RGB".equals(typeStr)) {
+                try {
+                    Object val = ReflectionTools.getValue(obj, fieldSet.get(fieldIndex), index);
+                    if (val instanceof RGBA) {
+                        typeStr = "RGBA";
+                    }
+                } catch (IllegalArgumentException | IllegalAccessException ex) {
+                    //ignore
+                }
+            }
+
+            boolean bracketsDetected = false;
+            if (swfType != null) {
+                if (swfType.value() != BasicType.OTHER) {
+                    typeStr = "" + swfType.value();
+                }
                 if (swfType.count() > 0) {
                     typeStr += "[" + swfType.count();
                     if (swfType.countAdd() > 0) {
                         typeStr += " + " + swfType.countAdd();
                     }
                     typeStr += "]";
+                    bracketsDetected = true;
                 } else if (!swfType.countField().isEmpty()) {
                     typeStr += "[" + swfType.countField();
                     if (swfType.countAdd() > 0) {
                         typeStr += " + " + swfType.countAdd();
                     }
                     typeStr += "]";
+                    bracketsDetected = true;
                 }
             }
 
             String arrayBrackets = "";
-            if (isArrayParent) {
+            if (isArrayParent && !bracketsDetected) {
                 if (swfArray != null) {
                     if (swfArray.count() > 0) {
                         arrayBrackets = "[" + swfArray.count() + "]";
@@ -769,7 +1100,7 @@ public class GenericTagTreePanel extends GenericTagPanel {
         @Override
         public int hashCode() {
             int hash = 7;
-            hash = 11 * hash + Objects.hashCode(this.obj);
+            hash = 11 * hash + System.identityHashCode(this.obj);
             hash = 11 * hash + Objects.hashCode(this.fieldSet.get(FIELD_INDEX));
             hash = 11 * hash + this.index;
             return hash;
@@ -784,9 +1115,12 @@ public class GenericTagTreePanel extends GenericTagPanel {
                 return false;
             }
             final FieldNode other = (FieldNode) obj;
-            if (!Objects.equals(this.obj, other.obj)) {
+            if (this.obj != other.obj) {
                 return false;
             }
+            /*if (!Objects.equals(this.obj, other.obj)) {
+                return false;
+            }*/
             if (!Objects.equals(this.fieldSet.get(FIELD_INDEX), other.fieldSet.get(FIELD_INDEX))) {
                 return false;
             }
@@ -794,7 +1128,7 @@ public class GenericTagTreePanel extends GenericTagPanel {
         }
     }
 
-    private static class MyTreeModel extends DefaultTreeModel {
+    public static class MyTreeModel extends DefaultTreeModel {
 
         private final Tag mtroot;
 
@@ -885,15 +1219,15 @@ public class GenericTagTreePanel extends GenericTagPanel {
 
         private Object getChild(Object parent, int index, boolean limited) {
             if (parent == mtroot) {
-                return new FieldNode(mtroot, mtroot, filterFields(this, mtroot.getClass().getSimpleName(), mtroot.getClass(), limited).get(index), -1);
+                return new FieldNode(null, this, mtroot, mtroot, filterFields(mtroot.getSwf(), this, mtroot.getClass().getSimpleName(), mtroot.getClass(), limited, mtroot.getId()).get(index), -1, mtroot.getSwf());
             }
             FieldNode fnode = (FieldNode) parent;
             Field field = fnode.fieldSet.get(FIELD_INDEX);
             if (ReflectionTools.needsIndex(field) && (fnode.index == -1)) { //Arrays ot Lists
-                return new FieldNode(mtroot, fnode.obj, fnode.fieldSet, index);
+                return new FieldNode(parent, this, mtroot, fnode.obj, fnode.fieldSet, index, mtroot.getSwf());
             }
             parent = fnode.getValue(FIELD_INDEX);
-            return new FieldNode(mtroot, parent, filterFields(this, getNodePathName(fnode), parent.getClass(), limited).get(index), -1);
+            return new FieldNode(parent, this, mtroot, parent, filterFields(mtroot.getSwf(), this, getNodePathName(fnode), parent.getClass(), limited, mtroot.getId()).get(index), -1, mtroot.getSwf());
         }
 
         @Override
@@ -908,17 +1242,23 @@ public class GenericTagTreePanel extends GenericTagPanel {
 
         private int getChildCount(Object parent, boolean limited) {
             if (parent == mtroot) {
-                return filterFields(this, mtroot.getClass().getSimpleName(), mtroot.getClass(), limited).size();
+                return filterFields(mtroot.getSwf(), this, mtroot.getClass().getSimpleName(), mtroot.getClass(), limited, mtroot.getId()).size();
             }
+
             FieldNode fnode = (FieldNode) parent;
-            if (isLeaf(fnode)) {
+
+            Field field = fnode.fieldSet.get(FIELD_INDEX);
+
+            boolean isByteArray = field.getType().equals(byte[].class);
+
+            if (hasEditor(fnode.obj, field, fnode.index) || isByteArray) {
                 return 0;
             }
-            Field field = fnode.fieldSet.get(FIELD_INDEX);
+
             if (ReflectionTools.needsIndex(field) && (fnode.index == -1)) { //Arrays or Lists
                 try {
                     if (field.get(fnode.obj) == null) {
-                        // todo: instanciate the (Array)List or Array to allow adding items to it
+                        // todo: instantiate the (Array)List or Array to allow adding items to it
                         return 0;
                     }
                 } catch (IllegalArgumentException | IllegalAccessException ex) {
@@ -929,23 +1269,12 @@ public class GenericTagTreePanel extends GenericTagPanel {
             }
             parent = fnode.getValue(FIELD_INDEX);
 
-            return filterFields(this, getNodePathName(fnode), parent.getClass(), limited).size();
+            return filterFields(mtroot.getSwf(), this, getNodePathName(fnode), parent.getClass(), limited, mtroot.getId()).size();
         }
 
         @Override
         public boolean isLeaf(Object node) {
-            if (node == mtroot) {
-                return false;
-            }
-
-            FieldNode fnode = (FieldNode) node;
-            Field field = fnode.fieldSet.get(FIELD_INDEX);
-            boolean isByteArray = field.getType().equals(byte[].class);
-            if (!isByteArray && ReflectionTools.needsIndex(field) && fnode.index == -1) {
-                return false;
-            }
-            boolean r = hasEditor(fnode.obj, field, fnode.index);
-            return r;
+            return getChildCount(node) == 0;
         }
 
         public void vchanged(TreePath path) {
@@ -980,6 +1309,7 @@ public class GenericTagTreePanel extends GenericTagPanel {
         try {
             editedTag = tag == null ? null : tag.cloneTag();
         } catch (InterruptedException ex) {
+            //ignore
         } catch (IOException ex) {
             logger.log(Level.SEVERE, null, ex);
         }
@@ -987,6 +1317,9 @@ public class GenericTagTreePanel extends GenericTagPanel {
             tree.stopEditing();
         }
         tree.setEditable(edit);
+        if (editedTag != null) {
+            tree.setCellEditor(new MyTreeCellEditor(tree, editedTag.getSwf()));
+        }
         refreshTree();
     }
 
@@ -996,10 +1329,25 @@ public class GenericTagTreePanel extends GenericTagPanel {
             return false;
         }
 
+        if (tag == null) {
+            return true;
+        }
         SWF swf = tag.getSwf();
         assignTag(tag, editedTag);
         tag.setModified(true);
         tag.setSwf(swf);
+        if (tag instanceof Timelined) {
+            ((Timelined) tag).resetTimeline();
+        }
+        //For example DefineButton and its DefineButtonCxForm
+        if ((tag instanceof CharacterIdTag) && (!(tag instanceof CharacterTag))) {
+            CharacterTag parentCharacter = swf.getCharacter(((CharacterIdTag) tag).getCharacterId());
+            if (parentCharacter instanceof Timelined) {
+                ((Timelined) parentCharacter).resetTimeline();
+            }
+        }
+        swf.computeDependentCharacters();
+        swf.computeDependentFrames();
         return true;
     }
 
@@ -1039,10 +1387,11 @@ public class GenericTagTreePanel extends GenericTagPanel {
         } catch (IllegalArgumentException | IllegalAccessException ex) {
             return false;
         }
-        SWFType swfType = field.getAnnotation(SWFType.class);
-        Multiline multiline = field.getAnnotation(Multiline.class);
+        UUID uuid = field.getAnnotation(UUID.class);
 
-        if (type.equals(int.class) || type.equals(Integer.class)
+        if (uuid != null) {
+            return true;
+        } else if (type.equals(int.class) || type.equals(Integer.class)
                 || type.equals(short.class) || type.equals(Short.class)
                 || type.equals(long.class) || type.equals(Long.class)
                 || type.equals(double.class) || type.equals(Double.class)
@@ -1090,9 +1439,39 @@ public class GenericTagTreePanel extends GenericTagPanel {
         public int size() {
             return fields.size();
         }
+
+        @Override
+        public int hashCode() {
+            int hash = 7;
+            hash = 67 * hash + Objects.hashCode(this.fields);
+            hash = 67 * hash + Objects.hashCode(this.name);
+            hash = 67 * hash + Objects.hashCode(this.itemName);
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final FieldSet other = (FieldSet) obj;
+            if (!Objects.equals(this.name, other.name)) {
+                return false;
+            }
+            if (!Objects.equals(this.itemName, other.itemName)) {
+                return false;
+            }
+            return Objects.equals(this.fields, other.fields);
+        }
     }
 
-    private static List<FieldSet> filterFields(MyTreeModel mod, String parentPath, Class<?> cls, boolean limited) {
+    private static List<FieldSet> filterFields(SWF swf, MyTreeModel mod, String parentPath, Class<?> cls, boolean limited, int parentTagId) {
         List<FieldSet> ret = new ArrayList<>();
         List<Field> fields = getAvailableFields(cls);
         Map<String, List<Field>> tables = new HashMap<>();
@@ -1122,10 +1501,15 @@ public class GenericTagTreePanel extends GenericTagPanel {
                                     fieldMap.put(sf, found);
                                 }
                             } else {
-                                fieldMap.put(sf, true);
+                                //Hack - the field is internal in fonts and thus cannot be accessed via getNodeByPath
+                                if ("strippedShapes".equals(sf)) {
+                                    fieldMap.put(sf, swf.hasStrippedShapesFromFonts());
+                                } else {
+                                    fieldMap.put(sf, true);
+                                }
                             }
                         }
-                        if (!ev.eval(fieldMap)) {
+                        if (!ev.eval(fieldMap, parentTagId)) {
                             continue;
                         }
                     } catch (AnnotationParseException | IllegalArgumentException | IllegalAccessException ex) {
@@ -1177,18 +1561,26 @@ public class GenericTagTreePanel extends GenericTagPanel {
 
     private void addItem(Object obj, Field field, int index, Class<?> cls) {
         SWFArray swfArray = field.getAnnotation(SWFArray.class);
-        if (swfArray != null && !swfArray.countField().isEmpty()) { //Fields with same countField must be enlarged too
+        String countFieldName = null;
+        if (swfArray != null && !swfArray.countField().isEmpty()) {
+            countFieldName = swfArray.countField();
+        }
+
+        if (countFieldName != null) { //Fields with same countField must be enlarged too
             Field[] fields = obj.getClass().getDeclaredFields();
             List<Integer> sameFlds = new ArrayList<>();
             for (int f = 0; f < fields.length; f++) {
                 SWFArray fieldSwfArray = fields[f].getAnnotation(SWFArray.class);
-                if (fieldSwfArray != null && fieldSwfArray.countField().equals(swfArray.countField())) {
+                String fieldCountFieldName = null;
+                if (fieldSwfArray != null && !fieldSwfArray.countField().isEmpty()) {
+                    fieldCountFieldName = fieldSwfArray.countField();
+                }
+                if (fieldCountFieldName != null && fieldCountFieldName.equals(countFieldName)) {
                     sameFlds.add(f);
                     if (cls == null && !ReflectionTools.canAddToField(obj, fields[f])) {
                         JOptionPane.showMessageDialog(this, "This field is abstract, cannot be instantiated, sorry."); //TODO!!!
                         return;
                     }
-
                 }
             }
             for (int f : sameFlds) {
@@ -1199,13 +1591,16 @@ public class GenericTagTreePanel extends GenericTagPanel {
                         ASMSource asv = (ASMSource) v;
                         asv.setSourceTag(editedTag);
                     }
+                    if (v instanceof HasSwfAndTag) {
+                        ((HasSwfAndTag) obj).setSourceTag(editedTag);
+                    }
                 } catch (IllegalArgumentException | IllegalAccessException ex) {
                     //ignore
                 }
             }
             try {
                 //If countField exists, increment, otherwise do nothing
-                Field countField = obj.getClass().getDeclaredField(swfArray.countField());
+                Field countField = obj.getClass().getDeclaredField(countFieldName);
                 int cnt = countField.getInt(obj);
                 cnt++;
                 countField.setInt(obj, cnt);
@@ -1231,32 +1626,64 @@ public class GenericTagTreePanel extends GenericTagPanel {
                     ((CLIPACTIONRECORD) v).setParentClipActions((CLIPACTIONS) obj);
                 }
 
+                //Hack to set GRADRECORD to RGB or RGBA based on shape num
+                if (v instanceof GRADRECORD) {
+                    GRADRECORD grad = (GRADRECORD) v;
+                    if (editedTag instanceof ShapeTag) {
+                        ShapeTag shape = (ShapeTag) editedTag;
+                        if (shape.getShapeNum() >= 3) {
+                            grad.color = new RGBA(Color.black);
+                        } else {
+                            grad.color = new RGB(Color.black);
+                        }
+                    } else {
+                        grad.color = new RGBA(Color.black);
+                    }
+                }
+
+                if (obj instanceof HasSwfAndTag) {
+                    ((HasSwfAndTag) obj).setSourceTag(editedTag);
+                }
+
             } catch (IllegalArgumentException | IllegalAccessException ex) {
                 //ignore
             }
         }
+        ((MyTreeModel) tree.getModel()).vchanged(new TreePath(tree.getModel().getRoot()));
         refreshTree();
     }
 
     public void refreshTree() {
         View.refreshTree(tree, getModel());
+        for (TreeModelListener listener : modelListeners) {
+            ((DefaultTreeModel) tree.getModel()).addTreeModelListener(listener);
+        }
         revalidate();
         repaint();
     }
 
     private void removeItem(Object obj, Field field, int index) {
         SWFArray swfArray = field.getAnnotation(SWFArray.class);
-        if (swfArray != null && !swfArray.countField().isEmpty()) { //Fields with same countField must be removed from too
+        String countFieldName = null;
+        if (swfArray != null && !swfArray.countField().isEmpty()) {
+            countFieldName = swfArray.countField();
+        }
+        if (countFieldName != null) { //Fields with same countField must be removed from too
             Field[] fields = obj.getClass().getDeclaredFields();
             for (int f = 0; f < fields.length; f++) {
                 SWFArray fieldSwfArray = fields[f].getAnnotation(SWFArray.class);
-                if (fieldSwfArray != null && fieldSwfArray.countField().equals(swfArray.countField())) {
+                String fieldCountFieldName = null;
+                if (fieldSwfArray != null && !fieldSwfArray.countField().isEmpty()) {
+                    fieldCountFieldName = fieldSwfArray.countField();
+                }
+
+                if (fieldCountFieldName != null && fieldCountFieldName.equals(countFieldName)) {
                     ReflectionTools.removeFromField(obj, fields[f], index);
                 }
             }
             try {
                 //If countField exists, decrement, otherwise do nothing
-                Field countField = obj.getClass().getDeclaredField(swfArray.countField());
+                Field countField = obj.getClass().getDeclaredField(countFieldName);
                 int cnt = countField.getInt(obj);
                 cnt--;
                 countField.setInt(obj, cnt);

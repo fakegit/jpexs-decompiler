@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.shape;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -23,23 +24,53 @@ import com.jpexs.decompiler.flash.types.RGB;
 import com.jpexs.decompiler.flash.types.SHAPE;
 
 /**
+ * Default SVG shape exporter.
  *
  * @author JPEXS, Claus Wahlers
  */
 public abstract class DefaultSVGShapeExporter extends ShapeExporterBase {
 
+    /**
+     * Draw command L
+     */
     protected static final String DRAW_COMMAND_L = "L";
 
+    /**
+     * Draw command Q
+     */
     protected static final String DRAW_COMMAND_Q = "Q";
 
+    /**
+     * Current draw command
+     */
     protected String currentDrawCommand = "";
 
+    /**
+     * Path data
+     */
     protected StringBuilder pathData;
 
+    /**
+     * Zoom
+     */
     protected double zoom;
 
-    public DefaultSVGShapeExporter(SWF swf, SHAPE shape, ColorTransform colorTransform, double zoom) {
-        super(swf, shape, colorTransform);
+    /**
+     * Aliased fill
+     */
+    protected boolean aliasedFill;
+
+    /**
+     * Constructor.
+     * @param windingRule Winding rule
+     * @param shapeNum Shape number (1 for DefineShape, 2 for DefineShape2, etc.)
+     * @param swf SWF
+     * @param shape Shape
+     * @param colorTransform Color transform
+     * @param zoom Zoom
+     */
+    public DefaultSVGShapeExporter(int windingRule, int shapeNum, SWF swf, SHAPE shape, ColorTransform colorTransform, double zoom) {
+        super(windingRule, shapeNum, swf, shape, colorTransform);
         this.zoom = zoom;
     }
 
@@ -53,6 +84,7 @@ public abstract class DefaultSVGShapeExporter extends ShapeExporterBase {
 
     @Override
     public void beginFills() {
+        aliasedFill = false;
     }
 
     @Override
@@ -74,26 +106,38 @@ public abstract class DefaultSVGShapeExporter extends ShapeExporterBase {
 
     @Override
     public void beginFill(RGB color) {
+        if (aliasedFill) {
+            return;
+        }
         finalizePath();
     }
 
     @Override
     public void beginGradientFill(int type, GRADRECORD[] gradientRecords, Matrix matrix, int spreadMethod, int interpolationMethod, float focalPointRatio) {
+        if (aliasedFill) {
+            return;
+        }
         finalizePath();
     }
 
     @Override
     public void beginBitmapFill(int bitmapId, Matrix matrix, boolean repeat, boolean smooth, ColorTransform colorTransform) {
+        if (aliasedFill) {
+            return;
+        }
         finalizePath();
     }
 
     @Override
     public void endFill() {
+        if (aliasedFill) {
+            return;
+        }
         finalizePath();
     }
 
     @Override
-    public void lineStyle(double thickness, RGB color, boolean pixelHinting, String scaleMode, int startCaps, int endCaps, int joints, float miterLimit) {
+    public void lineStyle(double thickness, RGB color, boolean pixelHinting, String scaleMode, int startCaps, int endCaps, int joints, float miterLimit, boolean noClose) {
         finalizePath();
     }
 
@@ -133,11 +177,19 @@ public abstract class DefaultSVGShapeExporter extends ShapeExporterBase {
                 .append(roundPixels20(anchorY * zoom / SWF.unitDivisor)).append(" ");
     }
 
+    /**
+     * Finalizes path.
+     */
     protected void finalizePath() {
         pathData = new StringBuilder();
         currentDrawCommand = "";
     }
 
+    /**
+     * Rounds pixels to 20.
+     * @param pixels Pixels
+     * @return Rounded pixels
+     */
     protected double roundPixels20(double pixels) {
         return Math.round(pixels * 100) / 100.0;
     }

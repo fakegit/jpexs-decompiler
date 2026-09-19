@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,12 +17,12 @@
 package com.jpexs.decompiler.flash.abc.avm2.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.abc.avm2.graph.AVM2GraphTargetDialect;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instructions;
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
 import com.jpexs.decompiler.flash.ecma.Undefined;
 import com.jpexs.decompiler.graph.CompilationException;
-import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
@@ -33,13 +33,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Greater or equal.
  *
  * @author JPEXS
  */
 public class GeAVM2Item extends BinaryOpItem implements LogicalOpItem, IfCondition {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param leftSide Left side
+     * @param rightSide Right side
+     */
     public GeAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem leftSide, GraphTargetItem rightSide) {
-        super(instruction, lineStartIns, PRECEDENCE_RELATIONAL, leftSide, rightSide, ">=", "", "");
+        super(AVM2GraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_RELATIONAL, leftSide, rightSide, ">=", "", "");
     }
 
     @Override
@@ -77,7 +85,7 @@ public class GeAVM2Item extends BinaryOpItem implements LogicalOpItem, IfConditi
 
     @Override
     public GraphTargetItem returnType() {
-        return new TypeItem(DottedChain.BOOLEAN);
+        return TypeItem.BOOLEAN;
     }
 
     @Override

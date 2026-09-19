@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,8 +17,9 @@
 package com.jpexs.decompiler.flash.gui;
 
 import com.jpexs.decompiler.flash.configuration.Configuration;
-import com.jpexs.decompiler.flash.configuration.ConfigurationItem;
-import java.awt.BorderLayout;
+import com.jpexs.decompiler.flash.gui.tagtree.AbstractTagTreeModel;
+import com.jpexs.decompiler.flash.gui.translator.Translator;
+import com.jpexs.decompiler.flash.treeitems.TreeItem;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
@@ -28,8 +29,10 @@ import java.awt.Graphics;
 import java.awt.GraphicsConfiguration;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
+import java.awt.HeadlessException;
 import java.awt.Image;
 import java.awt.Insets;
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.SystemColor;
 import java.awt.TexturePaint;
@@ -38,6 +41,8 @@ import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowEvent;
+import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.VolatileImage;
 import java.io.IOException;
@@ -46,7 +51,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -55,19 +62,16 @@ import javax.imageio.ImageIO;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.ActionMap;
-import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.InputMap;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JEditorPane;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JRootPane;
 import javax.swing.JTable;
@@ -80,13 +84,16 @@ import javax.swing.UIDefaults;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 import javax.swing.plaf.FontUIResource;
+import javax.swing.plaf.TextUI;
 import javax.swing.plaf.basic.BasicColorChooserUI;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableColumnModel;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumn;
 import javax.swing.table.TableModel;
+import javax.swing.text.BadLocationException;
 import javax.swing.text.JTextComponent;
+import javax.swing.text.Position;
 import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 import org.pushingpixels.flamingo.api.common.icon.ImageWrapperResizableIcon;
@@ -108,6 +115,8 @@ import org.pushingpixels.substance.internal.utils.SubstanceColorSchemeUtilities;
  * @author JPEXS
  */
 public class View {
+    
+    private static boolean heapWidgetInited = false;
 
     public static Color getDefaultBackgroundColor() {
         if (Configuration.useRibbonInterface.get() && SubstanceLookAndFeel.getCurrentSkin() != null) {
@@ -162,10 +171,13 @@ public class View {
 
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
 
-        } catch (UnsupportedLookAndFeelException | ClassNotFoundException | InstantiationException | IllegalAccessException ignored) {
+        } catch (UnsupportedLookAndFeelException | ClassNotFoundException | InstantiationException
+                | IllegalAccessException ignored) {
+            //ignored
         }
 
         try {
+            //UIManager.put(SubstanceLookAndFeel.WINDOW_HEAP_STATUS_VISIBLE, Boolean.TRUE);
             LookAndFeel oldLookAndFeel = UIManager.getLookAndFeel();
             if (!(oldLookAndFeel instanceof SubstanceOfficeBlue2007LookAndFeel)) {
                 UIManager.setLookAndFeel(new SubstanceOfficeBlue2007LookAndFeel());
@@ -184,7 +196,13 @@ public class View {
                 SubstanceLookAndFeel.setSkin("com.jpexs.decompiler.flash.gui.OceanicSkin");
             }
 
-            UIManager.put(SubstanceLookAndFeel.COLORIZATION_FACTOR, 0.999);//This works for not changing labels color and not changing Dialogs title
+            UIManager.put(SubstanceLookAndFeel.COLORIZATION_FACTOR, 0.999); //This works for not changing labels color and not changing Dialogs title
+            
+            if (Configuration.showHeapStatusWidget.get() && !heapWidgetInited) {
+                SubstanceLookAndFeel.setWidgetVisible(null, true, SubstanceConstants.SubstanceWidgetType.TITLE_PANE_HEAP_STATUS);
+            }
+            heapWidgetInited = true;
+            
             if (View.isOceanic()) {
                 UIManager.put("Tree.expandedIcon", getIcon("expand16"));
                 UIManager.put("Tree.collapsedIcon", getIcon("collapse16"));
@@ -315,6 +333,19 @@ public class View {
     }
 
     /**
+     * Sets icon of the window.
+     *
+     * @param f
+     * @param icon Icon identifier. Icon must exist in 16 and 32 variant
+     */
+    public static void setWindowIcon(Window f, String icon) {
+        List<Image> images = new ArrayList<>();
+        images.add(loadImage(icon + "16"));
+        images.add(loadImage(icon + "32"));
+        f.setIconImages(images);
+    }        
+
+    /**
      * Sets icon of specified frame to ASDec icon
      *
      * @param f Frame to set icon in
@@ -341,6 +372,22 @@ public class View {
             f.setIconImages(images);
         }
     }
+    
+    /**
+     * Sets icon of the window - only 16 px variant.
+     *
+     * @param f
+     * @param icon Icon identifier. Icon must exist in 16px variant.
+     */
+    public static void setWindowIcon16(Window f, String icon) {
+        List<Image> images = new ArrayList<>();
+        images.add(loadImage(icon + "16"));
+        f.setIconImages(images);
+    }
+
+    public static void centerScreenMain(Window f) {
+        centerScreen(f, true);
+    }
 
     /**
      * Centers specified frame on the screen
@@ -348,35 +395,33 @@ public class View {
      * @param f Frame to center on the screen
      */
     public static void centerScreen(Window f) {
-        centerScreen(f, 0); // todo, set screen to the currently active screen instead of the first screen in a multi screen setup, (maybe by using the screen where the main window is now classic or ribbon?)
+        centerScreen(f, false);
     }
 
-    public static void centerScreen(Window f, int screen) {
+    public static void centerScreen(Window f, boolean mainWindow) {
+        int topLeftX;
+        int topLeftY;
+        int screenX;
+        int screenY;
+        int windowPosX;
+        int windowPosY;
+        GraphicsDevice device;
 
-        GraphicsDevice[] allDevices = getEnv().getScreenDevices();
-        int topLeftX, topLeftY, screenX, screenY, windowPosX, windowPosY;
-
-        if (screen < allDevices.length && screen > -1) {
-            topLeftX = allDevices[screen].getDefaultConfiguration().getBounds().x;
-            topLeftY = allDevices[screen].getDefaultConfiguration().getBounds().y;
-
-            screenX = allDevices[screen].getDefaultConfiguration().getBounds().width;
-            screenY = allDevices[screen].getDefaultConfiguration().getBounds().height;
-
-            Insets bounds = Toolkit.getDefaultToolkit().getScreenInsets(allDevices[screen].getDefaultConfiguration());
-            screenX = screenX - bounds.right;
-            screenY = screenY - bounds.bottom;
+        if (mainWindow || Main.getMainFrame() == null) {
+            device = getMainDefaultScreenDevice();
         } else {
-            topLeftX = allDevices[0].getDefaultConfiguration().getBounds().x;
-            topLeftY = allDevices[0].getDefaultConfiguration().getBounds().y;
-
-            screenX = allDevices[0].getDefaultConfiguration().getBounds().width;
-            screenY = allDevices[0].getDefaultConfiguration().getBounds().height;
-
-            Insets bounds = Toolkit.getDefaultToolkit().getScreenInsets(allDevices[0].getDefaultConfiguration());
-            screenX = screenX - bounds.right;
-            screenY = screenY - bounds.bottom;
+            device = getWindowDevice(Main.getMainFrame().getWindow());
         }
+
+        topLeftX = device.getDefaultConfiguration().getBounds().x;
+        topLeftY = device.getDefaultConfiguration().getBounds().y;
+
+        screenX = device.getDefaultConfiguration().getBounds().width;
+        screenY = device.getDefaultConfiguration().getBounds().height;
+
+        Insets bounds = Toolkit.getDefaultToolkit().getScreenInsets(device.getDefaultConfiguration());
+        screenX = screenX - bounds.right;
+        screenY = screenY - bounds.bottom;
 
         windowPosX = ((screenX - f.getWidth()) / 2) + topLeftX;
         windowPosY = ((screenY - f.getHeight()) / 2) + topLeftY;
@@ -384,8 +429,90 @@ public class View {
         f.setLocation(windowPosX, windowPosY);
     }
 
+    public static void saveScreen() {
+        MainFrame mainFrame = Main.getMainFrame();
+        if (mainFrame == null) {
+            return;
+        }
+        Window w = mainFrame.getWindow();
+        if (w == null) {
+            return;
+        }
+        GraphicsDevice device = getWindowDevice(w);
+
+        GraphicsDevice[] allDevices = getEnv().getScreenDevices();
+        int deviceIndex = -1;
+        for (int i = 0; i < allDevices.length; i++) {
+            if (allDevices[i] == device) {
+                deviceIndex = i;
+                break;
+            }
+        }
+        if (deviceIndex != -1) {
+            Configuration.lastMainWindowScreenIndex.set(deviceIndex);
+            Rectangle bounds = device.getDefaultConfiguration().getBounds();
+            Configuration.lastMainWindowScreenX.set(bounds.x);
+            Configuration.lastMainWindowScreenY.set(bounds.y);
+            Configuration.lastMainWindowScreenWidth.set(bounds.width);
+            Configuration.lastMainWindowScreenHeight.set(bounds.height);
+        }
+    }
+
+    public static GraphicsDevice getMainDefaultScreenDevice() {
+        if (!Configuration.rememberLastScreen.get()) {
+            return getEnv().getDefaultScreenDevice();
+        }
+
+        int deviceIndex = Configuration.lastMainWindowScreenIndex.get();
+        GraphicsDevice[] allDevices = getEnv().getScreenDevices();
+
+        if (deviceIndex >= allDevices.length || deviceIndex == -1) {
+            return getEnv().getDefaultScreenDevice();
+        }
+
+        Rectangle expectedBounds = allDevices[deviceIndex].getDefaultConfiguration().getBounds();
+        if (Configuration.lastMainWindowScreenX.get() != expectedBounds.x
+                || Configuration.lastMainWindowScreenY.get() != expectedBounds.y
+                || Configuration.lastMainWindowScreenWidth.get() != expectedBounds.width
+                || Configuration.lastMainWindowScreenHeight.get() != expectedBounds.height) {
+            return getEnv().getDefaultScreenDevice();
+        }
+        return allDevices[deviceIndex];
+    }
+
+    public static int getWindowDeviceIndex(Window window) {
+        GraphicsDevice device = getWindowDevice(window);
+        GraphicsDevice[] allDevices = getEnv().getScreenDevices();
+        for (int i = 0; i < allDevices.length; i++) {
+            if (allDevices[i] == device) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public static GraphicsDevice getWindowDevice(Window window) {
+        Rectangle bounds = window.getBounds();
+        return Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()).stream()
+                // pick devices where window located
+                .filter(d -> d.getDefaultConfiguration().getBounds().intersects(bounds))
+                // sort by biggest intersection square
+                .sorted((f, s) -> Long.compare(//
+                square(f.getDefaultConfiguration().getBounds().intersection(bounds)),
+                square(s.getDefaultConfiguration().getBounds().intersection(bounds))))
+                // use one with the biggest part of the window
+                .reduce((f, s) -> s) //
+
+                // fallback to default device
+                .orElse(window.getGraphicsConfiguration().getDevice());
+    }
+
+    private static long square(Rectangle rec) {
+        return Math.abs(rec.width * rec.height);
+    }
+
     public static ImageIcon getIcon(String name, int size) {
-        ImageIcon icon = getIcon(getPrefferedIconName(name, size));
+        ImageIcon icon = getIcon(getPreferredIconName(name, size));
         if (icon.getIconWidth() == size && icon.getIconHeight() == size) {
             return icon;
         }
@@ -396,7 +523,8 @@ public class View {
     }
 
     public static ImageIcon getIcon(String name) {
-        return new ImageIcon(View.class.getClassLoader().getResource("com/jpexs/decompiler/flash/gui/graphics/" + name + ".png"));
+        String path = "com/jpexs/decompiler/flash/gui/graphics/" + name + ".png";
+        return new ImageIcon(View.class.getClassLoader().getResource(path));
     }
 
     private static final KeyStroke escapeStroke = KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0);
@@ -421,7 +549,7 @@ public class View {
         return View.class.getResource("/com/jpexs/decompiler/flash/gui/graphics/" + resource + ".png") != null;
     }
 
-    private static String getPrefferedIconName(String resource, int preferredSize) {
+    private static String getPreferredIconName(String resource, int preferredSize) {
         Matcher m = Pattern.compile("(.*[^0-9])([0-9]+)").matcher(resource);
         if (m.matches()) {
             int origSize = Integer.parseInt(m.group(2));
@@ -436,7 +564,7 @@ public class View {
     }
 
     public static ImageWrapperResizableIcon getResizableIcon(String resource, int preferredSize) {
-        return getResizableIcon(getPrefferedIconName(resource, preferredSize));
+        return getResizableIcon(getPreferredIconName(resource, preferredSize));
     }
 
     public static ImageWrapperResizableIcon getResizableIcon(String resource) {
@@ -465,6 +593,7 @@ public class View {
             try {
                 SwingUtilities.invokeAndWait(r);
             } catch (InterruptedException ex) {
+                //ignored
             } catch (InvocationTargetException ex) {
                 Logger.getLogger(View.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -497,8 +626,8 @@ public class View {
                 TreePath path = tree.getPathForRow(i);
                 if (tree.isExpanded(path)) {
                     List<String> pathAsStringList = new ArrayList<>();
-                    for (Object pathCompnent : path.getPath()) {
-                        pathAsStringList.add(pathCompnent.toString());
+                    for (Object pathComponent : path.getPath()) {
+                        pathAsStringList.add(pathComponent.toString());
                     }
                     expandedNodes.add(pathAsStringList);
                 }
@@ -507,12 +636,6 @@ public class View {
             }
         }
         return expandedNodes;
-    }
-
-    public static void expandTreeNodes(JTree tree, List<List<String>> pathsToExpand) {
-        for (List<String> pathAsStringList : pathsToExpand) {
-            expandTreeNode(tree, pathAsStringList);
-        }
     }
 
     private static TreePath expandTreeNode(JTree tree, List<String> pathAsStringList) {
@@ -544,7 +667,16 @@ public class View {
             int childCount = model.getChildCount(node);
             for (int j = 0; j < childCount; j++) {
                 Object child = model.getChild(node, j);
-                if (child.toString().equals(name)) {
+                String childStr = child.toString();
+                int index = 1;
+                if (model instanceof AbstractTagTreeModel) {
+                    AbstractTagTreeModel aModel = (AbstractTagTreeModel) model;
+                    index = aModel.getItemIndex((TreeItem) child);
+                    if (index > 1) {
+                        childStr += " [" + index + "]";
+                    }
+                }
+                if (childStr.equals(name)) {
                     node = child;
                     path.add(node);
                     break;
@@ -554,6 +686,12 @@ public class View {
 
         TreePath tp = new TreePath(path.toArray(new Object[path.size()]));
         return tp;
+    }
+
+    public static void expandTreeNodes(JTree tree, List<List<String>> pathsToExpand) {
+        for (List<String> pathAsStringList : pathsToExpand) {
+            expandTreeNode(tree, pathAsStringList);
+        }
     }
 
     public static void expandTreeNodes(JTree tree, TreePath parent, boolean expand) {
@@ -583,15 +721,41 @@ public class View {
         a.putValue(Action.ACCELERATOR_KEY, ks);
         a.putValue(Action.NAME, name);
 
-        String actionName = key;
         ActionMap amap = editor.getActionMap();
         InputMap imap = editor.getInputMap(JTextComponent.WHEN_FOCUSED);
-        imap.put(ks, actionName);
-        amap.put(actionName, a);
+        imap.put(ks, key);
+        amap.put(key, a);
 
         JPopupMenu pmenu = editor.getComponentPopupMenu();
         JMenuItem findUsagesMenu = new JMenuItem(a);
         pmenu.add(findUsagesMenu);
+    }
+    
+    public static void removeEditorAction(JEditorPane editor, String key) {
+        ActionMap amap = editor.getActionMap();
+        InputMap imap = editor.getInputMap(JTextComponent.WHEN_FOCUSED);
+        for (KeyStroke ks : imap.keys()) {
+            if (key.equals(imap.get(ks))) {
+                imap.remove(ks);
+                break;
+            }
+        }
+        Action a  = amap.get(key);
+        if (a == null) {
+            return;
+        }
+        amap.remove(key);        
+        JPopupMenu menu = editor.getComponentPopupMenu();
+        for (int i = 0; i < menu.getComponentCount(); i++) {
+            Component c = menu.getComponent(i);
+            if (c instanceof JMenuItem) {
+                JMenuItem mi = (JMenuItem) c;
+                if (mi.getAction() == a) {
+                    menu.remove(i);
+                    break;
+                }
+            }
+        }
     }
 
     public static boolean navigateUrl(String url) {
@@ -701,5 +865,176 @@ public class View {
 
     public static boolean isOceanic() {
         return SubstanceLookAndFeel.getCurrentSkin() instanceof OceanicSkin;
+    }
+
+    /**
+     * This calls JTextComponent.viewToModel2D on Java 9+ or viewToModel on Java
+     * 8.
+     *
+     * @param editor
+     * @param pt
+     * @return
+     */
+    public static int textComponentViewToModel(JTextComponent editor, Point2D pt) {
+        try {
+            return (int) (Integer) JTextComponent.class.getDeclaredMethod("viewToModel2D", Point2D.class).invoke(editor, pt);
+        } catch (NoSuchMethodException | SecurityException | IllegalAccessException ex) {
+            //method does not exist, we must be on Java8
+        } catch (InvocationTargetException ex) {
+            Logger.getLogger(View.class.getName()).log(Level.SEVERE, "Exception while calling textComponentViewToModel", ex.getCause());           
+            return 0;
+        }
+
+        //Try older method
+        Point p = new Point((int) Math.round(pt.getX()), (int) Math.round(pt.getY()));
+        try {
+            return (int) (Integer) JTextComponent.class.getDeclaredMethod("viewToModel", Point.class).invoke(editor, p);
+        } catch (NoSuchMethodException | SecurityException | IllegalAccessException ex) {
+            Logger.getLogger(View.class.getName()).log(Level.SEVERE, "Exception while calling textComponentViewToModel", ex);
+            return 0;
+        } catch (InvocationTargetException ex) {
+            Logger.getLogger(View.class.getName()).log(Level.SEVERE, "Exception while calling textComponentViewToModel", ex.getCause());           
+            return 0;
+        }
+    }
+
+    /**
+     * This calls JTextComponent.viewToModel2D on Java 9+ or viewToModel on Java
+     * 8.
+     *
+     * @param editor
+     * @param pt
+     * @return
+     */
+    public static int textComponentViewToModel(JTextComponent editor, Point pt) {
+        Point2D p2d = new Point2D.Double(pt.x, pt.y);
+        return textComponentViewToModel(editor, p2d);
+    }
+
+    /**
+     * This calls JTextComponent.modelToView2D on Java 9+ or modelToView on Java
+     * 8.
+     *
+     * @param editor
+     * @param pos
+     * @return
+     * @throws javax.swing.text.BadLocationException
+     */
+    public static Rectangle2D textComponentModelToView(JTextComponent editor, int pos) throws BadLocationException {
+        try {
+            return (Rectangle2D) JTextComponent.class.getDeclaredMethod("modelToView2D", int.class).invoke(editor, pos);
+        } catch (NoSuchMethodException | SecurityException | IllegalAccessException ex) {
+            //method does not exist, we must be on Java8                               
+        } catch (InvocationTargetException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof BadLocationException) {
+                throw (BadLocationException) cause;
+            }
+            Logger.getLogger(View.class.getName()).log(Level.SEVERE, "Exception while calling textComponentModelToView", cause);
+            return null;
+        }
+
+        //Try older method
+        try {
+            return (Rectangle) JTextComponent.class.getDeclaredMethod("modelToView", int.class).invoke(editor, pos);
+        } catch (NoSuchMethodException | SecurityException | IllegalAccessException ex) {
+            Logger.getLogger(View.class.getName()).log(Level.SEVERE, null, ex);
+            return null;
+        } catch (InvocationTargetException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof BadLocationException) {
+                throw (BadLocationException) cause;
+            }
+            Logger.getLogger(View.class.getName()).log(Level.SEVERE, "Exception while calling textComponentModelToView", cause);
+            return null;
+        }
+    }
+
+    /**
+     * This calls TextUI.modelToView2D on Java 9+ or modelToView on Java 8.
+     *
+     * @param textUi
+     * @param t
+     * @param pos
+     * @param bias
+     * @return
+     * @throws javax.swing.text.BadLocationException
+     */
+    public static Rectangle2D textUIModelToView(TextUI textUi, JTextComponent t, int pos, Position.Bias bias) throws BadLocationException {
+        try {
+            return (Rectangle2D) TextUI.class.getDeclaredMethod("modelToView2D", JTextComponent.class, int.class, Position.Bias.class).invoke(textUi, t, pos, bias);
+        } catch (NoSuchMethodException | SecurityException | IllegalAccessException ex) {
+            //method does not exist, we must be on Java8
+        } catch (InvocationTargetException ex) {
+            Logger.getLogger(View.class.getName()).log(Level.SEVERE, "Exception while calling textUIModelToView", ex.getCause());
+            return null;
+        }
+
+        //Try older method
+        try {
+            return (Rectangle) TextUI.class.getDeclaredMethod("modelToView", JTextComponent.class, int.class, Position.Bias.class).invoke(textUi, t, pos, bias);
+        } catch (NoSuchMethodException | SecurityException | IllegalAccessException ex) {
+            Logger.getLogger(View.class.getName()).log(Level.SEVERE,  "Exception while calling textUIModelToView", ex);
+            return null;
+        } catch (InvocationTargetException ex) {
+            Logger.getLogger(View.class.getName()).log(Level.SEVERE, "Exception while calling textUIModelToView", ex.getCause());
+            return null;
+        }
+    }
+
+    /**
+     * Creates locale using Locale.of on Java19, using constructor on older
+     * Javas.
+     *
+     * @param language
+     * @param country
+     * @return
+     */
+    public static Locale createLocale(String language, String country) {
+        try {
+            return (Locale) Locale.class.getDeclaredMethod("of", String.class, String.class).invoke(null, language, country);
+        } catch (NoSuchMethodException | SecurityException | IllegalAccessException | InvocationTargetException ex) {
+            try {
+                return Locale.class.getDeclaredConstructor(String.class, String.class).newInstance(language, country);
+            } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException
+                    | IllegalArgumentException | InvocationTargetException ex1) {
+                Logger.getLogger(Translator.class.getName()).log(Level.SEVERE, null, ex1);
+                return null;
+            }
+        }
+    }
+
+    /**
+     * Creates locale using Locale.of on Java19, using constructor on older
+     * Javas.
+     *
+     * @param language
+     * @return
+     */
+    public static Locale createLocale(String language) {
+        try {
+            return (Locale) Locale.class.getDeclaredMethod("of", String.class).invoke(null, language);
+        } catch (NoSuchMethodException | SecurityException | IllegalAccessException | InvocationTargetException ex) {
+            try {
+                return Locale.class.getDeclaredConstructor(String.class).newInstance(language);
+            } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException
+                    | IllegalArgumentException | InvocationTargetException ex1) {
+                Logger.getLogger(Translator.class.getName()).log(Level.SEVERE, null, ex1);
+                return null;
+            }
+        }
+    }
+
+    public static JFileChooser getFileChooserWithIcon(String iconName) {
+        return new JFileChooser() {
+
+            @Override
+            protected JDialog createDialog(Component parent) throws HeadlessException {
+                JDialog dialog = super.createDialog(parent);
+                setWindowIcon(dialog, iconName);
+                dialog.getRootPane().setWindowDecorationStyle(JRootPane.FRAME);
+                return dialog;
+            }
+        };
     }
 }

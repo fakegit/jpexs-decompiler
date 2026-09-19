@@ -38,6 +38,16 @@ import java.util.Stack;
 
     private int repeatNum = 1;
 
+    private int itemStart = -1;
+
+    private boolean caseSensitiveIdentifiers = false;
+
+    public static final int SWF_VERSION_CASE_SENSITIVE = 7;
+
+    public void setCaseSensitiveIdentifiers(boolean val) {
+        this.caseSensitiveIdentifiers = val;
+    }
+
     public int yychar() {
         return yychar;
     }
@@ -101,11 +111,11 @@ InputCharacter = [^\r\n]
 WhiteSpace = {LineTerminator} | [ \t\f]+
 
 /* comments */
-Comment = {TraditionalComment} | {EndOfLineComment}
+Comment = {TraditionalComment} | {EndOfLineComment} | {AsDocComment}
 
 TraditionalComment = "/*" [^*] ~"*/" | "/*" "*"+ "/"
 EndOfLineComment = "//" {InputCharacter}* {LineTerminator}?
-
+AsDocComment = "/**" ~"*/"
 
 
 /* identifiers */
@@ -116,10 +126,10 @@ IdentifierOrParent = {Identifier} | ".."
 /* integer literals */
 DecIntegerLiteral = 0 | [1-9][0-9]*
 
-HexIntegerLiteral = 0 [xX] 0* {HexDigit} {1,8}
+HexIntegerLiteral = 0 [xX] 0* {HexDigit}+
 HexDigit          = [0-9a-fA-F]
 
-OctIntegerLiteral = 0+ [1-3]? {OctDigit} {1,15}
+OctIntegerLiteral = 0+ [1-3]? {OctDigit}+
 OctDigit          = [0-7]
 
 /* floating point literals */
@@ -144,207 +154,216 @@ Preprocessor = \u00A7\u00A7 {Identifier}
 <YYINITIAL> {
 
   /* keywords */
-  "break"                        { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.BREAK, yytext()); }
-  "case"                         { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.CASE, yytext()); }
-  "continue"                     { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.CONTINUE, yytext()); }
-  "default"                      { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.DEFAULT, yytext()); }
-  "do"                           { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.DO, yytext()); }
-  "while"                        { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.WHILE, yytext()); }
-  "else"                         { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.ELSE, yytext()); }
-  "for"                          { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.FOR, yytext()); }
-  "each"                         { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.EACH, yytext()); }
-  "in"                           { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.IN, yytext()); }
-  "if"                           { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.IF, yytext()); }
-  "return"                       { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.RETURN, yytext()); }
-  "super"                        { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.SUPER, yytext()); }
-  "switch"                       { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.SWITCH, yytext()); }
-  "throw"                        { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.THROW, yytext()); }
-  "try"                          { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.TRY, yytext()); }
-  "catch"                        { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.CATCH, yytext()); }
-  "finally"                      { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.FINALLY, yytext()); }
-  "while"                        { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.WHILE, yytext()); }
-  "with"                         { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.WITH, yytext()); }
-  "dynamic"                      { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.DYNAMIC, yytext()); }
-  "private"                      { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.PRIVATE, yytext()); }
-  "public"                       { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.PUBLIC, yytext()); }
-  "static"                       { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.STATIC, yytext()); }
-  "class"                        { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.CLASS, yytext()); }
-  "extends"                      { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.EXTENDS, yytext()); }
-  "function"                     { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.FUNCTION, yytext()); }
-  "get"                          { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.GET, yytext()); }
-  "implements"                   { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.IMPLEMENTS, yytext()); }
-  "interface"                    { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.INTERFACE, yytext()); }
-  "set"                          { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.SET, yytext()); }
-  "var"                          { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.VAR, yytext()); }
-  "import"                       { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.IMPORT, yytext()); }
-  "false"                        { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.FALSE, yytext()); }
-  "null"                         { return new ParsedSymbol(SymbolGroup.GLOBALCONST, SymbolType.NULL, yytext()); }
-  "this"                         { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.THIS, yytext()); }
-  "true"                         { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.TRUE, yytext()); }
+  "break"                        { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.BREAK, yytext()); }
+  "case"                         { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.CASE, yytext()); }
+  "continue"                     { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.CONTINUE, yytext()); }
+  "default"                      { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.DEFAULT, yytext()); }
+  "do"                           { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.DO, yytext()); }
+  "while"                        { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.WHILE, yytext()); }
+  "else"                         { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.ELSE, yytext()); }
+  "for"                          { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.FOR, yytext()); }
+  "each"                         { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.EACH, yytext()); }
+  "in"                           { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.IN, yytext()); }
+  "if"                           { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.IF, yytext()); }
+  "return"                       { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.RETURN, yytext()); }
+  "super"                        { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.SUPER, yytext()); }
+  "switch"                       { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.SWITCH, yytext()); }
+  "throw"                        { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.THROW, yytext()); }
+  "try"                          { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.TRY, yytext()); }
+  "catch"                        { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.CATCH, yytext()); }
+  "finally"                      { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.FINALLY, yytext()); }
+  "while"                        { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.WHILE, yytext()); }
+  "with"                         { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.WITH, yytext()); }
+  "dynamic"                      { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.DYNAMIC, yytext()); }
+  "private"                      { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.PRIVATE, yytext()); }
+  "public"                       { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.PUBLIC, yytext()); }
+  "static"                       { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.STATIC, yytext()); }
+  "class"                        { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.CLASS, yytext()); }
+  "extends"                      { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.EXTENDS, yytext()); }
+  "function"                     { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.FUNCTION, yytext()); }
+  "get"                          { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.GET, yytext()); }
+  "implements"                   { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.IMPLEMENTS, yytext()); }
+  "interface"                    { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.INTERFACE, yytext()); }
+  "set"                          { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.SET, yytext()); }
+  "var"                          { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.VAR, yytext()); }
+  "import"                       { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.IMPORT, yytext()); }
+  "false"                        { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.FALSE, yytext()); }
+  "null"                         { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALCONST, SymbolType.NULL, yytext()); }
+  "this"                         { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.THIS, yytext()); }
+  "true"                         { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.TRUE, yytext()); }
   /* getURL */ 
-  [gG][eE][tT][uU][rR][lL]                                                        { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.GETURL, yytext()); }
+  [gG][eE][tT][uU][rR][lL]                                                        { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.GETURL, yytext()); }
   /* trace */ 
-  [tT][rR][aA][cC][eE]                                                            { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.TRACE, yytext()); }
+  [tT][rR][aA][cC][eE]                                                            { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.TRACE, yytext()); }
   /* gotoAndStop */ 
-  [gG][oO][tT][oO][aA][nN][dD][sS][tT][oO][pP]                                    { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.GOTOANDSTOP, yytext()); }
+  [gG][oO][tT][oO][aA][nN][dD][sS][tT][oO][pP]                                    { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.GOTOANDSTOP, yytext()); }
   /* nextFrame */ 
-  [nN][eE][xX][tT][fF][rR][aA][mM][eE]                                            { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.NEXTFRAME, yytext()); }
+  [nN][eE][xX][tT][fF][rR][aA][mM][eE]                                            { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.NEXTFRAME, yytext()); }
   /* play */ 
-  [pP][lL][aA][yY]                                                                { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.PLAY, yytext()); }
+  [pP][lL][aA][yY]                                                                { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.PLAY, yytext()); }
   /* prevFrame */ 
-  [pP][rR][eE][vV][fF][rR][aA][mM][eE]                                            { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.PREVFRAME, yytext()); }
+  [pP][rR][eE][vV][fF][rR][aA][mM][eE]                                            { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.PREVFRAME, yytext()); }
   /* tellTarget */ 
-  [tT][eE][lL][lL][tT][aA][rR][gG][eE][tT]                                        { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.TELLTARGET, yytext()); }
+  "tellTarget"                                                                    { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.TELLTARGET, yytext()); }
   /* stop */ 
-  [sS][tT][oO][pP]                                                                { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.STOP, yytext()); }
+  [sS][tT][oO][pP]                                                                { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.STOP, yytext()); }
   /* stopAllSounds */ 
-  [sS][tT][oO][pP][aA][lL][lL][sS][oO][uU][nN][dD][sS]                            { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.STOPALLSOUNDS, yytext()); }
+  [sS][tT][oO][pP][aA][lL][lL][sS][oO][uU][nN][dD][sS]                            { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.STOPALLSOUNDS, yytext()); }
   /* toggleHighQuality */ 
-  [tT][oO][gG][gG][lL][eE][hH][iI][gG][hH][qQ][uU][aA][lL][iI][tT][yY]            { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.TOGGLEHIGHQUALITY, yytext()); }
+  [tT][oO][gG][gG][lL][eE][hH][iI][gG][hH][qQ][uU][aA][lL][iI][tT][yY]            { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.TOGGLEHIGHQUALITY, yytext()); }
   /* ifFrameLoaded */ 
-  [iI][fF][fF][rR][aA][mM][eE][lL][oO][aA][dD][eE][dD]                            { return new ParsedSymbol(SymbolGroup.KEYWORD, SymbolType.IFFRAMELOADED, yytext()); }
+  "ifFrameLoaded"                                                                 { return new ParsedSymbol(yychar(), SymbolGroup.KEYWORD, SymbolType.IFFRAMELOADED, yytext()); }
+
   /* ord */ 
-  [oO][rR][dD]                                                                    { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.ORD, yytext()); }
+  [oO][rR][dD]                                                                    { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.ORD, yytext()); }
   /* chr */ 
-  [cC][hH][rR]                                                                    { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.CHR, yytext()); }
+  [cC][hH][rR]                                                                    { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.CHR, yytext()); }
   /* duplicateMovieClip */ 
-  [dD][uU][pP][lL][iI][cC][aA][tT][eE][mM][oO][vV][iI][eE][cC][lL][iI][pP]        { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.DUPLICATEMOVIECLIP, yytext()); }
+  [dD][uU][pP][lL][iI][cC][aA][tT][eE][mM][oO][vV][iI][eE][cC][lL][iI][pP]        { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.DUPLICATEMOVIECLIP, yytext()); }
   /* stopDrag */ 
-  [sS][tT][oO][pP][dD][rR][aA][gG]                                                { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.STOPDRAG, yytext()); }
+  [sS][tT][oO][pP][dD][rR][aA][gG]                                                { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.STOPDRAG, yytext()); }
   /* getTimer */ 
-  [gG][eE][tT][tT][iI][mM][eE][rR]                                                { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.GETTIMER, yytext()); }
+  [gG][eE][tT][tT][iI][mM][eE][rR]                                                { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.GETTIMER, yytext()); }
   /* loadVariables */ 
-  [lL][oO][aA][dD][vV][aA][rR][iI][aA][bB][lL][eE][sS]                            { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.LOADVARIABLES, yytext()); }
+  [lL][oO][aA][dD][vV][aA][rR][iI][aA][bB][lL][eE][sS]                            { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.LOADVARIABLES, yytext()); }
   /* loadMovie */ 
-  [lL][oO][aA][dD][mM][oO][vV][iI][eE]                                            { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.LOADMOVIE, yytext()); }
+  [lL][oO][aA][dD][mM][oO][vV][iI][eE]                                            { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.LOADMOVIE, yytext()); }
   /* gotoAndPlay */ 
-  [gG][oO][tT][oO][aA][nN][dD][pP][lL][aA][yY]                                    { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.GOTOANDPLAY, yytext()); }
+  [gG][oO][tT][oO][aA][nN][dD][pP][lL][aA][yY]                                    { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.GOTOANDPLAY, yytext()); }
   /* mbord */ 
-  [mM][bB][oO][rR][dD]                                                            { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.MBORD, yytext()); }
+  [mM][bB][oO][rR][dD]                                                            { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.MBORD, yytext()); }
   /* mbchr */ 
-  [mM][bB][cC][hH][rR]                                                            { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.MBCHR, yytext()); }
+  [mM][bB][cC][hH][rR]                                                            { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.MBCHR, yytext()); }
   /* mblength */ 
-  [mM][bB][lL][eE][nN][gG][tT][hH]                                                { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.MBLENGTH, yytext()); }
+  [mM][bB][lL][eE][nN][gG][tT][hH]                                                { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.MBLENGTH, yytext()); }
   /* mbsubstring */ 
-  [mM][bB][sS][uU][bB][sS][tT][rR][iI][nN][gG]                                    { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.MBSUBSTRING, yytext()); }
+  [mM][bB][sS][uU][bB][sS][tT][rR][iI][nN][gG]                                    { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.MBSUBSTRING, yytext()); }
   /* random */ 
-  [rR][aA][nN][dD][oO][mM]                                                        { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.RANDOM, yytext()); }
+  [rR][aA][nN][dD][oO][mM]                                                        { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.RANDOM, yytext()); }
   /* removeMovieClip */ 
-  [rR][eE][mM][oO][vV][eE][mM][oO][vV][iI][eE][cC][lL][iI][pP]                    { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.REMOVEMOVIECLIP, yytext()); }
+  [rR][eE][mM][oO][vV][eE][mM][oO][vV][iI][eE][cC][lL][iI][pP]                    { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.REMOVEMOVIECLIP, yytext()); }
   /* startDrag */ 
-  [sS][tT][aA][rR][tT][dD][rR][aA][gG]                                            { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.STARTDRAG, yytext()); }
+  [sS][tT][aA][rR][tT][dD][rR][aA][gG]                                            { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.STARTDRAG, yytext()); }
   /* substr */ 
-  [sS][uU][bB][sS][tT][rR]                                                        { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.SUBSTR, yytext()); }
+  [sS][uU][bB][sS][tT][rR][iI][nN][gG]                                            { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.SUBSTRING, yytext()); }
   /* length */ 
-  [lL][eE][nN][gG][tT][hH]                                                        { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.LENGTH, yytext()); }
+  [lL][eE][nN][gG][tT][hH]                                                        { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.LENGTH, yytext()); }
   /* int */ 
-  [iI][nN][tT]                                                                    { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.INT, yytext()); }
+  [iI][nN][tT]                                                                    { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.INT, yytext()); }
   /* targetPath */ 
-  [tT][aA][rR][gG][eE][tT][pP][aA][tT][hH]                                        { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.TARGETPATH, yytext()); }
+  [tT][aA][rR][gG][eE][tT][pP][aA][tT][hH]                                        { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.TARGETPATH, yytext()); }
   /* Number */ 
-  [nN][uU][mM][bB][eE][rR]                                                        { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.NUMBER_OP, yytext()); }
+  [nN][uU][mM][bB][eE][rR]                                                        { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.NUMBER_OP, yytext()); }
   /* String */ 
-  [sS][tT][rR][iI][nN][gG]                                                        { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.STRING_OP, yytext()); }
+  [sS][tT][rR][iI][nN][gG]                                                        { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.STRING_OP, yytext()); }
   /* eval */ 
-  [eE][vV][aA][lL]                                                                { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.EVAL, yytext()); }
+  [eE][vV][aA][lL]                                                                { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.EVAL, yytext()); }
   /* undefined */ 
-  [uU][nN][dD][eE][fF][iI][nN][eE][dD]                                            { return new ParsedSymbol(SymbolGroup.GLOBALCONST, SymbolType.UNDEFINED, yytext()); }
+  [uU][nN][dD][eE][fF][iI][nN][eE][dD]                                            { if (caseSensitiveIdentifiers && !"undefined".equals(yytext())) return new ParsedSymbol(yychar(), SymbolGroup.IDENTIFIER, SymbolType.IDENTIFIER, yytext()); 
+                                                                                    return new ParsedSymbol(yychar(), SymbolGroup.GLOBALCONST, SymbolType.UNDEFINED, yytext()); }
   /* newline */ 
-  [nN][eE][wW][lL][iI][nN][eE]                                                    { return new ParsedSymbol(SymbolGroup.GLOBALCONST, SymbolType.NEWLINE, yytext()); }
+  [nN][eE][wW][lL][iI][nN][eE]                                                    { if (caseSensitiveIdentifiers && !"newline".equals(yytext())) return new ParsedSymbol(yychar(), SymbolGroup.IDENTIFIER, SymbolType.IDENTIFIER, yytext()); 
+                                                                                    return new ParsedSymbol(yychar(), SymbolGroup.GLOBALCONST, SymbolType.NEWLINE, yytext()); }
   /* getVersion */ 
-  [gG][eE][tT][vV][eE][rR][sS][iI][oO][nN]                                        { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.GETVERSION, yytext()); }
+  [gG][eE][tT][vV][eE][rR][sS][iI][oO][nN]                                        { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.GETVERSION, yytext()); }
   /* call */ 
-  [cC][aA][lL][lL]                                                                { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.CALL, yytext()); }
+  [cC][aA][lL][lL]                                                                { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.CALL, yytext()); }
   /* loadMovieNum */ 
-  [lL][oO][aA][dD][mM][oO][vV][iI][eE][nN][uU][mM]                                { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.LOADMOVIENUM, yytext()); }
+  [lL][oO][aA][dD][mM][oO][vV][iI][eE][nN][uU][mM]                                { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.LOADMOVIENUM, yytext()); }
   /* loadVariablesNum */ 
-  [lL][oO][aA][dD][vV][aA][rR][iI][aA][bB][lL][eE][sS][nN][uU][mM]                { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.LOADVARIABLESNUM, yytext()); }
+  [lL][oO][aA][dD][vV][aA][rR][iI][aA][bB][lL][eE][sS][nN][uU][mM]                { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.LOADVARIABLESNUM, yytext()); }
   /* printAsBitmapNum */ 
-  [pP][rR][iI][nN][tT][aA][sS][bB][iI][tT][mM][aA][pP][nN][uU][mM]                { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.PRINTASBITMAPNUM, yytext()); }
+  [pP][rR][iI][nN][tT][aA][sS][bB][iI][tT][mM][aA][pP][nN][uU][mM]                { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.PRINTASBITMAPNUM, yytext()); }
   /* printNum */ 
-  [pP][rR][iI][nN][tT][nN][uU][mM]                                                { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.PRINTNUM, yytext()); }
+  [pP][rR][iI][nN][tT][nN][uU][mM]                                                { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.PRINTNUM, yytext()); }
   /* printAsBitmap */ 
-  [pP][rR][iI][nN][tT][aA][sS][bB][iI][tT][mM][aA][pP]                            { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.PRINTASBITMAP, yytext()); }
+  [pP][rR][iI][nN][tT][aA][sS][bB][iI][tT][mM][aA][pP]                            { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.PRINTASBITMAP, yytext()); }
   /* print */ 
-  [pP][rR][iI][nN][tT]                                                            { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.PRINT, yytext()); }
+  [pP][rR][iI][nN][tT]                                                            { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.PRINT, yytext()); }
   /* unloadMovie */ 
-  [uU][nN][lL][oO][aA][dD][mM][oO][vV][iI][eE]                                    { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.UNLOADMOVIE, yytext()); }
+  [uU][nN][lL][oO][aA][dD][mM][oO][vV][iI][eE]                                    { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.UNLOADMOVIE, yytext()); }
   /* unloadMovieNum */ 
-  [uU][nN][lL][oO][aA][dD][mM][oO][vV][iI][eE][nN][uU][mM]                        { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.UNLOADMOVIENUM, yytext()); }
+  [uU][nN][lL][oO][aA][dD][mM][oO][vV][iI][eE][nN][uU][mM]                        { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.UNLOADMOVIENUM, yytext()); }
+  /* fscommand2 */ 
+  [fF][sS][cC][oO][mM][mM][aA][nN][dD] 2                                          { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.FSCOMMAND2, yytext()); }
   /* fscommand */ 
-  [fF][sS][cC][oO][mM][mM][aA][nN][dD]                                            { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.FSCOMMAND, yytext()); }
+  [fF][sS][cC][oO][mM][mM][aA][nN][dD]                                            { return new ParsedSymbol(yychar(), SymbolGroup.GLOBALFUNC, SymbolType.FSCOMMAND, yytext()); }
   
 
 /* operators */
 
-  "("                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.PARENT_OPEN, yytext());  }
-  ")"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.PARENT_CLOSE, yytext());  }
-  "{"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.CURLY_OPEN, yytext());  }
-  "}"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.CURLY_CLOSE, yytext());  }
-  "["                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.BRACKET_OPEN, yytext());  }
-  "]"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.BRACKET_CLOSE, yytext());  }
-  ";"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.SEMICOLON, yytext());  }
-  ","                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.COMMA, yytext());  }
-  "..."                          { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.REST, yytext());  }
-  "."                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.DOT, yytext());  }
-  "="                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.ASSIGN, yytext());  }
-  ">"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.GREATER_THAN, yytext());  }
-  "<"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.LOWER_THAN, yytext());  }
-  "!"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.NOT, yytext());  }
-  "~"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.NEGATE, yytext());  }
-  "?"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.TERNAR, yytext());  }
-  ":"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.COLON, yytext());  }
-  "==="                          { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.STRICT_EQUALS, yytext());  }
-  "=="                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.EQUALS, yytext());  }
-  "<="                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.LOWER_EQUAL, yytext());  }
-  ">="                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.GREATER_EQUAL, yytext());  }
-  "!=="                          { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.STRICT_NOT_EQUAL, yytext());  }
-  "!=" | "<>"                    { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.NOT_EQUAL, yytext());  }
-  "&&"                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.AND, yytext());  }
-  "||"                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.OR, yytext());  }
-  "++"                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.INCREMENT, yytext());  }
-  "--"                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.DECREMENT, yytext());  }
-  "+"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.PLUS, yytext());  }
-  "-"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.MINUS, yytext());  }
-  "*"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.MULTIPLY, yytext());  }
-  "/"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.DIVIDE, yytext());  }
-  "&"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.BITAND, yytext());  }
-  "|"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.BITOR, yytext());  }
-  "^"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.XOR, yytext());  }
-  "%"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.MODULO, yytext());  }
-  "<<"                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.SHIFT_LEFT, yytext());  }
-  ">>"                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.SHIFT_RIGHT, yytext());  }
-  ">>>"                          { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.USHIFT_RIGHT, yytext());  }
-  "+="                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.ASSIGN_PLUS, yytext());  }
-  "-="                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.ASSIGN_MINUS, yytext());  }
-  "*="                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.ASSIGN_MULTIPLY, yytext());  }
-  "/="                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.ASSIGN_DIVIDE, yytext());  }
-  "&="                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.ASSIGN_BITAND, yytext());  }
-  "|="                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.ASSIGN_BITOR, yytext());  }
-  "^="                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.ASSIGN_XOR, yytext());  }
-  "%="                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.ASSIGN_MODULO, yytext());  }
-  "<<="                          { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.ASSIGN_SHIFT_LEFT, yytext());  }
-  ">>="                          { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.ASSIGN_SHIFT_RIGHT, yytext());  }
-  ">>>="                         { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.ASSIGN_USHIFT_RIGHT, yytext());  }
-  "delete"                       { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.DELETE, yytext());  }
-  "instanceof"                   { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.INSTANCEOF, yytext());  }
-  "new"                          { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.NEW, yytext());  }
-  "typeof"                       { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.TYPEOF, yytext());  }
-  "void"                         { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.VOID, yytext());  }
-  "@"                            { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.ATTRIBUTE, yytext());  }
-  "and"                          { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.FULLAND, yytext());  }
-  "or"                           { return new ParsedSymbol(SymbolGroup.OPERATOR, SymbolType.FULLOR, yytext());  }
+  "("                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.PARENT_OPEN, yytext());  }
+  ")"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.PARENT_CLOSE, yytext());  }
+  "{"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.CURLY_OPEN, yytext());  }
+  "}"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.CURLY_CLOSE, yytext());  }
+  "["                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.BRACKET_OPEN, yytext());  }
+  "]"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.BRACKET_CLOSE, yytext());  }
+  ";"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.SEMICOLON, yytext());  }
+  ","                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.COMMA, yytext());  }
+  "..."                          { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.REST, yytext());  }
+  "."                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.DOT, yytext());  }
+  "="                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.ASSIGN, yytext());  }
+  ">"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.GREATER_THAN, yytext());  }
+  "<"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.LOWER_THAN, yytext());  }
+  "!"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.NOT, yytext());  }
+  "~"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.NEGATE, yytext());  }
+  "?"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.TERNAR, yytext());  }
+  ":"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.COLON, yytext());  }
+  "==="                          { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.STRICT_EQUALS, yytext());  }
+  "=="                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.EQUALS, yytext());  }
+  "<="                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.LOWER_EQUAL, yytext());  }
+  ">="                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.GREATER_EQUAL, yytext());  }
+  "!=="                          { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.STRICT_NOT_EQUAL, yytext());  }
+  "!=" | "<>"                    { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.NOT_EQUAL, yytext());  }
+  "&&"                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.AND, yytext());  }
+  "||"                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.OR, yytext());  }
+  "++"                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.INCREMENT, yytext());  }
+  "--"                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.DECREMENT, yytext());  }
+  "+"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.PLUS, yytext());  }
+  "-"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.MINUS, yytext());  }
+  "*"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.MULTIPLY, yytext());  }
+  "/"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.DIVIDE, yytext());  }
+  "&"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.BITAND, yytext());  }
+  "|"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.BITOR, yytext());  }
+  "^"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.XOR, yytext());  }
+  "%"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.MODULO, yytext());  }
+  "<<"                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.SHIFT_LEFT, yytext());  }
+  ">>"                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.SHIFT_RIGHT, yytext());  }
+  ">>>"                          { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.USHIFT_RIGHT, yytext());  }
+  "+="                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.ASSIGN_PLUS, yytext());  }
+  "-="                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.ASSIGN_MINUS, yytext());  }
+  "*="                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.ASSIGN_MULTIPLY, yytext());  }
+  "/="                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.ASSIGN_DIVIDE, yytext());  }
+  "&="                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.ASSIGN_BITAND, yytext());  }
+  "|="                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.ASSIGN_BITOR, yytext());  }
+  "^="                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.ASSIGN_XOR, yytext());  }
+  "%="                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.ASSIGN_MODULO, yytext());  }
+  "<<="                          { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.ASSIGN_SHIFT_LEFT, yytext());  }
+  ">>="                          { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.ASSIGN_SHIFT_RIGHT, yytext());  }
+  ">>>="                         { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.ASSIGN_USHIFT_RIGHT, yytext());  }
+  "delete"                       { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.DELETE, yytext());  }
+  "instanceof"                   { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.INSTANCEOF, yytext());  }
+  "new"                          { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.NEW, yytext());  }
+  "typeof"                       { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.TYPEOF, yytext());  }
+  "void"                         { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.VOID, yytext());  }
+  "@"                            { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.ATTRIBUTE, yytext());  }
+  "and"                          { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.FULLAND, yytext());  }
+  "or"                           { return new ParsedSymbol(yychar(), SymbolGroup.OPERATOR, SymbolType.FULLOR, yytext());  }
+
+  "#" {Identifier}               { return new ParsedSymbol(yychar(), SymbolGroup.DIRECTIVE, SymbolType.DIRECTIVE, yytext().substring(1)); }
 
   /* string literal */
   \"                             {
+                                    itemStart = yychar();
                                     string.setLength(0);
                                     yybegin(STRING);
                                  }
   {Preprocessor}                 {
-                                    return new ParsedSymbol(SymbolGroup.PREPROCESSOR, SymbolType.PREPROCESSOR, yytext().substring(2));
+                                    return new ParsedSymbol(yychar(), SymbolGroup.PREPROCESSOR, SymbolType.PREPROCESSOR, yytext().substring(2));
                                  }
 
   "\u00A7"                       {
+                                    itemStart = yychar();
                                     string.setLength(0);
                                     yybegin(OIDENTIFIER);
                                  }
@@ -352,6 +371,7 @@ Preprocessor = \u00A7\u00A7 {Identifier}
 
   /* character literal */
   \'                             {
+                                    itemStart = yychar();
                                     string.setLength(0);
                                     yybegin(CHARLITERAL);
                                  }
@@ -360,18 +380,18 @@ Preprocessor = \u00A7\u00A7 {Identifier}
 
   {DecIntegerLiteral}            { 
                                     try{
-                                        return new ParsedSymbol(SymbolGroup.INTEGER, SymbolType.INTEGER, Long.parseLong(yytext())); 
+                                        return new ParsedSymbol(yychar(), SymbolGroup.INTEGER, SymbolType.INTEGER, Long.parseLong(yytext())); 
                                     } catch(NumberFormatException nfe){
                                         //its too long for a Long var
-                                        return new ParsedSymbol(SymbolGroup.DOUBLE, SymbolType.DOUBLE, Double.parseDouble(yytext())); 
+                                        return new ParsedSymbol(yychar(), SymbolGroup.DOUBLE, SymbolType.DOUBLE, Double.parseDouble(yytext())); 
                                     }
                                 }
 
-  {HexIntegerLiteral}            { return new ParsedSymbol(SymbolGroup.INTEGER, SymbolType.INTEGER, Long.parseLong(yytext().substring(2), 16)); }
+  {HexIntegerLiteral}            { return new ParsedSymbol(yychar(), SymbolGroup.INTEGER, SymbolType.INTEGER, Long.parseLong(yytext().substring(2), 16)); }
 
-  {OctIntegerLiteral}            { return new ParsedSymbol(SymbolGroup.INTEGER, SymbolType.INTEGER, Long.parseLong(yytext(), 8)); }
+  {OctIntegerLiteral}            { return new ParsedSymbol(yychar(), SymbolGroup.INTEGER, SymbolType.INTEGER, Long.parseLong(yytext(), 8)); }
 
-  {DoubleLiteral}                { return new ParsedSymbol(SymbolGroup.DOUBLE, SymbolType.DOUBLE, Double.parseDouble(yytext())); }
+  {DoubleLiteral}                { return new ParsedSymbol(yychar(), SymbolGroup.DOUBLE, SymbolType.DOUBLE, Double.parseDouble(yytext())); }
 
   /* comments */
   {Comment}                      { yyline += count(yytext(),"\n"); }
@@ -380,7 +400,7 @@ Preprocessor = \u00A7\u00A7 {Identifier}
   /* whitespace */
   {WhiteSpace}                   { /*ignore*/ }
   /* identifiers */
-  {Identifier}                   { return new ParsedSymbol(SymbolGroup.IDENTIFIER, SymbolType.IDENTIFIER, yytext()); }    
+  {Identifier}                   { return new ParsedSymbol(yychar(), SymbolGroup.IDENTIFIER, SymbolType.IDENTIFIER, yytext()); }    
 }
 
 
@@ -389,7 +409,7 @@ Preprocessor = \u00A7\u00A7 {Identifier}
                                      yybegin(YYINITIAL);
                                      repeatNum = 1;
                                      // length also includes the trailing quote
-                                     return new ParsedSymbol(SymbolGroup.IDENTIFIER, SymbolType.IDENTIFIER, string.toString());
+                                     return new ParsedSymbol(itemStart, SymbolGroup.IDENTIFIER, SymbolType.IDENTIFIER, string.toString());
                                  }
 
   {OIdentifierCharacter}         { for(int r=0;r<repeatNum;r++) string.append(yytext()); repeatNum = 1;}
@@ -410,7 +430,7 @@ Preprocessor = \u00A7\u00A7 {Identifier}
 
   /* escape sequences */
 
-  \\.                            { throw new ActionParseException("Illegal escape sequence \"" + yytext() + "\"", yyline + 1);  }
+  \\.                            { throw new ActionParseException("Illegal escape sequence \"" + yytext() + "\"", yyline + 1, yychar());  }
   {LineTerminator}               { yybegin(YYINITIAL);  yyline++;}
 }
 
@@ -418,7 +438,7 @@ Preprocessor = \u00A7\u00A7 {Identifier}
   \"                             {
                                      yybegin(YYINITIAL);
                                      // length also includes the trailing quote
-                                     return new ParsedSymbol(SymbolGroup.STRING, SymbolType.STRING, string.toString());
+                                     return new ParsedSymbol(itemStart, SymbolGroup.STRING, SymbolType.STRING, string.toString());
                                  }
 
   {StringCharacter}+             { string.append(yytext()); }
@@ -449,7 +469,7 @@ Preprocessor = \u00A7\u00A7 {Identifier}
   \'                             {
                                      yybegin(YYINITIAL);
                                      // length also includes the trailing quote
-                                     return new ParsedSymbol(SymbolGroup.STRING, SymbolType.STRING, string.toString());
+                                     return new ParsedSymbol(itemStart, SymbolGroup.STRING, SymbolType.STRING, string.toString());
                                  }
 
   {SingleCharacter}+             { string.append(yytext()); }
@@ -477,4 +497,4 @@ Preprocessor = \u00A7\u00A7 {Identifier}
 
 /* error fallback */
 [^]                              {  }
-<<EOF>>                          { return new ParsedSymbol(SymbolGroup.EOF, SymbolType.EOF, null); }
+<<EOF>>                          { return new ParsedSymbol(yychar(), SymbolGroup.EOF, SymbolType.EOF, null); }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,10 +19,9 @@ package com.jpexs.decompiler.flash.gui.tagtree;
 import com.jpexs.decompiler.flash.treeitems.FolderItem;
 
 /**
- *
  * @author JPEXS
  */
-public class TagTreeRoot extends FolderItem {
+public class TagTreeRoot extends FolderItem implements TreeRoot {
 
     public static final String FOLDER_ROOT = "root";
 

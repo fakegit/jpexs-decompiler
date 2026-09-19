@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,6 +18,9 @@ package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
+import com.jpexs.decompiler.flash.action.swf4.ActionPush;
+import com.jpexs.decompiler.flash.action.swf5.ActionCallMethod;
 import com.jpexs.decompiler.flash.action.swf5.ActionDelete;
 import com.jpexs.decompiler.flash.action.swf5.ActionDelete2;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
@@ -32,21 +35,40 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Delete property.
  *
  * @author JPEXS
  */
 public class DeleteActionItem extends ActionItem {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
+    /**
+     * Property name
+     */
     public GraphTargetItem propertyName;
 
+    /**
+     * Is getter
+     */
+    public boolean isGetter = false;
+    
     @Override
     public void visit(GraphTargetVisitorInterface visitor) {
         visitor.visit(object);
         visitor.visit(propertyName);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param object Object
+     * @param propertyName Property name
+     */
     public DeleteActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem propertyName) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.object = object;
@@ -62,8 +84,7 @@ public class DeleteActionItem extends ActionItem {
                     && (IdentifiersDeobfuscation.isValidName(false, propertyName.toStringNoQuotes(localData)))) {
                 writer.append(".");
                 propertyName.toStringNoQuotes(writer, localData);
-            }
-            else {
+            } else {
                 writer.append("[");
                 propertyName.toString(writer, localData);
                 writer.append("]");
@@ -95,6 +116,23 @@ public class DeleteActionItem extends ActionItem {
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+        
+        if (isGetter) {
+            ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+            String charset = asGenerator.getCharset();
+
+            String propertyNameAsStr = ((DirectValueActionItem) propertyName).getAsString();
+
+            return toSourceMerge(
+                    localData, generator,
+                    new ActionPush((Long) (long) 0, charset),
+                    object,
+                    asGenerator.pushConst("__get__" + propertyNameAsStr),
+                    new ActionCallMethod(),
+                    new ActionDelete2()
+            );
+        }
+        
         if (object == null) {
             return toSourceMerge(localData, generator, propertyName, new ActionDelete2());
         }
@@ -160,6 +198,5 @@ public class DeleteActionItem extends ActionItem {
     public boolean hasSideEffect() {
         return true;
     }
-
 
 }

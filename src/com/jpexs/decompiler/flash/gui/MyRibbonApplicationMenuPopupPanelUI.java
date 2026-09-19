@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -41,7 +41,6 @@ import org.pushingpixels.substance.internal.utils.SubstanceSizeUtils;
 import org.pushingpixels.substance.internal.utils.border.SubstanceBorder;
 
 /**
- *
  * @author JPEXS
  */
 public class MyRibbonApplicationMenuPopupPanelUI extends BasicRibbonApplicationMenuPopupPanelUI {
@@ -53,8 +52,7 @@ public class MyRibbonApplicationMenuPopupPanelUI extends BasicRibbonApplicationM
     @Override
     protected void installComponents() {
         super.installComponents();
-        Border newBorder = new CompoundBorder(new SubstanceBorder(new Insets(2,
-                2, 2, 2)), new Border() {
+        Border b = new Border() {
             @Override
             public boolean isBorderOpaque() {
                 return true;
@@ -83,7 +81,7 @@ public class MyRibbonApplicationMenuPopupPanelUI extends BasicRibbonApplicationM
                 // draw the application menu button
                 JRibbonApplicationMenuButton rendererButton = new JRibbonApplicationMenuButton(
                         applicationMenuPopupPanel.getAppMenuButton()
-                        .getRibbon());
+                                .getRibbon());
 
                 JRibbonApplicationMenuButton appMenuButton = applicationMenuPopupPanel
                         .getAppMenuButton();
@@ -113,7 +111,9 @@ public class MyRibbonApplicationMenuPopupPanelUI extends BasicRibbonApplicationM
                 /*g.setColor(Color.red);
                          g.fillRect(0, 0, width,height);*/
             }
-        });
+        };
+        Border newBorder = new CompoundBorder(new SubstanceBorder(new Insets(2,
+                2, 2, 2)), b);
         this.applicationMenuPopupPanel.setBorder(newBorder);
 
         this.panelLevel2.setBorder(new Border() {

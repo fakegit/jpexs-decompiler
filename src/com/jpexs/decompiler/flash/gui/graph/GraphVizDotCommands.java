@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2016-2021 JPEXS
+ *  Copyright (C) 2016-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -26,7 +26,6 @@ import java.io.PrintWriter;
 import javax.imageio.ImageIO;
 
 /**
- *
  * @author JPEXS
  */
 public class GraphVizDotCommands {
@@ -39,7 +38,7 @@ public class GraphVizDotCommands {
         return true;
     }
 
-    private static void runCommand(String command) {
+    private static void runCommand(String[] command) {
         try {
             Process process = Runtime.getRuntime().exec(command);
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
@@ -52,12 +51,17 @@ public class GraphVizDotCommands {
         }
     }
 
-    private static boolean runDotCommand(String command) {
+    private static boolean runDotCommand(String[] command) {
         String dotLocation = Configuration.graphVizDotLocation.get();
         if (dotLocation.isEmpty() && !new File(dotLocation).exists()) {
             return false;
-        }//
-        runCommand("\"" + dotLocation + "\" " + command);
+        }
+        String[] commandPlusDot = new String[command.length + 1];
+        commandPlusDot[0] = dotLocation;
+        for (int i = 0; i < command.length; i++) {
+            commandPlusDot[1 + i] = command[i];
+        }
+        runCommand(commandPlusDot);
         return true;
     }
 
@@ -68,8 +72,7 @@ public class GraphVizDotCommands {
         PrintWriter pw = new PrintWriter(gvFile);
         pw.println(text);
         pw.close();
-        String extraParams = " -Nfontname=times-bold -Nfontsize=12";
-        if (!runDotCommand("-Tpng" + extraParams + " -o \"" + pngFile.getAbsolutePath() + "\" \"" + gvFile.getAbsolutePath() + "\"")) {
+        if (!runDotCommand(new String[]{"-Tpng", "-Nfontname=times-bold", "-Nfontsize=12", "-o", pngFile.getAbsolutePath(), gvFile.getAbsolutePath()})) {
             gvFile.delete();
             return null;
         }

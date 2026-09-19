@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,9 @@ package com.jpexs.decompiler.flash.gui;
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.tags.TagInfo;
+import com.jpexs.decompiler.flash.tags.base.CharacterTag;
 import com.jpexs.decompiler.flash.treeitems.TreeItem;
+import com.jpexs.helpers.Helper;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Font;
@@ -31,7 +33,6 @@ import java.util.MissingResourceException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JEditorPane;
-import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.UIManager;
 import javax.swing.event.HyperlinkEvent;
@@ -39,7 +40,6 @@ import javax.swing.event.HyperlinkListener;
 import javax.swing.text.html.HTMLDocument;
 
 /**
- *
  * @author JPEXS
  */
 public class TagInfoPanel extends JPanel {
@@ -48,13 +48,13 @@ public class TagInfoPanel extends JPanel {
 
     private final JEditorPane editorPane = new JEditorPane();
 
-    private TagInfo tagInfo = new TagInfo();
+    private TagInfo tagInfo = new TagInfo(null);
 
     public TagInfoPanel(MainPanel mainPanel) {
         this.mainPanel = mainPanel;
         setLayout(new BorderLayout());
-        JLabel topLabel = new JLabel(AppStrings.translate("taginfo.header"), JLabel.CENTER);
-        add(topLabel, BorderLayout.NORTH);
+        //JLabel topLabel = new JLabel(AppStrings.translate("taginfo.header"), JLabel.CENTER);
+        //add(topLabel, BorderLayout.NORTH);
         add(new FasterScrollPane(editorPane), BorderLayout.CENTER);
 
         editorPane.setContentType("text/html");
@@ -74,16 +74,28 @@ public class TagInfoPanel extends JPanel {
 
                     String scheme = url.getScheme();
                     String strId = url.getHost();
-                    Integer id = Integer.parseInt(strId);
+                    Integer id = "expand".equals(scheme) ? null : Integer.parseInt(strId);
                     SWF swf = mainPanel.getCurrentSwf();
 
                     TreeItem item = null;
-                    if ("char".equals(scheme)) {
+                    if ("expand".equals(scheme)) {
+                        if ("all".equals(strId)) {
+                            updateHtmlContent(true, false);
+                        }
+                        if ("details".equals(strId)) {
+                            updateHtmlContent(true, true);
+                        }
+                    } else if ("char".equals(scheme)) {
                         item = swf.getCharacter(id);
                     } else if ("frame".equals(scheme)) {
                         item = swf.getTimeline().getFrame(id);
                     }
-                    mainPanel.setTagTreeSelectedNode(item);
+                    if (item != null) {
+                        if (mainPanel.checkEdited()) {
+                            return;
+                        }
+                        mainPanel.setTagTreeSelectedNode(mainPanel.getCurrentTree(), item);
+                    }
                 }
             }
 
@@ -96,37 +108,52 @@ public class TagInfoPanel extends JPanel {
         this.tagInfo = tagInfo;
         buildHtmlContent();
     }
+    
+    public void updateTagInfo() {
+        buildHtmlContent();
+    }
 
-    private void buildHtmlContent() {
+    public void clear() {
+        this.tagInfo = new TagInfo(null);
+        buildHtmlContent();
+    }
+    
+    private synchronized void updateHtmlContent(boolean expand, boolean showDetails) {
         String categoryName = "general";
-        String result = "<html><body><table cellspacing='0' cellpadding='0'>";
+        StringBuilder result = new StringBuilder();
+        result.append("<html><body><table cellspacing='0' cellpadding='0'>");
         Boolean flipFlop = false;
 
         List<TagInfo.TagInfoItem> items = tagInfo.getInfos().get(categoryName);
 
-        if (View.isOceanic()) {
-            result += "<tr bgcolor='#FDFDFD'>";
-        } else {
-            result += "</tr>";
+        if (items == null) {
+            items = new ArrayList<>();
         }
-        result += String.format(
+        
+        if (View.isOceanic()) {
+            result.append("<tr bgcolor='#FDFDFD'>");
+        } else {
+            result.append("</tr>");
+        }
+        result.append(String.format(
                 "<td width='50%%' style='text-align:center;'>%s</td>",
                 mainPanel.translate("tagInfo.header.name")
-        );
-        result += String.format(
+        ));
+        result.append(String.format(
                 "<td width='50%%' style='text-align:center;'>%s</td>",
                 mainPanel.translate("tagInfo.header.value")
-        );
-        result += "</tr>";
+        ));
+        result.append("</tr>");
 
+        SWF swf = tagInfo.getSwf();
         for (TagInfo.TagInfoItem item : items) {
 
             flipFlop = !flipFlop;
 
             if (View.isOceanic()) {
-                result += "<tr bgcolor='" + (flipFlop ? "#FDFDFD" : "#F4F4F4") + "'>";
+                result.append("<tr bgcolor='").append(flipFlop ? "#FDFDFD" : "#F4F4F4").append("'>");
             } else {
-                result += "<tr>";
+                result.append("<tr>");
             }
 
             String name = item.getName();
@@ -143,16 +170,17 @@ public class TagInfoPanel extends JPanel {
                 }
             }
 
-            result += "<td>" + name + "</td>";
+            result.append("<td>").append(name).append("</td>");
 
+            StringBuilder valueBuilder = new StringBuilder();
             Object value = item.getValue();
             if (value instanceof Boolean) {
                 boolean boolValue = (boolean) value;
-                value = boolValue ? AppStrings.translate("yes") : AppStrings.translate("no");
+                valueBuilder.append(boolValue ? AppStrings.translate("yes") : AppStrings.translate("no"));
             } else if (convertToLinkList) {
                 String[] strIds = ((String) value).split(", ");
                 List<Integer> sortedIds = new ArrayList<>();
-                String strValue = "";
+                StringBuilder strValue = new StringBuilder();
 
                 for (String strId : strIds) {
                     sortedIds.add(Integer.parseInt(strId));
@@ -160,24 +188,59 @@ public class TagInfoPanel extends JPanel {
 
                 Collections.sort(sortedIds);
 
-                String scheme = frameList ? "frame" : "char";         
+                String scheme = frameList ? "frame" : "char";
 
                 for (int id : sortedIds) {
                     int displayId = frameList ? id + 1 : id;
-                    strValue += String.format("<a href='%s://%d'>%d</a>, ", scheme, id, displayId);
+
+                    if (!frameList && expand) {
+                        String charName;
+                        CharacterTag character = swf == null ? null : swf.getCharacter(id);
+
+                        if (showDetails) {
+                            if (swf == null || character == null) {
+                                charName = "???";
+                            } else {
+                                charName = Helper.escapeHTML(character.toString());
+                            }
+                            strValue.append(String.format("<a href='%s://%d'>%s</a><br>", scheme, id, charName, id));
+                        } else {
+                            if (swf == null || character == null) {
+                                charName = "???";
+                            } else {
+                                charName = character.getTagName();
+                            }
+
+                            strValue.append(String.format("<a href='%s://%d'>%s (%d)</a><br>", scheme, id, charName, id));
+                        }
+                    } else {
+                        strValue.append(String.format("<a href='%s://%d'>%d</a>, ", scheme, id, displayId));
+                    }
                 }
 
-                value = strValue.substring(0, strValue.length() - 2);
+                String sVal = strValue.toString();
+                valueBuilder.append(sVal.substring(0, sVal.length() - 2));
+
+                if (!frameList && !expand) {
+                    valueBuilder.append(" <a href='expand://all'>+</a>");
+                } else if (!frameList && expand && !showDetails) {
+                    valueBuilder.append("<br><a href='expand://details'>+</a>");
+                }
+            } else {
+                valueBuilder.append(value.toString());
             }
 
-            result += "<td>" + value + "</td>";
+            result.append("<td>").append(valueBuilder.toString()).append("</td>");
 
-            result += "</tr>";
+            result.append("</tr>");
         }
 
-        result += "</table></body></html>";
+        result.append("</table></body></html>");
+        editorPane.setText(result.toString());
+    }
 
-        editorPane.setText(result);
+    private void buildHtmlContent() {
+        updateHtmlContent(false, false);
 
         Font font = UIManager.getFont("Table.font");
         String bodyRule = "body { font-family: " + font.getFamily() + ";"
@@ -193,13 +256,22 @@ public class TagInfoPanel extends JPanel {
                     + "td { border: 1px solid #e4e4e4; }"
                     + "html { border: 1px solid #789AC4; }";
         } else {
+            Color bgColor = UIManager.getColor("Table.background");
+            int light = (bgColor.getRed() + bgColor.getGreen() + bgColor.getBlue()) / 3;
+            boolean nightMode = light <= 128;
+
+            Color linkColor = Color.blue;
+            if (nightMode) {
+                linkColor = new Color(0x88, 0x88, 0xff);
+            }
+
             bodyRule += "background-color: " + getUIColorToHex("Table.background") + ";"
                     + "color:" + getUIColorToHex("Table.foreground") + ";"
                     + "padding:1px;"
                     + "}"
                     + "td { border: 1px solid " + getUIColorToHex("Table.gridColor") + "; }"
                     + "html { border: 1px solid " + getUIColorToHex("Table.gridColor") + "; }"
-                    + "a {color: " + getUIColorToHex("List.selectionBackground") + "}";
+                    + "a {color: " + getColorToHex(linkColor) + "}";
         }
 
         ((HTMLDocument) editorPane.getDocument()).getStyleSheet().addRule(bodyRule);
@@ -209,8 +281,12 @@ public class TagInfoPanel extends JPanel {
         editorPane.setEditable(false);
     }
 
+    private static String getColorToHex(Color c) {
+        return String.format("#%02x%02x%02x", c.getRed(), c.getGreen(), c.getBlue());
+    }
+
     private static String getUIColorToHex(String name) {
         Color c = UIManager.getColor(name);
-        return String.format("#%02x%02x%02x", c.getRed(), c.getGreen(), c.getBlue());
+        return getColorToHex(c);
     }
 }

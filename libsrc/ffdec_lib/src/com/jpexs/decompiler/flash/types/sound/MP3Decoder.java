@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types.sound;
 
 import com.jpexs.decompiler.flash.SWFInputStream;
@@ -27,6 +28,7 @@ import javazoom.jl.decoder.Header;
 import javazoom.jl.decoder.SampleBuffer;
 
 /**
+ * MP3 sound decoder.
  *
  * @author JPEXS
  */
@@ -151,8 +153,7 @@ public class MP3Decoder extends SoundDecoder {
                     return 32000;
                 } else if (h.version() == Header.MPEG2_LSF) {
                     return 16000;
-                } else // SZD
-                {
+                } else { // SZD                
                     return 8000;
                 }
             case Header.FOURTYFOUR_POINT_ONE:
@@ -160,8 +161,7 @@ public class MP3Decoder extends SoundDecoder {
                     return 44100;
                 } else if (h.version() == Header.MPEG2_LSF) {
                     return 22050;
-                } else // SZD
-                {
+                } else { // SZD                
                     return 11025;
                 }
             case Header.FOURTYEIGHT:
@@ -169,8 +169,7 @@ public class MP3Decoder extends SoundDecoder {
                     return 48000;
                 } else if (h.version() == Header.MPEG2_LSF) {
                     return 24000;
-                } else // SZD
-                {
+                } else { // SZD                
                     return 12000;
                 }
             default:

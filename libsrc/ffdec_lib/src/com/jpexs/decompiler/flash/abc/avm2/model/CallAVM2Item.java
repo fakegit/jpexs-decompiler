@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -32,18 +32,28 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Call function.
  *
  * @author JPEXS
  */
 public class CallAVM2Item extends AVM2Item {
 
+    /**
+     * Receiver.
+     */
     public GraphTargetItem receiver;
 
+    /**
+     * Function.
+     */
     public GraphTargetItem function;
 
+    /**
+     * Arguments.
+     */
     public List<GraphTargetItem> arguments;
 
-    private static abstract class Func implements Callable {
+    private abstract static class Func implements Callable {
 
         @Override
         public Object call(String methodName, List<Object> args) {
@@ -138,6 +148,15 @@ public class CallAVM2Item extends AVM2Item {
         });
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param receiver Receiver
+     * @param function Function
+     * @param arguments Arguments
+     */
     public CallAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem receiver, GraphTargetItem function, List<GraphTargetItem> arguments) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.receiver = receiver;
@@ -206,18 +225,18 @@ public class CallAVM2Item extends AVM2Item {
          if (receiver instanceof ThisAVM2Item) {
          recPart = "";
          }*/
-        if (function.getPrecedence() > precedence) {
+        if (function.getPrecedence() > precedence || (function instanceof NewFunctionAVM2Item)) {
             writer.append("(");
             function.toString(writer, localData);
             writer.append(")");
         } else {
             function.toString(writer, localData);
         }
-        writer.spaceBeforeCallParenthesies(arguments.size());
+        writer.spaceBeforeCallParenthesis(arguments.size());
         writer.append("(");
         for (int a = 0; a < arguments.size(); a++) {
             if (a > 0) {
-                writer.append(",");
+                writer.allowWrapHere().append(",");
             }
             arguments.get(a).toString(writer, localData);
         }
@@ -226,6 +245,12 @@ public class CallAVM2Item extends AVM2Item {
 
     @Override
     public GraphTargetItem returnType() {
+        if (function instanceof GetPropertyAVM2Item) {
+            return ((GetPropertyAVM2Item) function).callType;
+        }
+        if (function instanceof GetLexAVM2Item) {
+            return ((GetLexAVM2Item) function).callType;
+        }
         return TypeItem.UNBOUNDED;
     }
 

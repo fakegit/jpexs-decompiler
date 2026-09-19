@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,13 +19,14 @@ package com.jpexs.decompiler.flash.gui.abc;
 import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.types.Multiname;
 import com.jpexs.decompiler.flash.abc.types.Namespace;
-import com.jpexs.decompiler.flash.abc.usages.InsideClassMultinameUsageInterface;
-import com.jpexs.decompiler.flash.abc.usages.MethodMultinameUsage;
-import com.jpexs.decompiler.flash.abc.usages.MultinameUsage;
-import com.jpexs.decompiler.flash.abc.usages.TraitMultinameUsage;
-import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.abc.types.traits.TraitType;
+import com.jpexs.decompiler.flash.abc.usages.multinames.InsideClassMultinameUsageInterface;
+import com.jpexs.decompiler.flash.abc.usages.multinames.MethodMultinameUsage;
+import com.jpexs.decompiler.flash.abc.usages.multinames.MultinameUsage;
+import com.jpexs.decompiler.flash.abc.usages.multinames.TraitMultinameUsage;
 import com.jpexs.decompiler.flash.gui.AppDialog;
 import com.jpexs.decompiler.flash.gui.FasterScrollPane;
+import com.jpexs.decompiler.flash.gui.Main;
 import com.jpexs.decompiler.flash.gui.View;
 import com.jpexs.decompiler.flash.tags.ABCContainerTag;
 import java.awt.BorderLayout;
@@ -35,13 +36,15 @@ import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import javax.swing.JButton;
 import javax.swing.JList;
 import javax.swing.JPanel;
 
 /**
- *
  * @author JPEXS
  */
 public class UsageFrame extends AppDialog implements MouseListener {
@@ -56,10 +59,19 @@ public class UsageFrame extends AppDialog implements MouseListener {
 
     private final ABCPanel abcPanel;
 
-    public UsageFrame(ABC abc, int multinameIndex, ABCPanel abcPanel, boolean definitions) {
+    /**
+     * @param abc ABC
+     * @param multinameIndex Multiname index
+     * @param exactMatch False = also consider Multiname.MULTINAME kind equal to
+     * QNAME with same name+namespace in the list. This is used in some of
+     * "extends/implements" cause.
+     * @param abcPanel ABC Panel
+     * @param definitions Definitions
+     */
+    public UsageFrame(ABC abc, int multinameIndex, boolean exactMatch, ABCPanel abcPanel, boolean definitions) {
         super(abcPanel.getMainPanel().getMainFrame().getWindow());
         this.abcPanel = abcPanel;
-        List<MultinameUsage> usages = definitions ? abc.findMultinameDefinition(multinameIndex) : abc.findMultinameUsage(multinameIndex);
+        List<MultinameUsage> usages = definitions ? abc.findMultinameDefinition(multinameIndex) : abc.findMultinameUsage(multinameIndex, exactMatch);
         Multiname m = abc.constants.getMultiname(multinameIndex);
         if (m.namespace_index > 0 && abc.constants.getNamespace(m.namespace_index).kind != Namespace.KIND_PRIVATE) {
             for (ABCContainerTag at : abc.getAbcTags()) {
@@ -67,9 +79,9 @@ public class UsageFrame extends AppDialog implements MouseListener {
                 if (a == abc) {
                     continue;
                 }
-                List<Integer> mids = a.constants.getMultinameIds(m, abc.constants);
+                List<Integer> mids = a.constants.getMultinameIds(m, a, abc, abc.constants);
                 for (int mid : mids) {
-                    usages.addAll(definitions ? a.findMultinameDefinition(mid) : a.findMultinameUsage(mid));
+                    usages.addAll(definitions ? a.findMultinameDefinition(mid) : a.findMultinameUsage(mid, exactMatch));
                 }
             }
         }
@@ -95,7 +107,7 @@ public class UsageFrame extends AppDialog implements MouseListener {
         cont.add(new FasterScrollPane(usageList), BorderLayout.CENTER);
         cont.add(buttonsPanel, BorderLayout.SOUTH);
         setSize(400, 300);
-        setTitle((definitions ? translate("dialog.title.declaration") : translate("dialog.title")) + abc.constants.getMultiname(multinameIndex).getNameWithNamespace(abc.constants, true).toPrintableString(true));
+        setTitle((definitions ? translate("dialog.title.declaration") : translate("dialog.title")) + abc.constants.getMultiname(multinameIndex).getNameWithNamespace(new LinkedHashSet<>(), abc, abc.constants, true).toPrintableString(new LinkedHashSet<>(), abc.getSwf(), true));
         View.centerScreen(this);
         View.setWindowIcon(this);
     }
@@ -127,19 +139,39 @@ public class UsageFrame extends AppDialog implements MouseListener {
                         if (tmu instanceof MethodMultinameUsage) {
                             MethodMultinameUsage mmu = (MethodMultinameUsage) usage;
                             if (mmu.isInitializer() == true) {
-                                traitIndex = newAbc.class_info.get(mmu.getClassIndex()).static_traits.traits.size() + newAbc.instance_info.get(mmu.getClassIndex()).instance_traits.traits.size() + (mmu.getTraitsType() == TraitMultinameUsage.TRAITS_TYPE_CLASS ? 1 : 0);
+                                traitIndex = mmu.getAbc().getGlobalTraitId(mmu.getClassIndex() == -1 ? TraitType.SCRIPT_INITIALIZER : TraitType.INITIALIZER, mmu.getTraitsType() == TraitMultinameUsage.TRAITS_TYPE_CLASS, -1, -1);
                             }
                         }
                         decompiledTextArea.gotoTrait(traitIndex);
+                    } else {
+                        decompiledTextArea.gotoClassHeader();
                     }
+                    Timer tim = new Timer();
+                    tim.schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            Main.getMainFrame().getPanel().setLoadingScrollPosEnabled(true);
+                        }
+                    }, 500);                    
                 }
             };
 
-            if (decompiledTextArea.getClassIndex() == icu.getClassIndex() && abcPanel.abc == newAbc) {
+            Main.getMainFrame().getPanel().setLoadingScrollPosEnabled(false);
+            if (decompiledTextArea.getScriptIndex() == icu.getScriptIndex() 
+                    && (decompiledTextArea.getClassIndex() == icu.getClassIndex() || icu.getClassIndex() == -1) 
+                    && abcPanel.abc == newAbc) {
                 setTrait.run();
             } else {
                 decompiledTextArea.addScriptListener(setTrait);
-                abcPanel.hilightScript(abcPanel.getSwf(), icu.getAbc().instance_info.get(icu.getClassIndex()).getName(icu.getAbc().constants).getNameWithNamespace(icu.getAbc().constants, true).toRawString());
+                String scriptName;
+                if (icu.getClassIndex() > -1) {
+                    scriptName = icu.getAbc().instance_info.get(icu.getClassIndex()).getName(icu.getAbc().constants).getNameWithNamespace(new LinkedHashSet<>(), icu.getAbc(), icu.getAbc().constants, true).toPrintableString(new LinkedHashSet<>(), icu.getAbc().getSwf(), true);
+                } else if (icu.getScriptIndex() > -1) {
+                    scriptName = icu.getAbc().script_info.get(icu.getScriptIndex()).getSimplePackName(icu.getAbc(), new LinkedHashSet<>()).toPrintableString(new LinkedHashSet<>(), icu.getAbc().getSwf(), true);
+                } else {
+                    scriptName = "";
+                }
+                abcPanel.hilightScript(icu.getAbc().getOpenable(), scriptName);
             }
         }
     }

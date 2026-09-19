@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -27,13 +27,23 @@ import com.jpexs.decompiler.graph.model.LocalData;
 import com.jpexs.helpers.Helper;
 
 /**
+ * Namespace.
  *
  * @author JPEXS
  */
 public class NameSpaceAVM2Item extends AVM2Item {
 
+    /**
+     * Namespace index
+     */
     public int namespaceIndex;
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param namespaceIndex Namespace index
+     */
     public NameSpaceAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, int namespaceIndex) {
         super(instruction, lineStartIns, NOPRECEDENCE);
         this.namespaceIndex = namespaceIndex;
@@ -46,18 +56,18 @@ public class NameSpaceAVM2Item extends AVM2Item {
         }
         AVM2ConstantPool constants = localData.constantsAvm2;
 
-        DottedChain dc = localData.abc.findCustomNs(namespaceIndex);
+        DottedChain dc = localData.abc.findCustomNsOfNamespace(namespaceIndex);
         String nsname = dc != null ? dc.getLast() : null;
 
         if (nsname != null) {
-            String identifier = IdentifiersDeobfuscation.printIdentifier(true, nsname);
+            String identifier = IdentifiersDeobfuscation.printIdentifier(localData.abc.getSwf(), localData.usedDeobfuscations, true, nsname);
             if (identifier != null && !identifier.isEmpty()) {
                 writer.append(identifier);
                 return writer;
             }
         }
 
-        writer.append("new Namespace").spaceBeforeCallParenthesies(1).append("(");
+        writer.append("new Namespace").spaceBeforeCallParenthesis(1).append("(");
         writer.append("\"").append(Helper.escapeActionScriptString(constants.getNamespace(namespaceIndex).getRawName(constants))).append("\""); //assume not null name        
         writer.append(")");
         return writer;

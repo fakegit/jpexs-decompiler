@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.configuration;
 
 import java.lang.reflect.Field;
@@ -24,9 +25,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Configuration item.
  *
+ * @param <T> Type of value
  * @author JPEXS
- * @param <T>
  */
 public class ConfigurationItem<T> {
 
@@ -56,10 +58,6 @@ public class ConfigurationItem<T> {
         hasValue = true;
         this.defaultValue = defaultValue;
         this.value = value;
-    }
-
-    public String getName() {
-        return name;
     }
 
     public T get() {
@@ -118,6 +116,10 @@ public class ConfigurationItem<T> {
         }
     }
 
+    public String getName() {
+        return name;
+    }
+
     public static String getName(Field field) {
         ConfigurationName annotation = field.getAnnotation(ConfigurationName.class);
         String name = annotation == null ? field.getName() : annotation.value();
@@ -128,6 +130,11 @@ public class ConfigurationItem<T> {
         ConfigurationInternal cint = field.getAnnotation(ConfigurationInternal.class);
         return cint != null;
     }
+    
+    public static boolean isRemoved(Field field) {
+        ConfigurationRemoved removedAnnotation = field.getAnnotation(ConfigurationRemoved.class);
+        return removedAnnotation != null;
+    }    
 
     @Override
     public String toString() {

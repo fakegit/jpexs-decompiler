@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,27 +12,33 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.xfl;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.jpexs.flash.fla.converter.FlaFormatVersion;
 
 /**
+ * FLA version enumeration.
  *
  * @author JPEXS
  */
 public enum FLAVersion {
-
-    CS5("CS5", "Flash CS 5", "2.0", 10),
-    CS5_5("CS5.5", "Flash CS 5.5", "2.1", 11),
-    CS6("CS6", "Flash CS 6", "2.2", 17),
-    CC("CC", "Flash CC", "2.4", Integer.MAX_VALUE) {
-        @Override
-        public int minASVersion() {
-            return 3; //AS 1/2 not supported anymore
-        }
-    };
+    F1("F1", "FutureSplash Animator", FlaFormatVersion.F1, null, 1, 1, 1),
+    F2("F2", "Macromedia Flash 2", FlaFormatVersion.F2, null, 2, 1, 1),
+    F3("F3", "Macromedia Flash 3", FlaFormatVersion.F3, null, 3, 1, 1),
+    F4("F4", "Macromedia Flash 4", FlaFormatVersion.F4, null, 4, 1, 1),
+    F5("F5", "Macromedia Flash 5", FlaFormatVersion.F5, null, 5, 1, 1),
+    MX("MX", "Macromedia Flash MX", FlaFormatVersion.MX, null, 6, 1, 1),
+    MX2004("MX2004", "Macromedia Flash MX 2004", FlaFormatVersion.MX2004, null, 7, 1, 2),
+    F8("F8", "Macromedia Flash 8", FlaFormatVersion.F8, null, 8, 1, 2),
+    CS3("CS3", "Adobe Flash Professional CS 3", FlaFormatVersion.CS3, null, 9, 1, 3),
+    CS4("CS4", "Adobe Flash Professional CS 4", FlaFormatVersion.CS4, null, 10, 1, 3),
+    CS5("CS5", "Adobe Flash Professional CS 5", null, "2.0", 10, 1, 3),
+    CS5_5("CS5.5", "Adobe Flash Professional CS 5.5", null, "2.1", 11, 1, 3),
+    CS6("CS6", "Adobe Flash Professional CS 6", null, "2.2", 17, 1, 3),
+    CC("CC", "Adobe Flash Professional CC", null, "2.4", Integer.MAX_VALUE, 3, 3);
+    private final FlaFormatVersion cfbFlaVersion;
 
     private final String xflVersion;
 
@@ -41,40 +47,25 @@ public enum FLAVersion {
     private final String applicationName;
 
     private final int maxSwfVersion;
+        
+    private final int minASVersion;
 
-    private static final Map<Integer, String> versionToPlayerMap = new HashMap<>();
+    private final int maxASVersion;
 
-    static {
-        versionToPlayerMap.put(9, "FlashPlayer9.0"); // 9.0.115.0
-        versionToPlayerMap.put(10, "FlashPlayer10.0"); //10 & 10.1
-        versionToPlayerMap.put(11, "FlashPlayer10.2");
-        versionToPlayerMap.put(12, "FlashPlayer10.3");
-        versionToPlayerMap.put(13, "FlashPlayer11.0");
-        versionToPlayerMap.put(14, "FlashPlayer11.1");
-        versionToPlayerMap.put(15, "FlashPlayer11.2");
-        versionToPlayerMap.put(16, "FlashPlayer11.3");
-        versionToPlayerMap.put(17, "FlashPlayer11.4");
-        versionToPlayerMap.put(18, "FlashPlayer11.5");
-        versionToPlayerMap.put(19, "FlashPlayer11.6");
-        versionToPlayerMap.put(20, "FlashPlayer11.7");
-        versionToPlayerMap.put(21, "FlashPlayer11.8");
-        versionToPlayerMap.put(22, "FlashPlayer11.9");
-        versionToPlayerMap.put(23, "FlashPlayer12.0");
-        versionToPlayerMap.put(24, "FlashPlayer13.0");
-        versionToPlayerMap.put(25, "FlashPlayer14.0");
-        versionToPlayerMap.put(26, "FlashPlayer15.0");
-        versionToPlayerMap.put(27, "FlashPlayer16.0");
-        versionToPlayerMap.put(28, "FlashPlayer17.0");
-        versionToPlayerMap.put(29, "FlashPlayer18.0");
-    }
-
-    private FLAVersion(String shortName, String applicationName, String xflVersion, int maxSwfVersion) {
+    private FLAVersion(String shortName, String applicationName, FlaFormatVersion cfbFlaVersion, String xflVersion, int maxSwfVersion, int minASVersion, int maxASVersion) {
+        this.cfbFlaVersion = cfbFlaVersion;
         this.xflVersion = xflVersion;
         this.shortName = shortName;
         this.applicationName = applicationName;
         this.maxSwfVersion = maxSwfVersion;
+        this.minASVersion = minASVersion;
+        this.maxASVersion = maxASVersion;
     }
 
+    public FlaFormatVersion getCfbFlaVersion() {
+        return cfbFlaVersion;
+    }   
+    
     public String xflVersion() {
         return xflVersion;
     }
@@ -84,7 +75,11 @@ public enum FLAVersion {
     }
 
     public int minASVersion() {
-        return 1;
+        return minASVersion;
+    }
+    
+    public int maxASVersion() {
+        return maxASVersion;
     }
 
     public String applicationName() {
@@ -100,13 +95,6 @@ public enum FLAVersion {
         return shortName;
     }
 
-    public static String swfVersionToPlayer(int version) {
-        if (versionToPlayerMap.containsKey(version)) {
-            return versionToPlayerMap.get(version);
-        }
-        return "";
-    }
-
     public static FLAVersion fromString(String s) {
         if (s == null) {
             return null;
@@ -115,7 +103,7 @@ public enum FLAVersion {
             if (v.shortName.toLowerCase().equals(s.toLowerCase())) {
                 return v;
             }
-            if (v.xflVersion.equals(s)) {
+            if (v.xflVersion != null && v.xflVersion.equals(s)) {
                 return v;
             }
         }

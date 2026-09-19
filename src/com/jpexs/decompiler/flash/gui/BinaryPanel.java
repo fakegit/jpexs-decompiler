@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 package com.jpexs.decompiler.flash.gui;
 
 import com.jpexs.decompiler.flash.gui.hexview.HexView;
-import com.jpexs.decompiler.flash.tags.DefineBinaryDataTag;
+import com.jpexs.decompiler.flash.tags.base.BinaryDataInterface;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -30,7 +30,6 @@ import javax.swing.JPanel;
 import javax.swing.border.BevelBorder;
 
 /**
- *
  * @author JPEXS
  */
 public final class BinaryPanel extends JPanel {
@@ -39,11 +38,13 @@ public final class BinaryPanel extends JPanel {
 
     private byte[] data;
 
-    private JPanel swfInsidePanel;
+    private JPanel swfOrPackedDataInsidePanel;
 
-    private DefineBinaryDataTag binaryDataTag = null;
+    private BinaryDataInterface binaryData = null;
 
     private final MainPanel mainPanel;
+
+    private final JLabel swfOrPackedDataInsideLabel;
 
     public BinaryPanel(final MainPanel mainPanel) {
         super(new BorderLayout());
@@ -64,34 +65,50 @@ public final class BinaryPanel extends JPanel {
          setBinaryData(binaryDataTag);
          }
          });*/
-        swfInsidePanel = new JPanel();
-        swfInsidePanel.setBackground(new Color(253, 205, 137));
-        swfInsidePanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        swfInsidePanel.add(new JLabel(AppStrings.translate("binarydata.swfInside")));
-        swfInsidePanel.setFocusable(true);
-        swfInsidePanel.setBorder(BorderFactory.createBevelBorder(BevelBorder.RAISED));
-        swfInsidePanel.addMouseListener(new MouseAdapter() {
+        swfOrPackedDataInsideLabel = new JLabel(AppStrings.translate("binarydata.swfInside"));
+
+        swfOrPackedDataInsidePanel = new JPanel();
+        swfOrPackedDataInsidePanel.setBackground(new Color(253, 205, 137));
+        swfOrPackedDataInsidePanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        swfOrPackedDataInsidePanel.add(swfOrPackedDataInsideLabel);
+        swfOrPackedDataInsidePanel.setFocusable(true);
+        swfOrPackedDataInsidePanel.setBorder(BorderFactory.createBevelBorder(BevelBorder.RAISED));
+        swfOrPackedDataInsidePanel.addMouseListener(new MouseAdapter() {
 
             @Override
             public void mouseClicked(MouseEvent e) {
-                mainPanel.loadFromBinaryTag(binaryDataTag);
-                swfInsidePanel.setVisible(false);
+                if (binaryData.getUsedPacker() != null) {
+                    binaryData.unpack(binaryData.getUsedPacker(), binaryData.getPackerKey());
+                }
+                mainPanel.loadFromBinaryTag(binaryData);
+                swfOrPackedDataInsidePanel.setVisible(false);
             }
 
         });
-        add(swfInsidePanel, BorderLayout.NORTH);
-        swfInsidePanel.setVisible(false);
+        add(swfOrPackedDataInsidePanel, BorderLayout.NORTH);
+        swfOrPackedDataInsidePanel.setVisible(false);
     }
 
-    public void setBinaryData(DefineBinaryDataTag binaryDataTag) {
-        this.binaryDataTag = binaryDataTag;
-        data = binaryDataTag == null ? null : binaryDataTag.binaryData.getRangeData();
+    public void setBinaryData(BinaryDataInterface binaryData) {
+        this.binaryData = binaryData;
+        data = binaryData == null ? null : binaryData.getDataBytes().getRangeData();
         if (data != null) {
             hexEditor.setData(data, null, null);
-            swfInsidePanel.setVisible(binaryDataTag.innerSwf == null && binaryDataTag.isSwfData());
+            boolean isSwfData = binaryData.isSwfData();
+            if (isSwfData) {
+                swfOrPackedDataInsideLabel.setText(AppStrings.translate("binarydata.swfInside"));
+            } else {
+                binaryData.detectPacker();
+                if (binaryData.getUsedPacker() != null) {
+                    swfOrPackedDataInsideLabel.setText(AppStrings.translate("binarydata.dataInside.packer").replace("%packer%", binaryData.getUsedPacker().getName()));
+                }
+            }
+            swfOrPackedDataInsidePanel.setVisible(
+                    (binaryData.getSub() == null && binaryData.getUsedPacker() != null)
+                    || (isSwfData && binaryData.getInnerSwf() == null));
         } else {
             hexEditor.setData(new byte[0], null, null);
-            swfInsidePanel.setVisible(false);
+            swfOrPackedDataInsidePanel.setVisible(false);
         }
 
         hexEditor.revalidate();

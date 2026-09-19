@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,6 +18,9 @@ package com.jpexs.decompiler.flash.gui;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.easygui.DoableOperation;
+import com.jpexs.decompiler.flash.easygui.EasyStrings;
+import com.jpexs.decompiler.flash.easygui.UndoManager;
 import com.jpexs.decompiler.flash.gui.controls.JRepeatButton;
 import com.jpexs.decompiler.flash.gui.editor.LineMarkedEditorPane;
 import com.jpexs.decompiler.flash.helpers.HighlightedText;
@@ -41,11 +44,10 @@ import java.util.logging.Logger;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JPanel;
-import javax.swing.SwingConstants;
+import javax.swing.JScrollPane;
 import javax.swing.text.BadLocationException;
 
 /**
- *
  * @author JPEXS
  */
 public class TextPanel extends JPanel implements TagEditorPanel {
@@ -66,7 +68,7 @@ public class TextPanel extends JPanel implements TagEditorPanel {
 
     private final JButton textCancelButton;
 
-    private final JButton selectPrevousTagButton;
+    private final JButton selectPreviousTagButton;
 
     private final JButton selectNextTagButton;
 
@@ -87,9 +89,15 @@ public class TextPanel extends JPanel implements TagEditorPanel {
     private final JButton undoChangesButton;
 
     private TextTag textTag;
+    
+    private final UndoManager undoManager;
+    
+    private String oldText = null;
 
-    public TextPanel(final MainPanel mainPanel) {
+    public TextPanel(final MainPanel mainPanel, UndoManager undoManager) {
         super(new BorderLayout());
+        
+        this.undoManager = undoManager;
 
         this.mainPanel = mainPanel;
         textSearchPanel = new SearchPanel<>(new FlowLayout(), mainPanel);
@@ -98,16 +106,20 @@ public class TextPanel extends JPanel implements TagEditorPanel {
         topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.Y_AXIS));
         topPanel.add(textSearchPanel);
         textValue = new LineMarkedEditorPane();
-        add(new FasterScrollPane(textValue), BorderLayout.CENTER);
+        JScrollPane sp = new FasterScrollPane(textValue);
+        sp.setPreferredSize(new Dimension(200, 200));
+        //sp.setMaximumSize(sp.getSize());
+        //sp.setPreferredSize(sp.getMaximumSize());
+        add(sp, BorderLayout.CENTER);
         textValue.setFont(Configuration.getSourceFont());
         textValue.changeContentType("text/swftext");
         textValue.addTextChangedListener(this::textChanged);
 
         JPanel textButtonsPanel = new JPanel();
-        textButtonsPanel.setLayout(new FlowLayout(SwingConstants.WEST));
-        textButtonsPanel.setMinimumSize(new Dimension(10, textButtonsPanel.getMinimumSize().height));
+        textButtonsPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
+        //textButtonsPanel.setMinimumSize(new Dimension(10, textButtonsPanel.getMinimumSize().height));
 
-        selectPrevousTagButton = createButton(null, "arrowup16", "selectPreviousTag", e -> mainPanel.previousTag());
+        selectPreviousTagButton = createButton(null, "arrowup16", "selectPreviousTag", e -> mainPanel.previousTag());
         selectNextTagButton = createButton(null, "arrowdown16", "selectNextTag", e -> mainPanel.nextTag());
         textAlignLeftButton = createButton(null, "textalignleft16", "text.align.left", e -> textAlign(TextAlign.LEFT));
         textAlignCenterButton = createButton(null, "textaligncenter16", "text.align.center", e -> textAlign(TextAlign.CENTER));
@@ -118,7 +130,7 @@ public class TextPanel extends JPanel implements TagEditorPanel {
         changeCaseButton = createButton(null, "textuppercase16", "text.toggleCase", e -> changeCase(0));
         undoChangesButton = createButton(null, "reload16", "text.undo", e -> undoChanges());
 
-        textButtonsPanel.add(selectPrevousTagButton);
+        textButtonsPanel.add(selectPreviousTagButton);
         textButtonsPanel.add(selectNextTagButton);
         textButtonsPanel.add(textAlignLeftButton);
         textButtonsPanel.add(textAlignCenterButton);
@@ -127,7 +139,9 @@ public class TextPanel extends JPanel implements TagEditorPanel {
         textButtonsPanel.add(decreaseTranslateXButton);
         textButtonsPanel.add(increaseTranslateXButton);
         textButtonsPanel.add(changeCaseButton);
-        textButtonsPanel.add(undoChangesButton);
+        if (undoManager == null) {
+            textButtonsPanel.add(undoChangesButton);
+        }
 
         textButtonsPanel.setAlignmentX(0);
         topPanel.add(textButtonsPanel);
@@ -138,7 +152,7 @@ public class TextPanel extends JPanel implements TagEditorPanel {
         textSaveButton = createButton("button.save", "save16", null, e -> saveText(true));
         textCancelButton = createButton("button.cancel", "cancel16", null, e -> cancelText());
 
-        // hide the buttonts to aviod panel resize problems on other views
+        // hide the buttons to avoid panel resize problems on other views
         textEditButton.setVisible(false);
         textSaveButton.setVisible(false);
         textCancelButton.setVisible(false);
@@ -149,6 +163,10 @@ public class TextPanel extends JPanel implements TagEditorPanel {
         add(buttonsPanel, BorderLayout.SOUTH);
     }
 
+    public TextTag getTextTag() {
+        return textTag;
+    }   
+    
     private JButton createButton(String textResource, String iconName, String toolTipResource, ActionListener actionListener) {
         return createButton(textResource, iconName, toolTipResource, actionListener, false);
     }
@@ -168,9 +186,11 @@ public class TextPanel extends JPanel implements TagEditorPanel {
     public SearchPanel<TextTag> getSearchPanel() {
         return textSearchPanel;
     }
-
-    public void setText(TextTag textTag) {
-        this.textTag = textTag;
+    
+    public void refresh() {
+        if (this.textTag == null) {
+            return;
+        }
         String formattedText;
         try {
             formattedText = textTag.getFormattedText(false).text;
@@ -179,10 +199,16 @@ public class TextPanel extends JPanel implements TagEditorPanel {
         }
 
         textValue.setText(formattedText);
+        oldText = formattedText;                 
+    }
+
+    public void setText(TextTag textTag) {
+        this.textTag = textTag;
+        refresh();
         textValue.setCaretPosition(0);
         setModified(false);
         setEditText(false);
-        boolean readOnly = ((Tag) textTag).isReadOnly();
+        boolean readOnly = textTag == null ? true : ((Tag) textTag).isReadOnly();
         if (readOnly) {
             textValue.setEditable(false);
         }
@@ -195,6 +221,9 @@ public class TextPanel extends JPanel implements TagEditorPanel {
         increaseTranslateXButton.setVisible(!readOnly);
         changeCaseButton.setVisible(!readOnly);
         undoChangesButton.setVisible(!readOnly);
+        selectPreviousTagButton.setVisible(mainPanel.getCurrentView() == MainPanel.VIEW_RESOURCES);
+        selectNextTagButton.setVisible(mainPanel.getCurrentView() == MainPanel.VIEW_RESOURCES);
+        updateButtonsVisibility();
     }
 
     private boolean isModified() {
@@ -273,10 +302,15 @@ public class TextPanel extends JPanel implements TagEditorPanel {
                 }
             }
 
+            boolean editable = textValue.isEditable();
+            textValue.setEditable(true);
             textValue.replaceSelection(selected.toString());
-            saveText(true);
+            textValue.setEditable(editable);
+            if (!editable) { 
+                saveText(true);
 
-            updateButtonsVisibility();
+                updateButtonsVisibility();
+            }
             textTag.getSwf().clearImageCache();
             mainPanel.repaintTree();
 
@@ -327,35 +361,97 @@ public class TextPanel extends JPanel implements TagEditorPanel {
     private void editText() {
         setEditText(true);
         showTextComparingPreview();
+        mainPanel.setEditingStatus();
     }
 
     private void cancelText() {
         setEditText(false);
+        refresh();
         mainPanel.reload(true);
+        mainPanel.clearEditingStatus();
     }
 
     private void saveText(boolean refresh) {
-        if (mainPanel.saveText(textTag, textValue.getText(), null, textValue)) {
+        if (mainPanel.saveText(textTag, textValue.getText(), null, textValue, undoManager)) {                                   
             setEditText(false);
             setModified(false);
             textTag.getSwf().clearImageCache();
             if (refresh) {
                 mainPanel.repaintTree();
             }
+            mainPanel.clearEditingStatus();
         }
     }
 
     private void textAlign(TextAlign textAlign) {
+        if (undoManager != null) {           
+            String prevText = textTag.getFormattedText(false).text;
+            undoManager.doOperation(new DoableOperation() {
+
+                    @Override
+                    public void doOperation() {
+                        textAlignInternal(textAlign);
+                    }
+
+                    @Override
+                    public void undoOperation() {
+                        try {
+                            textTag.setFormattedText(null, prevText, null);
+                        } catch (TextParseException ex) {
+                            //ignore
+                        }
+                    }
+
+                    @Override
+                    public String getDescription() {
+                        return EasyStrings.translate("action.change").replace("%item%", EasyStrings.translate("action.change.text"));
+                    }
+                }, textTag.getSwf());
+            return;
+        }
+        textAlignInternal(textAlign);
+    }
+        
+    private void textAlignInternal(TextAlign textAlign) {
         if (textTag.alignText(textAlign)) {
             updateButtonsVisibility();
+            refresh();            
             textTag.getSwf().clearImageCache();
             mainPanel.repaintTree();
         }
     }
 
+
     private void translateX(int delta, int repeatCount) {
+        if (undoManager != null) {            
+            undoManager.doOperation(new DoableOperation() {
+
+                    @Override
+                    public void doOperation() {
+                        translateXInternal(delta, repeatCount);
+                    }
+
+                    @Override
+                    public void undoOperation() {
+                        translateXInternal(-delta, repeatCount);               
+                    }
+
+                    @Override
+                    public String getDescription() {
+                        return EasyStrings.translate("action.change").replace("%item%", EasyStrings.translate("action.change.text"));
+                    }
+                }, textTag.getSwf());
+            return;
+        }
+        translateXInternal(delta, repeatCount);
+    }
+
+    private void translateXInternal(int delta, int repeatCount) {
+        
+        
         if (textTag.translateText(delta * (repeatCount + 1))) {
             updateButtonsVisibility();
+            refresh();
             textTag.getSwf().clearImageCache();
             mainPanel.repaintTree();
         }
@@ -397,6 +493,7 @@ public class TextPanel extends JPanel implements TagEditorPanel {
                     mainPanel.showTextTagWithNewValue(textTag, copyTextTag);
                 }
             } catch (TextParseException | InterruptedException | IOException ex) {
+                //ignored
             }
 
             if (!ok) {
@@ -422,5 +519,12 @@ public class TextPanel extends JPanel implements TagEditorPanel {
     @Override
     public boolean isEditing() {
         return textSaveButton.isVisible() && textSaveButton.isEnabled();
+    }
+
+    public void startEdit() {
+        if (!textEditButton.isVisible()) {
+            return;
+        }
+        editText();
     }
 }

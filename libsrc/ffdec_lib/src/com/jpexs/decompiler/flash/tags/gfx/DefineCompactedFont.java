@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,11 +19,10 @@ package com.jpexs.decompiler.flash.tags.gfx;
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
+import com.jpexs.decompiler.flash.gfx.GfxConvertor;
 import com.jpexs.decompiler.flash.helpers.FontHelper;
-import com.jpexs.decompiler.flash.tags.DefineFont2Tag;
 import com.jpexs.decompiler.flash.tags.base.FontTag;
 import com.jpexs.decompiler.flash.types.KERNINGRECORD;
-import com.jpexs.decompiler.flash.types.LANGCODE;
 import com.jpexs.decompiler.flash.types.RECT;
 import com.jpexs.decompiler.flash.types.SHAPE;
 import com.jpexs.decompiler.flash.types.gfx.FontType;
@@ -46,6 +45,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * DefineCompactedFont tag - defines a font with compacted shapes.
  *
  * @author JPEXS
  */
@@ -65,7 +65,7 @@ public final class DefineCompactedFont extends FontTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -78,7 +78,7 @@ public final class DefineCompactedFont extends FontTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineCompactedFont(SWF swf) {
         super(swf, ID, NAME, null);
@@ -94,9 +94,9 @@ public final class DefineCompactedFont extends FontTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineCompactedFont(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -148,7 +148,7 @@ public final class DefineCompactedFont extends FontTag {
     }
 
     @Override
-    public void addCharacter(char character, Font cfont) {
+    public boolean addCharacter(char character, Font cfont) {
         int fontStyle = getFontStyle();
         FontType font = fonts.get(0);
 
@@ -201,13 +201,13 @@ public final class DefineCompactedFont extends FontTag {
             }
             int glyph1 = charToGlyph(pair.char1);
             if (pair.char1 == character) {
-
+                //empty
             } else if (glyph1 == -1) {
                 continue;
             }
             int glyph2 = charToGlyph(pair.char2);
             if (pair.char2 == character) {
-
+                //empty
             } else if (glyph2 == -1) {
                 continue;
             }
@@ -216,6 +216,7 @@ public final class DefineCompactedFont extends FontTag {
 
         setModified(true);
         getSwf().clearImageCache();
+        return true;
     }
 
     @Override
@@ -283,6 +284,11 @@ public final class DefineCompactedFont extends FontTag {
     public double getGlyphAdvance(int glyphIndex) {
         return resize(fonts.get(0).glyphInfo.get(glyphIndex).advanceX);
     }
+    
+    @Override
+    public synchronized void setGlyphAdvance(int glyphIndex, double advanceValue) {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }
 
     @Override
     public int getGlyphKerningAdjustment(int glyphIndex, int nextGlyphIndex) {
@@ -303,7 +309,7 @@ public final class DefineCompactedFont extends FontTag {
 
     @Override
     public int getGlyphWidth(int glyphIndex) {
-        return resize(getGlyphShapeTable().get(glyphIndex).getBounds().getWidth());
+        return resize(getGlyphShapeTable().get(glyphIndex).getBounds(1).getWidth());
     }
 
     @Override
@@ -401,6 +407,11 @@ public final class DefineCompactedFont extends FontTag {
         GlyphType gt = fonts.get(0).glyphs.get(glyphIndex);
         return new RECT(resize(gt.boundingBox[0]), resize(gt.boundingBox[1]), resize(gt.boundingBox[2]), resize(gt.boundingBox[3]));
     }
+    
+    @Override
+    public void updateBounds() {
+        throw new UnsupportedOperationException("Not implemented yet");
+    } 
 
     public SHAPE resizeShape(SHAPE shp) {
         SHAPE ret = new SHAPE();
@@ -427,6 +438,7 @@ public final class DefineCompactedFont extends FontTag {
                 StraightEdgeRecord ser = (StraightEdgeRecord) c;
                 ser.deltaX = resize(ser.deltaX);
                 ser.deltaY = resize(ser.deltaY);
+                ser.simplify();
                 ser.calculateBits();
             }
             recs.add(c);
@@ -435,50 +447,19 @@ public final class DefineCompactedFont extends FontTag {
         return ret;
     }
 
-    protected int resize(double val) {
+    public int resize(double val) {
         FontType ft = fonts.get(0);
         return (int) Math.round(val * 1024.0 / ft.nominalSize);
+    }
+    
+    public double unresize(int val) {
+        FontType ft = fonts.get(0);
+        return val * ft.nominalSize / 1024.0;
     }
 
     @Override
     public FontTag toClassicFont() {
-        DefineFont2Tag ret = new DefineFont2Tag(swf);
-        ret.fontID = getFontId();
-        ret.fontFlagsBold = isBold();
-        ret.fontFlagsItalic = isItalic();
-        ret.fontFlagsWideOffsets = true;
-        ret.fontFlagsWideCodes = true;
-        ret.fontFlagsHasLayout = true;
-        ret.fontAscent = resize(getAscent());
-        ret.fontDescent = resize(getDescent());
-        ret.fontLeading = resize(getLeading());
-        ret.fontAdvanceTable = new ArrayList<>();
-        ret.fontBoundsTable = new ArrayList<>();
-        ret.codeTable = new ArrayList<>();
-        ret.glyphShapeTable = new ArrayList<>();
-        List<SHAPE> shp = getGlyphShapeTable();
-        for (int g = 0; g < shp.size(); g++) {
-            ret.fontAdvanceTable.add((int) getGlyphAdvance(g)); //already resized
-            ret.codeTable.add((int) glyphToChar(g));
-
-            SHAPE shpX = resizeShape(shp.get(g));
-            ret.glyphShapeTable.add(shpX);
-            ret.fontBoundsTable.add(getGlyphBounds(g));
-        }
-        ret.fontName = getFontNameIntag();
-        ret.languageCode = new LANGCODE(1);
-        ret.fontKerningTable = new ArrayList<>();
-
-        FontType ft = fonts.get(0);
-        for (int i = 0; i < ft.kerning.size(); i++) {
-            KERNINGRECORD kr = new KERNINGRECORD();
-            kr.fontKerningAdjustment = resize(ft.kerning.get(i).advance);
-            kr.fontKerningCode1 = ft.kerning.get(i).char1;
-            kr.fontKerningCode2 = ft.kerning.get(i).char2;
-            ret.fontKerningTable.add(kr);
-        }
-
-        return ret;
+        return new GfxConvertor().convertDefineCompactedFont(this);
     }
 
     @Override
@@ -534,4 +515,38 @@ public final class DefineCompactedFont extends FontTag {
     public RECT getRectWithStrokes() {
         return getRect();
     }
+
+    @Override
+    public String getCodesCharset() {
+        return getCharset();
+    }
+
+    @Override
+    public List<KERNINGRECORD> getKerningTable() {
+        List<KERNINGRECORD> ret = new ArrayList<>();
+        
+        for (KerningPairType kp : fonts.get(0).kerning) {
+            ret.add(new KERNINGRECORD(kp.char1, kp.char2, resize(kp.advance)));
+        }
+        return ret;
+    }        
+
+    @Override
+    public void setKerningTable(List<KERNINGRECORD> kerningTable) {
+        List<KerningPairType> val = new ArrayList<>();
+        for (KERNINGRECORD rec : kerningTable) {
+            val.add(new KerningPairType(rec.fontKerningCode1, rec.fontKerningCode2, (int) unresize(rec.fontKerningAdjustment)));
+        }
+        
+        fonts.get(0).kerning = val;
+    }        
+
+    @Override
+    public List<Integer> getRawCodeTable() {
+        List<Integer> ret = new ArrayList<>();
+        for (int i = 0; i < getCharacterCount(); i++) {
+            ret.add((int) glyphToChar(i));
+        }
+        return ret;
+    }        
 }

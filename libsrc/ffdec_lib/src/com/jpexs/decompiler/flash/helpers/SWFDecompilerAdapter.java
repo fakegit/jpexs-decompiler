@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.helpers;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -24,49 +25,88 @@ import com.jpexs.decompiler.graph.GraphTargetItem;
 import java.util.List;
 
 /**
+ * Adapter for SWFDecompilerListener.
  *
  * @author JPEXS
  */
 public class SWFDecompilerAdapter implements SWFDecompilerListener {
 
+    /**
+     * Called when a file is proxied
+     *
+     * @param data file data
+     * @return proxied file data
+     */
     @Override
     public byte[] proxyFileCatched(byte[] data) {
         return null;
     }
 
+    /**
+     * Called when a SWF file is parsed
+     *
+     * @param swf SWF object
+     */
     @Override
     public void swfParsed(SWF swf) {
     }
 
+    /**
+     * Called when an action list is parsed
+     *
+     * @param actions Action list
+     * @param swf SWF object
+     * @throws InterruptedException On interrupt
+     */
     @Override
     public void actionListParsed(ActionList actions, SWF swf) throws InterruptedException {
     }
 
+    /**
+     * Called when an action tree is created
+     *
+     * @param tree Action tree
+     * @param swf SWF object
+     * @throws InterruptedException On interrupt
+     */
     @Override
     public void actionTreeCreated(List<GraphTargetItem> tree, SWF swf) throws InterruptedException {
     }
 
+    /**
+     * Called when an ABC is parsed
+     *
+     * @param abc ABC object
+     * @param swf SWF object
+     */
     @Override
     public void abcParsed(ABC abc, SWF swf) {
     }
 
+    /**
+     * Called when a method body is parsed
+     *
+     * @param abc ABC object
+     * @param body Method body
+     * @param swf SWF object
+     */
     @Override
     public void methodBodyParsed(ABC abc, MethodBody body, SWF swf) {
     }
 
     /**
      * This method is only called when deobfuscation is enabled and new
-     * deobfuscation mode is selected
+     * deobfuscation mode is selected.
      *
-     * @param path
-     * @param classIndex
-     * @param isStatic
-     * @param scriptIndex
-     * @param abc
-     * @param trait
-     * @param methodInfo
-     * @param body
-     * @throws InterruptedException
+     * @param path Path
+     * @param classIndex Class index
+     * @param isStatic Is static
+     * @param scriptIndex Script index
+     * @param abc ABC object
+     * @param trait Trait object
+     * @param methodInfo Method info
+     * @param body Method body
+     * @throws InterruptedException On interrupt
      */
     @Override
     public void avm2CodeRemoveTraps(String path, int classIndex, boolean isStatic, int scriptIndex, ABC abc, Trait trait, int methodInfo, MethodBody body) throws InterruptedException {

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action;
 
 import com.jpexs.decompiler.flash.action.model.ActionItem;
@@ -20,7 +21,7 @@ import java.util.List;
 import java.util.Stack;
 
 /**
- * Raised when actual address has been referenced with an unknown jump
+ * Raised when actual address has been referenced with an unknown jump.
  *
  * @author JPEXS
  */
@@ -42,7 +43,7 @@ public class UnknownJumpException extends RuntimeException {
     public List<ActionItem> output;
 
     /**
-     * Constructor
+     * Constructs a new unknown jump exception.
      *
      * @param stack Actual stack
      * @param addr Actual address
@@ -55,9 +56,9 @@ public class UnknownJumpException extends RuntimeException {
     }
 
     /**
-     * Returns a string representation of the object
+     * Returns a string representation of the object.
      *
-     * @return a string representation of the object.
+     * @return A string representation of the object
      */
     @Override
     public String toString() {

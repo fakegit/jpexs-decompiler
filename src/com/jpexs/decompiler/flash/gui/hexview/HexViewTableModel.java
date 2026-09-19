@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@ package com.jpexs.decompiler.flash.gui.hexview;
 import javax.swing.table.AbstractTableModel;
 
 /**
- *
  * @author JPEXS
  */
 public class HexViewTableModel extends AbstractTableModel {
@@ -38,10 +37,7 @@ public class HexViewTableModel extends AbstractTableModel {
             return 0;
         }
         int byteCount = data.length;
-        int rowCount = byteCount / bytesInRow;
-        if (byteCount % bytesInRow != 0) {
-            rowCount++;
-        }
+        int rowCount = (int) Math.ceil(byteCount / (double) bytesInRow);
         return rowCount;
     }
 
@@ -87,10 +83,11 @@ public class HexViewTableModel extends AbstractTableModel {
 
     public void setData(byte[] data) {
         this.data = data;
+        fireTableDataChanged();
     }
 
     @Override
-    public void fireTableCellUpdated(int row, int columnd) {
-        super.fireTableCellUpdated(bytesInRow, bytesInRow);
+    public void fireTableCellUpdated(int row, int column) {
+        super.fireTableCellUpdated(row, column);
     }
 }

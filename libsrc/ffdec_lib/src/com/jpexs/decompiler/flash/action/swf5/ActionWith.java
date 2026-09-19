@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.swf5;
 
 import com.jpexs.decompiler.flash.SWFInputStream;
@@ -30,7 +31,6 @@ import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemContainer;
 import com.jpexs.decompiler.graph.GraphTargetItem;
-import com.jpexs.decompiler.graph.SecondPassData;
 import com.jpexs.decompiler.graph.TranslateStack;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,18 +39,31 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * With action - With block.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 5)
 public class ActionWith extends Action implements GraphSourceItemContainer {
 
+    /**
+     * Code size.
+     */
     public int codeSize;
 
+    /**
+     * Version.
+     */
     public int version;
 
-    public ActionWith(int codeSize) {
-        super(0x94, 2);
+    /**
+     * Constructor.
+     *
+     * @param codeSize Code size
+     * @param charset Charset
+     */
+    public ActionWith(int codeSize, String charset) {
+        super(0x94, 2, charset);
         this.codeSize = codeSize;
     }
 
@@ -72,14 +85,30 @@ public class ActionWith extends Action implements GraphSourceItemContainer {
         return false;
     }
 
+    /**
+     * Constructor.
+     *
+     * @param actionLength Action length
+     * @param sis SWF input stream
+     * @param version Version
+     * @throws IOException Error
+     */
     public ActionWith(int actionLength, SWFInputStream sis, int version) throws IOException {
-        super(0x94, actionLength);
+        super(0x94, actionLength, sis.getCharset());
         codeSize = sis.readUI16("codeSize");
         this.version = version;
     }
 
-    public ActionWith(FlasmLexer lexer) throws IOException, ActionParseException {
-        super(0x94, 2);
+    /**
+     * Constructor.
+     *
+     * @param lexer Lexer
+     * @param charset Charset
+     * @throws IOException On I/O error
+     * @throws ActionParseException On action parse error
+     */
+    public ActionWith(FlasmLexer lexer, String charset) throws IOException, ActionParseException {
+        super(0x94, 2, charset);
         lexBlockOpen(lexer);
     }
 
@@ -99,13 +128,13 @@ public class ActionWith extends Action implements GraphSourceItemContainer {
     }
 
     @Override
-    public String getASMSource(ActionList container, Set<Long> knownAddreses, ScriptExportMode exportMode) {
+    public String getASMSource(ActionList container, Set<Long> knownAddresses, ScriptExportMode exportMode) {
         return "With {";
     }
 
     @Override
     public void translateContainer(List<List<GraphTargetItem>> content, GraphSourceItem lineStartItem, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions) {
-        output.add(new WithActionItem(this, lineStartItem, stack.pop(), content.get(0)));
+        stack.addToOutput(new WithActionItem(this, lineStartItem, stack.pop(), content.get(0)));
     }
 
     @Override

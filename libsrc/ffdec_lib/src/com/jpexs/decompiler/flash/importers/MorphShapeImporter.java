@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,18 +12,26 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.importers;
 
 import com.jpexs.decompiler.flash.tags.DefineMorphShape2Tag;
 import com.jpexs.decompiler.flash.tags.DefineMorphShapeTag;
 
 /**
+ * Morph shape importer.
  *
  * @author JPEXS
  */
 public class MorphShapeImporter {
 
+    /**
+     * Gets morph shape tag type.
+     *
+     * @param format Format
+     * @return Morph shape tag type
+     */
     public static int getMorphShapeTagType(String format) {
         int res = 0;
         switch (format) {

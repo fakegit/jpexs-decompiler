@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,22 +12,39 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 /**
+ * FFDec version information.
  *
  * @author JPEXS
  */
 public class Version {
 
+    /**
+     * Git tag name
+     */
     public String tagName;
 
+    /**
+     * Version name
+     */
     public String versionName;
 
+    /**
+     * Release date
+     */
     public String releaseDate;
 
+    /**
+     * Is this a prerelease version?
+     */
     public boolean prerelease;
 
+    /**
+     * Description
+     */
     public String description;
 }

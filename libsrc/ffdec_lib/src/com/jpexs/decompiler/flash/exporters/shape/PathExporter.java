@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Path exporter.
  *
  * @author JPEXS
  */
@@ -39,21 +40,48 @@ public class PathExporter extends ShapeExporterBase {
 
     private double thickness = 0;
 
+    private boolean aliasedFill = false;
+
     private GeneralPath path = new GeneralPath(GeneralPath.WIND_EVEN_ODD);
 
-    public static List<GeneralPath> export(SWF swf, SHAPE shape) {
-        return export(swf, shape, new ArrayList<>());
+    /**
+     * Exports shape to GeneralPath.
+     * @param windingRule GeneralPath winding rule
+     * @param shapeNum Shape number
+     * @param swf SWF
+     * @param shape Shape
+     * @return List of GeneralPath
+     */
+    public static List<GeneralPath> export(int windingRule, int shapeNum, SWF swf, SHAPE shape) {
+        return export(windingRule, shapeNum, swf, shape, new ArrayList<>());
     }
 
-    public static List<GeneralPath> export(SWF swf, SHAPE shape, List<GeneralPath> strokes) {
-        PathExporter exporter = new PathExporter(swf, shape, null);
+    /**
+     * Exports shape to GeneralPath.
+     * @param windingRule GeneralPath winding rule
+     * @param shapeNum Shape number (1 for DefineShape, 2 for DefineShape2, etc.)
+     * @param swf SWF
+     * @param shape Shape
+     * @param strokes List of strokes
+     * @return List of GeneralPath
+     */
+    public static List<GeneralPath> export(int windingRule, int shapeNum, SWF swf, SHAPE shape, List<GeneralPath> strokes) {
+        PathExporter exporter = new PathExporter(windingRule, shapeNum, swf, shape, null);
         exporter.export();
         strokes.addAll(exporter.strokes);
         return exporter.paths;
     }
 
-    protected PathExporter(SWF swf, SHAPE shape, ColorTransform colorTransform) {
-        super(swf, shape, colorTransform);
+    /**
+     * Constructor.
+     * @param windingRule GeneralPath winding rule
+     * @param shapeNum Shape number
+     * @param swf SWF
+     * @param shape Shape
+     * @param colorTransform Color transform
+     */
+    protected PathExporter(int windingRule, int shapeNum, SWF swf, SHAPE shape, ColorTransform colorTransform) {
+        super(windingRule, shapeNum, swf, shape, colorTransform);
     }
 
     @Override
@@ -73,7 +101,7 @@ public class PathExporter extends ShapeExporterBase {
 
     @Override
     public void beginFills() {
-
+        aliasedFill = false;
     }
 
     @Override
@@ -112,7 +140,7 @@ public class PathExporter extends ShapeExporterBase {
     }
 
     @Override
-    public void lineStyle(double thickness, RGB color, boolean pixelHinting, String scaleMode, int startCaps, int endCaps, int joints, float miterLimit) {
+    public void lineStyle(double thickness, RGB color, boolean pixelHinting, String scaleMode, int startCaps, int endCaps, int joints, float miterLimit, boolean noClose) {
         finalizePath();
         this.thickness = thickness;
     }
@@ -142,6 +170,9 @@ public class PathExporter extends ShapeExporterBase {
         path.quadTo(controlX, controlY, anchorX, anchorY);
     }
 
+    /**
+     * Finalizes path.
+     */
     protected void finalizePath() {
         if (thickness == 0) {
             strokes.add(new GeneralPath());

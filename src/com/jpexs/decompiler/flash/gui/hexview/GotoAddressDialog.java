@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2021 JPEXS
+ *  Copyright (C) 2021-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -33,7 +33,6 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
 /**
- *
  * @author JPEXS
  */
 public class GotoAddressDialog extends AppDialog {
@@ -127,7 +126,6 @@ public class GotoAddressDialog extends AppDialog {
     public void cancelButtonActionPerformed(ActionEvent e) {
         setVisible(false);
     }
-
 
     public Long showDialog() {
         setVisible(true);

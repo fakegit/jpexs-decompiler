@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,6 +19,7 @@ package com.jpexs.decompiler.graph.model;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.Block;
 import com.jpexs.decompiler.graph.GraphSourceItem;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.TypeItem;
@@ -26,17 +27,32 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Goto.
  *
  * @author JPEXS
  */
 public class GotoItem extends GraphTargetItem implements Block {
 
+    /**
+     * Label name
+     */
     public String labelName;
 
+    /**
+     * Target commands
+     */
     public List<GraphTargetItem> targetCommands = null;
 
-    public GotoItem(GraphSourceItem src, GraphSourceItem lineStartIns, String labelName) {
-        super(src, lineStartIns, PRECEDENCE_PRIMARY);
+    /**
+     * Constructor.
+     *
+     * @param dialect Dialect
+     * @param src Source
+     * @param lineStartIns Line start instruction
+     * @param labelName Label name
+     */
+    public GotoItem(GraphTargetDialect dialect, GraphSourceItem src, GraphSourceItem lineStartIns, String labelName) {
+        super(dialect, src, lineStartIns, PRECEDENCE_PRIMARY);
         this.labelName = labelName;
     }
 
@@ -95,6 +111,20 @@ public class GotoItem extends GraphTargetItem implements Block {
         for (GraphTargetItem c : targetCommands) {
             if (c instanceof ContinueItem) {
                 ret.add((ContinueItem) c);
+            }
+        }
+        return ret;
+    }
+    
+    @Override
+    public List<BreakItem> getBreaks() {
+        List<BreakItem> ret = new ArrayList<>();
+        if (targetCommands == null) {
+            return ret;
+        }
+        for (GraphTargetItem c : targetCommands) {
+            if (c instanceof BreakItem) {
+                ret.add((BreakItem) c);
             }
         }
         return ret;

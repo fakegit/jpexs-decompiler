@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,24 +12,45 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph;
 
 import java.util.Objects;
 
 /**
+ * Edge of a graph. Represents a connection between two GraphParts.
  *
  * @author JPEXS
  */
 public class GraphPartEdge {
+
+    /**
+     * From part
+     */
     public GraphPart from;
+
+    /**
+     * To part
+     */
     public GraphPart to;
 
+    /**
+     * Constructs a new edge
+     *
+     * @param from From
+     * @param to To
+     */
     public GraphPartEdge(GraphPart from, GraphPart to) {
         this.from = from;
         this.to = to;
     }
 
+    /**
+     * Hash code
+     *
+     * @return Hash code
+     */
     @Override
     public int hashCode() {
         int hash = 3;
@@ -38,6 +59,12 @@ public class GraphPartEdge {
         return hash;
     }
 
+    /**
+     * Equals
+     *
+     * @param obj Object to compare
+     * @return True if equals
+     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -59,6 +86,11 @@ public class GraphPartEdge {
         return true;
     }
 
+    /**
+     * To string
+     *
+     * @return String representation
+     */
     @Override
     public String toString() {
         return from.toString() + " -> " + to.toString();

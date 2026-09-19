@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,6 +18,9 @@ package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
+import com.jpexs.decompiler.flash.action.swf4.ActionPush;
+import com.jpexs.decompiler.flash.action.swf5.ActionCallMethod;
 import com.jpexs.decompiler.flash.action.swf5.ActionNewMethod;
 import com.jpexs.decompiler.flash.ecma.Undefined;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
@@ -32,16 +35,31 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * New method.
  *
  * @author JPEXS
  */
 public class NewMethodActionItem extends ActionItem {
 
+    /**
+     * Method name
+     */
     public GraphTargetItem methodName;
 
+    /**
+     * Script object
+     */
     public GraphTargetItem scriptObject;
 
+    /**
+     * Arguments
+     */
     public List<GraphTargetItem> arguments;
+    
+    /**
+     * Is getter
+     */
+    public boolean isGetter;
 
     @Override
     public void visit(GraphTargetVisitorInterface visitor) {
@@ -49,6 +67,15 @@ public class NewMethodActionItem extends ActionItem {
         visitor.visitAll(arguments);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param scriptObject Script object
+     * @param methodName Method name
+     * @param arguments Arguments
+     */
     public NewMethodActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem scriptObject, GraphTargetItem methodName, List<GraphTargetItem> arguments) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.methodName = methodName;
@@ -68,13 +95,12 @@ public class NewMethodActionItem extends ActionItem {
                 }
             }
         }
-        if (!blankMethod) {
-            writer.append("new ");
-        }
+        writer.append("new ");
         scriptObject.toString(writer, localData);
         if (!blankMethod) {
             if (methodName instanceof DirectValueActionItem) {
                 if (((DirectValueActionItem) methodName).value == Undefined.INSTANCE) {
+                    //empty
                 } else if ((((DirectValueActionItem) methodName).value instanceof String)
                         && (IdentifiersDeobfuscation.isValidName(false, (String) ((DirectValueActionItem) methodName).value))) {
                     writer.append(".");
@@ -90,7 +116,7 @@ public class NewMethodActionItem extends ActionItem {
                 writer.append("]");
             }
         }
-        writer.spaceBeforeCallParenthesies(arguments.size());
+        writer.spaceBeforeCallParenthesis(arguments.size());
         writer.append("(");
         for (int t = 0; t < arguments.size(); t++) {
             if (t > 0) {
@@ -114,6 +140,24 @@ public class NewMethodActionItem extends ActionItem {
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+        if (isGetter) {
+            ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+            String charset = asGenerator.getCharset();
+
+            String methodNameAsStr = ((DirectValueActionItem) methodName).getAsString();
+
+            return toSourceMerge(
+                    localData, generator,
+                    toSourceCall(localData, generator, arguments),
+                    new ActionPush((Long) (long) 0, charset),
+                    scriptObject,
+                    asGenerator.pushConst("__get__" + methodNameAsStr),
+                    new ActionCallMethod(),
+                    new ActionPush(Undefined.INSTANCE, charset),
+                    new ActionNewMethod()
+            );
+        }
+        
         return toSourceMerge(localData, generator, toSourceCall(localData, generator, arguments), scriptObject, methodName, new ActionNewMethod());
     }
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,7 +17,6 @@
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
-import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
@@ -26,6 +25,7 @@ import com.jpexs.decompiler.flash.action.swf4.ActionPush;
 import com.jpexs.decompiler.flash.action.swf4.RegisterNumber;
 import com.jpexs.decompiler.flash.action.swf5.ActionDefineFunction;
 import com.jpexs.decompiler.flash.action.swf7.ActionDefineFunction2;
+import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
 import com.jpexs.decompiler.graph.CompilationException;
@@ -44,49 +44,125 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import natorder.NaturalOrderComparator;
 
 /**
+ * Function.
  *
  * @author JPEXS
  */
-public class FunctionActionItem extends ActionItem implements BranchStackResistant {
+public class FunctionActionItem extends ActionItem {
 
+    /**
+     * Decompile get/set functions
+     */
     public static final boolean DECOMPILE_GET_SET = true;
 
+    /**
+     * Is getter
+     */
     public boolean isGetter = false;
 
+    /**
+     * Is setter
+     */
     public boolean isSetter = false;
 
+    /**
+     * Actions
+     */
     public List<GraphTargetItem> actions;
 
+    /**
+     * Constants
+     */
     public List<String> constants;
 
+    /**
+     * Function name
+     */
     public String functionName;
 
+    /**
+     * Parameter names
+     */
     public List<String> paramNames;
 
+    /**
+     * Register names
+     */
     public Map<Integer, String> regNames;
 
+    /**
+     * Calculated function name
+     */
     public GraphTargetItem calculatedFunctionName;
 
+    /**
+     * Has eval
+     */
     public boolean hasEval = false;
 
+    /**
+     * Register start
+     */
     private int regStart;
 
+    /**
+     * Variables
+     */
     private List<VariableActionItem> variables;
-    private List<FunctionActionItem> innerFunctions;
 
+    /**
+     * Inner functions
+     */
+    private List<FunctionActionItem> innerFunctions;
+    
+    /**
+     * Parameter positions in the code
+     */
+    public List<Integer> paramPositions;
+
+    /**
+     * Parameter registers
+     */
+    private List<Integer> paramRegisters;
+    
+    /**
+     * Register - this
+     */
     public static final int REGISTER_THIS = 1;
 
+    /**
+     * Register - arguments
+     */
     public static final int REGISTER_ARGUMENTS = 2;
 
+    /**
+     * Register - super
+     */
     public static final int REGISTER_SUPER = 3;
 
+    /**
+     * Register - root
+     */
     public static final int REGISTER_ROOT = 4;
 
+    /**
+     * Register - parent
+     */
     public static final int REGISTER_PARENT = 5;
 
+    /**
+     * Register - global
+     */
     public static final int REGISTER_GLOBAL = 6;
+    
+    
+    
+    
 
     @Override
     public void visit(GraphTargetVisitorInterface visitor) {
@@ -98,15 +174,37 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
 
     }
 
+    /**
+     * Adds variable.
+     * @param variable Variable
+     */
     public void addVariable(VariableActionItem variable) {
         variables.add(variable);
     }
 
+    /**
+     * Constructor.
+     */
     public FunctionActionItem() {
         super(null, null, PRECEDENCE_PRIMARY);
     }
 
-    public FunctionActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, String functionName, List<String> paramNames, Map<Integer, String> regNames, List<GraphTargetItem> actions, List<String> constants, int regStart, List<VariableActionItem> variables, List<FunctionActionItem> innerFunctions, boolean hasEval) {
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param functionName Function name
+     * @param paramNames Parameter names
+     * @param regNames Register names
+     * @param actions Actions
+     * @param constants Constants
+     * @param regStart Register start
+     * @param variables Variables
+     * @param innerFunctions Inner functions
+     * @param hasEval Has eval
+     * @param paramPositions Parameter positions
+     */
+    public FunctionActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, String functionName, List<String> paramNames, Map<Integer, String> regNames, List<GraphTargetItem> actions, List<String> constants, int regStart, List<VariableActionItem> variables, List<FunctionActionItem> innerFunctions, boolean hasEval, List<Integer> paramPositions, List<Integer> paramRegisters) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.actions = actions;
         this.constants = constants;
@@ -117,6 +215,8 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
         this.variables = variables;
         this.innerFunctions = innerFunctions;
         this.hasEval = hasEval;
+        this.paramPositions = paramPositions;
+        this.paramRegisters = paramRegisters;
     }
 
     @Override
@@ -151,7 +251,7 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
             }
 
             if (!IdentifiersDeobfuscation.isValidName(false, fname)) {
-                IdentifiersDeobfuscation.appendObfuscatedIdentifier(fname, writer);
+                IdentifiersDeobfuscation.appendObfuscatedIdentifier(localData.swf, localData.usedDeobfuscations, fname, writer);
             } else {
                 writer.append(fname);
                 //calculatedFunctionName.appendToNoQuotes(writer, localData);
@@ -168,12 +268,12 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
             }
             writer.append(" ");
             if (!IdentifiersDeobfuscation.isValidName(false, fname)) {
-                IdentifiersDeobfuscation.appendObfuscatedIdentifier(fname, writer);
+                IdentifiersDeobfuscation.appendObfuscatedIdentifier(localData.swf, localData.usedDeobfuscations, fname, writer);
             } else {
                 writer.append(fname);
             }
         }
-        writer.spaceBeforeCallParenthesies(paramNames.size());
+        writer.spaceBeforeCallParenthesis(paramNames.size());
         writer.append("(");
 
         Map<String, Integer> n2r = new HashMap<>();
@@ -187,7 +287,11 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
             }
             String pname = paramNames.get(p);
             if (pname == null || pname.isEmpty()) {
-                pname = new RegisterNumber(regStart + p).translate();
+                if (paramRegisters != null) {
+                    pname = new RegisterNumber(paramRegisters.get(p)).translate();
+                } else {
+                    pname = new RegisterNumber(regStart + p).translate();
+                }                
             }
             HighlightData d = getSrcData();
             d.localName = pname;
@@ -197,14 +301,14 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
             d.declaration = true;
 
             if (!IdentifiersDeobfuscation.isValidName(false, pname)) {
-                IdentifiersDeobfuscation.appendObfuscatedIdentifier(pname, writer);
+                IdentifiersDeobfuscation.appendObfuscatedIdentifier(localData.swf, localData.usedDeobfuscations, pname, writer);
             } else {
                 writer.append(pname);
             }
         }
         writer.append(")").startBlock();
 
-        Graph.graphToString(actions, writer, localData);
+        Graph.graphToString(actions, writer, localData);        
 
         writer.endBlock();
         writer.endMethod();
@@ -225,6 +329,8 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
         return false;
     }
 
+    /*
+    NOT COMPILE TIME! This causes problems in simplifyExpressions, etc.
     @Override
     public boolean isCompileTime(Set<GraphTargetItem> dependencies) {
         for (GraphTargetItem a : actions) {
@@ -237,8 +343,7 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
             }
         }
         return true;
-    }
-
+    }*/
     @Override
     public Object getResult() {
         if (!actions.isEmpty()) {
@@ -254,6 +359,10 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
     public boolean needsNewLine() {
         return true;
     }
+
+    public List<VariableActionItem> getVariables() {
+        return variables;
+    }        
 
     private Set<String> getDefinedVariableNames(List<VariableActionItem> variables) {
         Set<String> ret = new HashSet<>();
@@ -279,8 +388,16 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
         }
     }
 
+    public List<FunctionActionItem> getInnerFunctions() {
+        return innerFunctions;
+    }        
+
     @Override
+    @SuppressWarnings("unchecked")            
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+
+        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
 
         Set<String> usedNames = new HashSet<>();
         for (VariableActionItem v : variables) {
@@ -288,7 +405,6 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
         }
 
         List<GraphSourceItem> ret = new ArrayList<>();
-        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
         List<Integer> paramRegs = new ArrayList<>();
         SourceGeneratorLocalData localDataCopy = Helper.deepCopy(localData);
         localDataCopy.inFunction++;
@@ -304,56 +420,60 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
         boolean suppressThisFlag = false;
 
         boolean needsFun2 = false;
-
+        
+        boolean canFun2 = asGenerator.getSwfVersion() >= 7;
+        
         List<String> registerNames = new ArrayList<>();
-        registerNames.add("***** ZERO *****");
-        if (usedNames.contains("this")) {
-            needsFun2 = true;
-            preloadThisFlag = true;
-            registerNames.add("this");
-        } else {
-            suppressThisFlag = true;
-        }
-        if (usedNames.contains("arguments")) {
-            preloadArgumentsFlag = true;
-            needsFun2 = true;
-            registerNames.add("arguments");
-        } else {
-            suppressArgumentsFlag = true;
-        }
-        if (usedNames.contains("super")) {
-            preloadSuperFlag = true;
-            needsFun2 = true;
-            registerNames.add("super");
-        } else {
-            suppressSuperFlag = true;
-        }
+        if (canFun2) {
+            registerNames.add("***** ZERO *****");
+            if (usedNames.contains("this")) {
+                needsFun2 = true;
+                preloadThisFlag = true;
+                registerNames.add("this");
+            } else {
+                suppressThisFlag = true;
+            }
+            if (usedNames.contains("arguments")) {
+                preloadArgumentsFlag = true;
+                needsFun2 = true;
+                registerNames.add("arguments");
+            } else {
+                suppressArgumentsFlag = true;
+            }
+            if (usedNames.contains("super")) {
+                preloadSuperFlag = true;
+                needsFun2 = true;
+                registerNames.add("super");
+            } else {
+                suppressSuperFlag = true;
+            }
 
-        if (usedNames.contains("_root")) {
-            preloadRootFlag = true;
-            needsFun2 = true;
-            registerNames.add("_root");
-        }
-        if (usedNames.contains("_parent")) {
-            preloadParentFlag = true;
-            needsFun2 = true;
-            registerNames.add("_parent");
-        }
-        if (usedNames.contains("_global")) {
-            needsFun2 = true;
-            preloadGlobalFlag = true;
-            registerNames.add("_global");
-        }
-
-        int preloadedNumber = registerNames.size();
-        if (!paramNames.isEmpty()) {
-            needsFun2 = true;
-        }
-        if (localData.inMethod) {
-            //needsFun2 = true;
-        }
-        if (localData.inFunction > 1) {
-            needsFun2 = true;
+            if (usedNames.contains("_root")) {
+                preloadRootFlag = true;
+                needsFun2 = true;
+                registerNames.add("_root");
+            }
+            if (usedNames.contains("_parent")) {
+                preloadParentFlag = true;
+                needsFun2 = true;
+                registerNames.add("_parent");
+            }
+            if (usedNames.contains("_global")) {
+                needsFun2 = true;
+                preloadGlobalFlag = true;
+                registerNames.add("_global");
+            }
+        
+            //int preloadedNumber = registerNames.size();
+            if (!paramNames.isEmpty()) {
+                needsFun2 = true;
+            }
+            if (localData.inMethod) {
+                //needsFun2 = true;
+            }
+            if (localData.inFunction > 1) {
+                needsFun2 = true;
+            }        
         }
 
         //If the function parameter or local variable is used in inner function, 
@@ -372,72 +492,142 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
             getDeeplyUsedVariableNames(topLevelVariableNames, fun, deeplyUsedVariableNames);
         }
 
-        if (needsFun2) {
-            for (int i = 0; i < paramNames.size(); i++) {
-                if (deeplyUsedVariableNames.contains(paramNames.get(i))) {
-                    paramRegs.add(0); //this will be variable, no register
-                } else {
-                    paramRegs.add(registerNames.size());
-                    registerNames.add(paramNames.get(i));
+        for (int i = 0; i < paramNames.size(); i++) {
+            paramRegs.add(0); //0 = use variable, no reg
+        }
+        
+        if (needsFun2 && !hasEval) {
+            String registerNameMask = Configuration.registerNameFormat.get();
+            Pattern registerNamePattern = Pattern.compile(registerNameMask.replace("%d", "(?<regnum>[0-9]+)"));
+            
+            List<String> newRegisterNames = new ArrayList<>();
+            for (VariableActionItem v : variables) {
+                String varName = v.getVariableName();
+                if (v.isDefinition() 
+                        && !registerNames.contains(varName) 
+                        && !paramNames.contains(varName)
+                        && !newRegisterNames.contains(varName)
+                        && !deeplyUsedVariableNames.contains(varName)                        
+                    ) {
+                    Matcher m = registerNamePattern.matcher(varName);
+                    if (m.matches()) {
+                        newRegisterNames.add(varName);                                                  
+                    }
+                }
+            }
+            
+            for (int i = 0; i < paramNames.size(); i++) {    
+                String varName = paramNames.get(i);
+                if (newRegisterNames.contains(varName)) {
+                    continue;
+                }
+                Matcher m = registerNamePattern.matcher(varName);
+                if (m.matches()) {
+                    int regNum = Integer.parseInt(m.group("regnum"));  
+                    
+                    while (registerNames.size() <= regNum) {
+                        registerNames.add("**EMPTY**");
+                    }                   
+                    registerNames.set(regNum, varName);
+                    
+                    paramNames.set(i, "");
+                    paramRegs.set(i, regNum);
+                }
+            }
+            
+            newRegisterNames.sort(new NaturalOrderComparator());
+            
+            int numRegistersBeforeParams = registerNames.size();
+            
+            for (String varName : newRegisterNames) {
+                Matcher m = registerNamePattern.matcher(varName);
+                if (m.matches()) {
+                    int regNum = Integer.parseInt(m.group("regnum"));                    
+                    while (registerNames.size() <= regNum) {
+                        registerNames.add("**EMPTY**");
+                    }                   
+                    registerNames.set(regNum, varName);
+                }
+            }
+            
+            int posReg = numRegistersBeforeParams;
+            for (int i = 0; i < paramNames.size(); i++) {                
+                if (paramRegs.get(i) != 0) {
+                    continue;
+                }
+                if (!deeplyUsedVariableNames.contains(paramNames.get(i))) {
+                    while (posReg < registerNames.size() 
+                            && !registerNames.get(posReg).equals("**EMPTY**")) {
+                        posReg++;
+                    }
+                    while (registerNames.size() <= posReg) {
+                        registerNames.add("**EMPTY**");
+                    }
+
+                    paramRegs.set(i, posReg);                                        
+                    registerNames.set(posReg, paramNames.get(i));
                 }
             }
         }
 
         int regCount = 0;
-        if (actions != null && !actions.isEmpty()) {
-            localDataCopy.inFunction++;
+        
+        localDataCopy.inFunction++;
 
-            for (VariableActionItem v : variables) {
-                String varName = v.getVariableName();
-                GraphTargetItem stored = v.getStoreValue();
-                if (needsFun2) {
-                    if (v.isDefinition() && !registerNames.contains(varName) && !deeplyUsedVariableNames.contains(varName)
-                            && !hasEval) {
-                        registerNames.add(varName);
-                    }
+        
+        for (VariableActionItem v : variables) {
+            String varName = v.getVariableName();
+            GraphTargetItem stored = v.getStoreValue();
+            /*if (needsFun2 && !hasEval) {
+                if (v.isDefinition() && !registerNames.contains(varName) && !deeplyUsedVariableNames.contains(varName)) {
+                    registerNames.add(varName);
                 }
+            }*/
 
-                if (registerNames.contains(varName)) {
-                    if (stored != null) {
-                        v.setBoxedValue(new StoreRegisterActionItem(null, null, new RegisterNumber(registerNames.indexOf(varName), varName), stored, false));
-                    } else {
-                        v.setBoxedValue(new DirectValueActionItem(new RegisterNumber(registerNames.indexOf(varName), varName)));
-                    }
-                } else if (v.isDefinition()) {
-                    v.setBoxedValue(new DefineLocalActionItem(null, null, ((ActionSourceGenerator) generator).pushConstTargetItem(varName), stored));
-                } else if (stored != null) {
-                    v.setBoxedValue(new SetVariableActionItem(null, null, ((ActionSourceGenerator) generator).pushConstTargetItem(varName), stored));
+            if (registerNames.contains(varName)) {
+                if (stored != null) {
+                    v.setBoxedValue(new StoreRegisterActionItem(null, null, new RegisterNumber(registerNames.indexOf(varName), varName), stored, false));
                 } else {
-                    v.setBoxedValue(new GetVariableActionItem(null, null, ((ActionSourceGenerator) generator).pushConstTargetItem(varName)));
+                    v.setBoxedValue(new DirectValueActionItem(new RegisterNumber(registerNames.indexOf(varName), varName)));
                 }
-
+            } else if (v.isDefinition()) {
+                v.setBoxedValue(new DefineLocalActionItem(null, null, ((ActionSourceGenerator) generator).pushConstTargetItem(varName), stored));
+            } else if (stored != null) {
+                v.setBoxedValue(new SetVariableActionItem(null, null, ((ActionSourceGenerator) generator).pushConstTargetItem(varName), stored));
+            } else {
+                v.setBoxedValue(new GetVariableActionItem(null, null, ((ActionSourceGenerator) generator).pushConstTargetItem(varName)));
             }
-            for (int i = 1 /* zero is not preloaded*/; i < registerNames.size(); i++) {
-                localDataCopy.registerVars.put(registerNames.get(i), i);
-            }
 
+        }
+        for (int i = 1 /* zero is not preloaded*/; i < registerNames.size(); i++) {
+            localDataCopy.registerVars.put(registerNames.get(i), i);
+        }
+
+        if (actions != null && !actions.isEmpty()) {
             ret.addAll(asGenerator.toActionList(asGenerator.generate(localDataCopy, actions)));
+        }
+        regCount = registerNames.size();
 
-            regCount = registerNames.size();
-
-            //some temporary registers can exceed variable+param count
-            for (GraphSourceItem a : ret) {
-                if (a instanceof ActionPush) {
-                    ActionPush apu = (ActionPush) a;
-                    for (Object o : apu.values) {
-                        if (o instanceof RegisterNumber) {
-                            RegisterNumber rn = (RegisterNumber) o;
-                            if (rn.number >= regCount) {
-                                regCount++;
-                            }
+        //some temporary registers can exceed variable+param count
+        for (GraphSourceItem a : ret) {
+            if (a instanceof ActionPush) {
+                ActionPush apu = (ActionPush) a;
+                for (Object o : apu.values) {
+                    if (o instanceof RegisterNumber) {
+                        RegisterNumber rn = (RegisterNumber) o;
+                        if (rn.number >= regCount) {
+                            regCount++;
                         }
                     }
                 }
             }
+        }        
+        int len = Action.actionsToBytes(asGenerator.toActionList(ret), false, asGenerator.getSwfVersion()).length;
+        if (len > 0xFFFF) {
+            throw new CompilationException("Function body is too large to fit into UI16.", line);
         }
-        int len = Action.actionsToBytes(asGenerator.toActionList(ret), false, SWF.DEFAULT_VERSION).length;
-        if (!needsFun2 && paramNames.isEmpty()) {
-            ret.add(0, new ActionDefineFunction(functionName, paramNames, len, SWF.DEFAULT_VERSION));
+        if (!needsFun2) {
+            ret.add(0, new ActionDefineFunction(functionName, paramNames, len, charset));
         } else {
             ret.add(0, new ActionDefineFunction2(functionName,
                     preloadParentFlag,
@@ -449,7 +639,7 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
                     suppressThisFlag,
                     preloadThisFlag,
                     preloadGlobalFlag,
-                    regCount, len, SWF.DEFAULT_VERSION, paramNames, paramRegs));
+                    regCount, len, paramNames, paramRegs, charset));
         }
 
         return ret;

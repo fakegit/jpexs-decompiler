@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.alchemy;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -30,11 +31,15 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.List;
 
 /**
+ * sf64 instruction - Store 64-bit float to domain memory.
  *
  * @author JPEXS
  */
 public class Sf64Ins extends InstructionDefinition implements AlchemyTypeIns {
 
+    /**
+     * Constructor
+     */
     public Sf64Ins() {
         super(0x3E, "sf64", new int[]{}, true, AVM2InstructionFlag.DOMAIN_MEMORY);
     }
@@ -57,7 +62,7 @@ public class Sf64Ins extends InstructionDefinition implements AlchemyTypeIns {
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
         GraphTargetItem ofs = stack.pop();
         GraphTargetItem value = stack.pop();
-        output.add(new AlchemyStoreAVM2Item(ins, localData.lineStartInstruction, value, ofs, "f", 64));
+        stack.addToOutput(new AlchemyStoreAVM2Item(ins, localData.lineStartInstruction, value, ofs, "f", 64));
     }
 
     @Override

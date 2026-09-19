@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -26,6 +27,8 @@ import com.jpexs.helpers.ByteArrayRange;
 import java.io.IOException;
 
 /**
+ * DefineShape2 tag - defines shape. Extends functionality of DefineShape.
+ * Adds more than 255 styles in style list, multiple style lists.
  *
  * @author JPEXS
  */
@@ -39,7 +42,7 @@ public class DefineShape2Tag extends ShapeTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineShape2Tag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -69,7 +72,7 @@ public class DefineShape2Tag extends ShapeTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -81,5 +84,10 @@ public class DefineShape2Tag extends ShapeTag {
     @Override
     public int getShapeNum() {
         return 2;
+    }
+
+    @Override
+    public int getWindingRule() {
+        return WIND_EVEN_ODD;
     }
 }

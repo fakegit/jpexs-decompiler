@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,15 +31,30 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Construct super.
  *
  * @author JPEXS
  */
 public class ConstructSuperAVM2Item extends AVM2Item {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
+    /**
+     * Arguments
+     */
     public List<GraphTargetItem> args;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     * @param args Arguments
+     */
     public ConstructSuperAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, List<GraphTargetItem> args) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.object = object;
@@ -56,13 +71,13 @@ public class ConstructSuperAVM2Item extends AVM2Item {
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         if (!object.toString().equals("this")) {
             object.toString(writer, localData);
-            writer.append(".");
+            writer.allowWrapHere().append(".");
         }
-        writer.spaceBeforeCallParenthesies(args.size());
+        writer.spaceBeforeCallParenthesis(args.size());
         writer.append("super(");
         for (int a = 0; a < args.size(); a++) {
             if (a > 0) {
-                writer.append(",");
+                writer.allowWrapHere().append(",");
             }
             args.get(a).toString(writer, localData);
         }

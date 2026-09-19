@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,16 +16,66 @@
  */
 package com.jpexs.decompiler.flash;
 
+import com.jpexs.decompiler.graph.GraphPart;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.SecondPassData;
+import com.jpexs.helpers.Reference;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
+ * Base local data
  *
  * @author JPEXS
  */
 public abstract class BaseLocalData {
 
-    public GraphSourceItem lineStartInstruction;
+    /**
+     * Line start instruction
+     */
+    public GraphSourceItem lineStartInstruction;   
 
+    /**
+     * Second pass data
+     */
     public SecondPassData secondPassData = null;
+    
+    /**
+     * SWF version
+     */
+    public int swfVersion = -1;
+    
+    /**
+     * Used deobfuscations
+     */
+    public Set<String> usedDeobfuscations = new LinkedHashSet<>();
+
+    /**
+     * Max temp index
+     */
+    public Reference<Integer> maxTempIndex = new Reference<>(0);
+    
+    /**
+     * Whether goto statements were used
+     */
+    public Reference<Boolean> gotosUsed = new Reference<>(false);   
+
+    /**
+     * Switch cases
+     */
+    public List<List<GraphPart>> switchCases = new ArrayList<>();
+    
+    /**
+     * Switch breaks
+     */
+    public List<GraphPart> switchBreaks = new ArrayList<>();
+    
+    /**
+     * Constructor.
+     */
+    public BaseLocalData() {
+    }
 }

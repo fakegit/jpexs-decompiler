@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,17 +12,22 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import java.io.IOException;
 
 /**
+ * Exception thrown when end of stream is reached.
  *
  * @author JPEXS
  */
 public class EndOfStreamException extends IOException {
 
+    /**
+     * Constructs a new EndOfStreamException.
+     */
     public EndOfStreamException() {
         super("Premature end of the stream reached");
     }

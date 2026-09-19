@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,22 +18,38 @@ package com.jpexs.decompiler.flash.gui;
 
 import com.jpexs.debugger.flash.DebuggerCommands;
 import com.jpexs.decompiler.flash.ApplicationInfo;
+import com.jpexs.decompiler.flash.Bundle;
+import com.jpexs.decompiler.flash.OpenableSourceInfo;
 import com.jpexs.decompiler.flash.SWF;
-import com.jpexs.decompiler.flash.SWFBundle;
-import com.jpexs.decompiler.flash.SWFSourceInfo;
+import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.configuration.ConfigurationItemChangeListener;
 import com.jpexs.decompiler.flash.console.ContextMenuTools;
+import com.jpexs.decompiler.flash.exporters.swf.SwfFlashDevelopExporter;
+import com.jpexs.decompiler.flash.exporters.swf.SwfIntelliJIdeaExporter;
+import com.jpexs.decompiler.flash.exporters.swf.SwfVsCodeExporter;
 import com.jpexs.decompiler.flash.gui.debugger.DebuggerTools;
 import com.jpexs.decompiler.flash.gui.helpers.CheckResources;
+import com.jpexs.decompiler.flash.gui.tagtree.TagTreeModel;
 import com.jpexs.decompiler.flash.search.ScriptSearchResult;
 import com.jpexs.decompiler.flash.tags.ABCContainerTag;
+import com.jpexs.decompiler.flash.tags.DefineBinaryDataTag;
+import com.jpexs.decompiler.flash.tags.DefineBitsLossless2Tag;
+import com.jpexs.decompiler.flash.tags.DefineFont3Tag;
+import com.jpexs.decompiler.flash.tags.DefineMorphShape2Tag;
+import com.jpexs.decompiler.flash.tags.DefineShape4Tag;
+import com.jpexs.decompiler.flash.tags.DefineSoundTag;
+import com.jpexs.decompiler.flash.tags.DefineSpriteTag;
+import com.jpexs.decompiler.flash.tags.DefineVideoStreamTag;
+import com.jpexs.decompiler.flash.treeitems.Openable;
+import com.jpexs.decompiler.flash.treeitems.OpenableList;
+import com.jpexs.decompiler.flash.treeitems.TreeItem;
 import com.jpexs.helpers.ByteArrayRange;
+import com.jpexs.helpers.Cache;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.utf8.Utf8Helper;
 import com.sun.jna.Platform;
 import java.awt.BorderLayout;
-import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.KeyEventDispatcher;
@@ -51,8 +67,10 @@ import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.logging.Level;
@@ -62,10 +80,10 @@ import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JEditorPane;
 import javax.swing.JFrame;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 
 /**
- *
  * @author JPEXS
  */
 public abstract class MainFrameMenu implements MenuBuilder {
@@ -74,9 +92,11 @@ public abstract class MainFrameMenu implements MenuBuilder {
 
     private KeyEventDispatcher keyEventDispatcher;
 
-    private SWF swf;
+    private Openable openable;
 
     private ConfigurationItemChangeListener<Boolean> configListenerAutoDeobfuscate;
+
+    private ConfigurationItemChangeListener<Boolean> configListenerFlattenASPackages;
 
     private ConfigurationItemChangeListener<Boolean> configListenerSimplifyExpressions;
 
@@ -89,7 +109,8 @@ public abstract class MainFrameMenu implements MenuBuilder {
     //private ConfigurationItemChangeListener<Boolean> configListenerCacheOnDisk;
     private ConfigurationItemChangeListener<Boolean> configListenerGotoMainClassOnStartup;
 
-    private ConfigurationItemChangeListener<Boolean> configListenerAutoRenameIdentifiers;
+    //private ConfigurationItemChangeListener<Boolean> configListenerAutoRenameIdentifiers;
+    private ConfigurationItemChangeListener<Boolean> configListenerAutoDeobfuscateIdentifiers;
 
     private ConfigurationItemChangeListener<Boolean> configListenerAutoOpenLoadedSWFs;
 
@@ -102,15 +123,9 @@ public abstract class MainFrameMenu implements MenuBuilder {
 
     protected final Map<String, ActionListener> menuActions = new HashMap<>();
 
-    /*public boolean isInternalFlashViewerSelected() {
-        return isMenuChecked("/settings/internalViewer"); //miInternalViewer.isSelected();
-    }*/
-    private final boolean externalFlashPlayerUnavailable;
-
-    public MainFrameMenu(MainFrame mainFrame, boolean externalFlashPlayerUnavailable) {
+    public MainFrameMenu(MainFrame mainFrame) {
         registerHotKeys();
         this.mainFrame = mainFrame;
-        this.externalFlashPlayerUnavailable = externalFlashPlayerUnavailable;
     }
 
     protected String translate(String key) {
@@ -121,72 +136,126 @@ public abstract class MainFrameMenu implements MenuBuilder {
         if (Main.isWorking()) {
             return false;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return false;
+        }
 
         Main.openFileDialog();
         return true;
     }
 
-    private boolean saveSwf(SWF swf) {
+    private boolean saveOpenable(Openable openable) {
         boolean saved = false;
-        if (swf != null) {
-            if (swf.swfList != null && swf.swfList.isBundle()) {
-                File savedFile = new File(swf.swfList.sourceInfo.getFile());
+        if (openable != null) {
+            if (openable.getOpenableList() != null && openable.getOpenableList().isBundle()) {
+                File savedFile = new File(openable.getOpenableList().sourceInfo.getFile());
                 Main.startSaving(savedFile);
-                SWFBundle bundle = swf.swfList.bundle;
+                Bundle bundle = openable.getOpenableList().bundle;
                 if (!bundle.isReadOnly()) {
+
+                    if (openable instanceof SWF) {
+                        SWF swf = (SWF) openable;
+                        swf.saveNestedDefineBinaryData();
+                    }
+
                     ByteArrayOutputStream baos = new ByteArrayOutputStream();
                     try {
-                        swf.saveTo(baos);
-                        saved = bundle.putSWF(swf.getFileTitle(), new ByteArrayInputStream(baos.toByteArray()));
+                        openable.saveTo(baos);
+                        saved = bundle.putOpenable(openable.getFileTitle(), new ByteArrayInputStream(baos.toByteArray()));
                     } catch (IOException ex) {
                         Logger.getLogger(MainFrameMenu.class.getName()).log(Level.SEVERE, "Cannot save SWF", ex);
                     }
+                } else {
+                    ViewMessages.showMessageDialog(mainFrame.getWindow(), translate("error.readonly.cannotSave"), translate("error"), JOptionPane.ERROR_MESSAGE);
                 }
                 Main.stopSaving(savedFile);
-            } else if (swf.binaryData != null) {
+            } else if ((openable instanceof SWF) && ((SWF) openable).binaryData != null) {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 try {
+                    SWF swf = (SWF) openable;
+                    swf.saveNestedDefineBinaryData();
                     swf.saveTo(baos);
-                    swf.binaryData.binaryData = new ByteArrayRange(baos.toByteArray());
+                    byte[] data = baos.toByteArray();
+                    swf.binaryData.setDataBytes(new ByteArrayRange(data));
                     swf.binaryData.setModified(true);
-                    saved = saveSwf(swf.binaryData.getSwf()); //save parent swf                   
+                    swf.binaryData.getTopLevelBinaryData().pack();
+                    saved = saveOpenable(swf.binaryData.getSwf()); //save parent swf                   
                 } catch (IOException ex) {
                     Logger.getLogger(MainFrameMenu.class.getName()).log(Level.SEVERE, "Cannot save SWF", ex);
                 }
-            } else if (swf.getFile() == null) {
-                saved = saveAs(swf, SaveFileMode.SAVEAS);
+            } else if (openable.getFile() == null) {
+                saved = saveAs(openable, SaveFileMode.SAVEAS);
             } else {
                 try {
-                    Main.saveFile(swf, swf.getFile());
+                    Main.saveFile(openable, openable.getFile());
                     saved = true;
                 } catch (Exception | OutOfMemoryError | StackOverflowError ex) {
                     Main.handleSaveError(ex);
                 }
             }
             if (saved) {
-                swf.clearModified();
-                mainFrame.getPanel().refreshTree(swf);
+                openable.clearModified();
+                mainFrame.getPanel().refreshTree(openable);
             }
         }
         return saved;
+    }
+
+    protected void newActionPerformed(ActionEvent evt) {
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+        Main.newFile();
     }
 
     protected boolean saveActionPerformed(ActionEvent evt) {
         if (Main.isWorking()) {
             return false;
         }
-        return saveSwf(swf);
+        if (mainFrame.getPanel().checkEdited()) {
+            return false;
+        }
+        return saveOpenable(openable);
+    }
+
+    protected boolean saveAllActionPerformed(ActionEvent evt) {
+        if (Main.isWorking()) {
+            return false;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return false;
+        }
+        List<OpenableList> openableLists = mainFrame.getPanel().getSwfs();
+        List<Openable> allOpenables = new ArrayList<>();
+        for (OpenableList list : openableLists) {
+            for (Openable openable : list.items) {
+                allOpenables.add(openable);
+            }
+        }
+        for (Openable openable : allOpenables) {
+            if (openable.isModified()) {
+                if (!saveOpenable(openable)) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     protected boolean saveAsActionPerformed(ActionEvent evt) {
         if (Main.isWorking()) {
             return false;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return false;
+        }
 
-        if (swf != null) {
-            if (saveAs(swf, SaveFileMode.SAVEAS)) {
-                if (swf.swfList != null) { //binarydata won't clear modified on saveas
-                    swf.clearModified();
+        if (openable != null) {
+            if (saveAs(openable, SaveFileMode.SAVEAS)) {
+                if (openable.getOpenableList() != null) { //binarydata won't clear modified on saveas                    
+                    if (!isSwfReadOnly(openable)) {
+                        openable.clearModified();
+                    }
                 }
             }
 
@@ -196,11 +265,15 @@ public abstract class MainFrameMenu implements MenuBuilder {
         return false;
     }
 
-    private boolean saveAs(SWF swf, SaveFileMode mode) {
+    private boolean isSwfReadOnly(Openable openable) {
+        return openable.getOpenableList() != null && openable.getOpenableList().bundle != null && openable.getOpenableList().bundle.isReadOnly();
+    }
+
+    private boolean saveAs(Openable openable, SaveFileMode mode) {
         View.checkAccess();
 
-        if (Main.saveFileDialog(swf, mode)) {
-            updateComponents(swf);
+        if (Main.saveFileDialog(openable, mode)) {
+            updateComponents(openable);
             return true;
         }
         return false;
@@ -210,9 +283,28 @@ public abstract class MainFrameMenu implements MenuBuilder {
         if (Main.isWorking()) {
             return;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
 
-        if (swf != null) {
-            saveAs(swf, SaveFileMode.EXE);
+        if (openable != null) {
+            saveAs(openable, SaveFileMode.EXE);
+        }
+    }
+
+    private void enumerateListsToClose(Set<OpenableList> listsToClose, Openable openable, List<SWF> binaryDataClosedSwfs) {
+        if (openable instanceof SWF) {
+            SWF swf = (SWF) openable;
+            if (swf.binaryData != null) {
+                // embedded swf
+                swf.binaryData.setInnerSwf(null);
+                swf.clearTagSwfs();
+                binaryDataClosedSwfs.add(swf);
+            } else {
+                listsToClose.add(swf.openableList);
+            }
+        } else if (openable != null) {
+            listsToClose.add(openable.getOpenableList());
         }
     }
 
@@ -220,52 +312,164 @@ public abstract class MainFrameMenu implements MenuBuilder {
         if (Main.isWorking()) {
             return;
         }
-
-        if (swf == null) {
+        if (mainFrame.getPanel().checkEdited()) {
             return;
         }
+        Set<OpenableList> listsToClose = new LinkedHashSet<>();
+        List<SWF> binaryDataClosedSwfs = new ArrayList<>();
 
-        Main.closeFile(swf.swfList);
+        if (mainFrame.getPanel().getCurrentView() == MainPanel.VIEW_EASY) {
+            Openable itemOpenable = mainFrame.getPanel().easyPanel.getSwf();
+            enumerateListsToClose(listsToClose, itemOpenable, binaryDataClosedSwfs);
+        } else {
+            for (TreeItem item : mainFrame.getPanel().getCurrentTree().getSelected()) {
+                if (item instanceof OpenableList) {
+                    listsToClose.add((OpenableList) item);
+                } else {
+                    Openable itemOpenable = item.getOpenable();
+                    enumerateListsToClose(listsToClose, itemOpenable, binaryDataClosedSwfs);
+                }
+            }
+        }
+        if (openable != null && !binaryDataClosedSwfs.contains(openable)) {
+            enumerateListsToClose(listsToClose, openable, binaryDataClosedSwfs);
+        }
+        openable = null;
+
+        for (OpenableList list : listsToClose) {
+            Main.closeFile(list);
+        }
+        mainFrame.getPanel().refreshTree();
+
+        Timer timer = new Timer();
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                System.gc();
+            }
+        }, 1000);
     }
 
     protected boolean closeAllActionPerformed(ActionEvent evt) {
         if (Main.isWorking()) {
             return false;
         }
-
-        if (swf != null) {
-            return Main.closeAll();
+        if (mainFrame.getPanel().checkEdited()) {
+            return false;
         }
 
-        return false;
+        boolean result = Main.closeAll(false);
+        if (result) {
+            openable = null;
+            Timer timer = new Timer();
+            timer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    System.gc();
+                }
+            }, 1000);
+        }
+        return result;
     }
 
     protected void importTextActionPerformed(ActionEvent evt) {
         if (Main.isWorking()) {
             return;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
 
-        mainFrame.getPanel().importText(swf);
+        mainFrame.getPanel().importText((SWF) openable);
     }
 
     protected void importScriptActionPerformed(ActionEvent evt) {
         if (Main.isWorking()) {
             return;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
 
-        mainFrame.getPanel().importScript(swf);
+        mainFrame.getPanel().importScript(openable);
+    }
+
+    protected void importImagesActionPerformed(ActionEvent evt) {
+        if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+        mainFrame.getPanel().importImage((SWF) openable);
+    }
+
+    protected void importShapesActionPerformed(ActionEvent evt) {
+        if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+        mainFrame.getPanel().importShape((SWF) openable, false);
+    }
+
+    protected void importShapesNoFillActionPerformed(ActionEvent evt) {
+        if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+        mainFrame.getPanel().importShape((SWF) openable, true);
+    }
+
+    protected void importSpritesActionPerformed(ActionEvent evt) {
+        if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+        mainFrame.getPanel().importSprite((SWF) openable);
+    }
+
+    protected void importMoviesActionPerformed(ActionEvent evt) {
+        if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+        mainFrame.getPanel().importMovie((SWF) openable);
+    }
+
+    protected void importSoundsActionPerformed(ActionEvent evt) {
+        if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+        mainFrame.getPanel().importSound((SWF) openable);
     }
 
     protected void importSymbolClassActionPerformed(ActionEvent evt) {
         if (Main.isWorking()) {
             return;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
 
-        mainFrame.getPanel().importSymbolClass(swf);
+        mainFrame.getPanel().importSymbolClass((SWF) openable);
     }
 
     protected boolean exportAllActionPerformed(ActionEvent evt) {
         if (Main.isWorking()) {
+            return false;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
             return false;
         }
 
@@ -276,6 +480,9 @@ public abstract class MainFrameMenu implements MenuBuilder {
         if (Main.isWorking()) {
             return false;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return false;
+        }
 
         return export(true);
     }
@@ -283,36 +490,133 @@ public abstract class MainFrameMenu implements MenuBuilder {
     protected boolean export(boolean onlySelected) {
         View.checkAccess();
 
-        if (swf != null) {
-            mainFrame.getPanel().export(onlySelected);
+        if (openable != null) {
+            mainFrame.getPanel().export(onlySelected, getSelectedOrCurrentOpenable());
             return true;
         }
 
         return false;
     }
 
+    protected void exportFlashDevelopActionPerformed(ActionEvent evt) {
+        if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+
+        mainFrame.getPanel().exportFlashDevelop((SWF) openable);
+    }
+
+    protected void exportIdeaActionPerformed(ActionEvent evt) {
+        if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+
+        mainFrame.getPanel().exportIdea((SWF) openable);
+    }
+
+    protected void exportVsCodeActionPerformed(ActionEvent evt) {
+        if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+
+        mainFrame.getPanel().exportVsCode((SWF) openable);
+    }
+
+    protected void exportJavaActionPerformed(ActionEvent evt) {
+        if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+
+        List<TreeItem> items = new ArrayList<>();
+        items.add(openable);
+
+        mainFrame.getPanel().exportJavaSource(items);
+    }
+
+    protected void exportSwcActionPerformed(ActionEvent evt) {
+        if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+
+        Main.saveSwc((SWF) openable);
+    }
+
+    protected void exportXamlActionPerformed(ActionEvent evt) {
+        if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+
+        mainFrame.getPanel().exportXaml((SWF) openable);
+    }
+
     protected void exportFlaActionPerformed(ActionEvent evt) {
         if (Main.isWorking()) {
             return;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
 
-        mainFrame.getPanel().exportFla(swf);
+        mainFrame.getPanel().exportFla((SWF) openable);
     }
 
+    protected void createTagFromFile(Class<?> cls, TreeNodeType treeNodeType) {
+        if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+        
+        mainFrame.getPanel().createTagFromFile((SWF) openable, cls, treeNodeType);
+    } 
+    
     protected void importXmlActionPerformed(ActionEvent evt) {
         if (Main.isWorking()) {
             return;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
 
-        mainFrame.getPanel().importSwfXml();
+        mainFrame.getPanel().importSwfXml(getSelectedOrCurrentOpenable());
     }
 
     protected void exportXmlActionPerformed(ActionEvent evt) {
         if (Main.isWorking()) {
             return;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
 
-        mainFrame.getPanel().exportSwfXml();
+        mainFrame.getPanel().exportSwfXml(getSelectedOrCurrentOpenable());
+    }
+
+    private List<TreeItem> getSelectedOrCurrentOpenable() {
+        List<TreeItem> sel = mainFrame.getPanel().getCurrentTree().getSelected();
+        if (sel.isEmpty() && openable != null) {
+            sel.add(openable);
+        }
+        return sel;
     }
 
     protected boolean searchActionPerformed(ActionEvent evt) {
@@ -330,8 +634,8 @@ public abstract class MainFrameMenu implements MenuBuilder {
     protected boolean search(ActionEvent evt, Boolean searchInText) {
         View.checkAccess();
 
-        if (swf != null) {
-            mainFrame.getPanel().searchInActionScriptOrText(searchInText, swf, false);
+        if (openable != null) {
+            mainFrame.getPanel().searchInActionScriptOrText(searchInText, openable, false);
             return true;
         }
 
@@ -339,20 +643,12 @@ public abstract class MainFrameMenu implements MenuBuilder {
     }
 
     protected boolean replaceActionPerformed(ActionEvent evt) {
-        if (swf != null) {
+        if (openable != null) {
             mainFrame.getPanel().replaceText();
             return true;
         }
 
         return false;
-    }
-
-    protected void showProxyActionPerformed(ActionEvent evt) {
-        if (Main.isWorking()) {
-            return;
-        }
-
-        Main.showProxy();
     }
 
     protected boolean clearLog(ActionEvent evt) {
@@ -364,8 +660,11 @@ public abstract class MainFrameMenu implements MenuBuilder {
         if (Main.isWorking()) {
             return;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
 
-        mainFrame.getPanel().renameOneIdentifier(swf);
+        mainFrame.getPanel().renameOneIdentifier((SWF) openable);
     }
 
     protected void renameColliding(ActionEvent evt) {
@@ -374,8 +673,11 @@ public abstract class MainFrameMenu implements MenuBuilder {
         if (Main.isWorking()) {
             return;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
 
-        mainFrame.getPanel().renameColliding(swf);
+        mainFrame.getPanel().renameColliding(openable);
     }
 
     protected void renameInvalidIdentifiers(ActionEvent evt) {
@@ -384,12 +686,18 @@ public abstract class MainFrameMenu implements MenuBuilder {
         if (Main.isWorking()) {
             return;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
 
-        mainFrame.getPanel().renameIdentifiers(swf);
+        mainFrame.getPanel().renameIdentifiers(openable);
     }
 
     protected void deobfuscationActionPerformed(ActionEvent evt) {
         if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
             return;
         }
 
@@ -400,6 +708,9 @@ public abstract class MainFrameMenu implements MenuBuilder {
         if (Main.isWorking()) {
             return;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
 
         AbstractButton button = (AbstractButton) evt.getSource();
         boolean selected = button.isSelected();
@@ -407,7 +718,7 @@ public abstract class MainFrameMenu implements MenuBuilder {
     }
 
     protected void switchDebugger() {
-        DebuggerTools.switchDebugger(swf);
+        DebuggerTools.switchDebugger((SWF) openable);
     }
 
     protected void debuggerShowLogActionPerformed(ActionEvent evt) {
@@ -415,7 +726,7 @@ public abstract class MainFrameMenu implements MenuBuilder {
     }
 
     protected void debuggerInjectLoader(ActionEvent evt) {
-        DebuggerTools.injectDebugLoader(swf);
+        DebuggerTools.injectDebugLoader((SWF) openable);
         refreshDecompiled();
     }
 
@@ -424,7 +735,7 @@ public abstract class MainFrameMenu implements MenuBuilder {
         rtd.setVisible(true);
         if (rtd.getValue() != null) {
             String fname = rtd.getValue();
-            DebuggerTools.replaceTraceCalls(swf, fname);
+            DebuggerTools.replaceTraceCalls((SWF) openable, fname);
             mainFrame.getPanel().refreshDecompiled();
             Configuration.lastDebuggerReplaceFunction.set(rtd.getValue());
         }
@@ -438,12 +749,22 @@ public abstract class MainFrameMenu implements MenuBuilder {
         Main.searchResultsStorage.clear();
     }
 
+    protected void clearPinnedItemsActionPerformed(ActionEvent evt) {
+        mainFrame.getPanel().destroyPins();
+    }
+
     protected void removeNonScripts() {
-        mainFrame.getPanel().removeNonScripts(swf);
+        if (openable instanceof SWF) {
+            return;
+        }
+        mainFrame.getPanel().removeNonScripts((SWF) openable);
     }
 
     protected void removeExceptSelected() {
-        mainFrame.getPanel().removeExceptSelected(swf);
+        if (openable instanceof SWF) {
+            return;
+        }
+        mainFrame.getPanel().removeExceptSelected((SWF) openable);
     }
 
     protected void refreshDecompiled() {
@@ -505,6 +826,9 @@ public abstract class MainFrameMenu implements MenuBuilder {
         if (Main.isWorking()) {
             return;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
 
         if (!Main.checkForUpdates()) {
             ViewMessages.showMessageDialog(Main.getDefaultMessagesComponent(), translate("update.check.nonewversion"), translate("update.check.title"), JOptionPane.INFORMATION_MESSAGE);
@@ -513,6 +837,9 @@ public abstract class MainFrameMenu implements MenuBuilder {
 
     protected void helpUsActionPerformed(ActionEvent evt) {
         if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
             return;
         }
 
@@ -526,6 +853,9 @@ public abstract class MainFrameMenu implements MenuBuilder {
         if (Main.isWorking()) {
             return;
         }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
 
         String homePageURL = ApplicationInfo.PROJECT_PAGE;
         if (!View.navigateUrl(homePageURL)) {
@@ -533,8 +863,25 @@ public abstract class MainFrameMenu implements MenuBuilder {
         }
     }
 
+    protected void wikiActionPerformed(ActionEvent evt) {
+        if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
+
+        String wikiURL = ApplicationInfo.WIKI_PAGE;
+        if (!View.navigateUrl(wikiURL)) {
+            ViewMessages.showMessageDialog(Main.getDefaultMessagesComponent(), translate("message.wiki").replace("%url%", wikiURL));
+        }
+    }
+
     protected void aboutActionPerformed(ActionEvent evt) {
         if (Main.isWorking()) {
+            return;
+        }
+        if (mainFrame.getPanel().checkEdited()) {
             return;
         }
 
@@ -542,16 +889,31 @@ public abstract class MainFrameMenu implements MenuBuilder {
     }
 
     protected boolean reloadActionPerformed(ActionEvent evt) {
-        if (swf != null) {
+        if (mainFrame.getPanel().checkEdited()) {
+            return false;
+        }
+        if (openable != null) {
             if (!Configuration.showCloseConfirmation.get() || ViewMessages.showConfirmDialog(Main.getDefaultMessagesComponent(), translate("message.confirm.reload"), translate("message.warning"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION) {
-                Main.reloadFile(swf.swfList);
+                if (openable.getOpenableList() == null) {
+                    if (openable instanceof SWF) {
+                        SWF swf = (SWF) openable;
+                        if (swf.binaryData != null) {
+                            mainFrame.getPanel().loadFromBinaryTag(swf.binaryData);
+                        }
+                    }
+                } else {
+                    Main.reloadFile(openable.getOpenableList());
+                }
             }
         }
         return true;
     }
 
     protected boolean reloadAllActionPerformed(ActionEvent evt) {
-        if (swf != null) {
+        if (mainFrame.getPanel().checkEdited()) {
+            return false;
+        }
+        if (openable != null) {
             if (!Configuration.showCloseConfirmation.get() || ViewMessages.showConfirmDialog(Main.getDefaultMessagesComponent(), translate("message.confirm.reloadAll"), translate("message.warning"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION) {
                 Main.reloadApp();
             }
@@ -564,18 +926,21 @@ public abstract class MainFrameMenu implements MenuBuilder {
     }
 
     protected void advancedSettingsActionPerformed(ActionEvent evt) {
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
         Main.advancedSettings();
+    }
+
+    protected void solEditorActionPerformed(ActionEvent evt) {
+        Main.openSolEditor();
     }
 
     protected void searchMemoryActionPerformed(ActionEvent evt) {
         Main.loadFromMemory();
     }
 
-    protected void searchCacheActionPerformed(ActionEvent evt) {
-        Main.loadFromCache();
-    }
-
-    protected void gotoDucumentClassOnStartupActionPerformed(ActionEvent evt) {
+    protected void gotoDocumentClassOnStartupActionPerformed(ActionEvent evt) {
         AbstractButton button = (AbstractButton) evt.getSource();
         boolean selected = button.isSelected();
 
@@ -589,11 +954,31 @@ public abstract class MainFrameMenu implements MenuBuilder {
         Configuration.autoOpenLoadedSWFs.set(selected);
     }
 
+    protected void flattenASPackagesActionPerformed(ActionEvent evt) {
+        AbstractButton button = (AbstractButton) evt.getSource();
+        boolean selected = button.isSelected();
+
+        Configuration.flattenASPackages.set(selected);
+    }
+
     protected void autoRenameIdentifiersActionPerformed(ActionEvent evt) {
         AbstractButton button = (AbstractButton) evt.getSource();
         boolean selected = button.isSelected();
 
-        Configuration.autoRenameIdentifiers.set(selected);
+        if (!selected || ViewMessages.showConfirmDialog(Main.getDefaultMessagesComponent(), translate("message.confirm.autoRenameIdentifiers") + "\r\n" + translate("message.confirm.on"), translate("message.confirm"), JOptionPane.OK_CANCEL_OPTION, Configuration.warningRenameIdentifiers, JOptionPane.OK_OPTION) == JOptionPane.OK_OPTION) {
+            Configuration.autoRenameIdentifiers.set(selected);
+            mainFrame.getPanel().autoDeobfuscateChanged();
+        } else {
+            button.setSelected(Configuration.autoRenameIdentifiers.get());
+        }
+    }
+
+    protected void autoDeobfuscateIdentifiersActionPerformed(ActionEvent evt) {
+        AbstractButton button = (AbstractButton) evt.getSource();
+        boolean selected = button.isSelected();
+
+        Configuration.autoDeobfuscateIdentifiers.set(selected);
+        mainFrame.getPanel().autoDeobfuscateChanged();
     }
 
     /*protected void cacheOnDiskActionPerformed(ActionEvent evt) {
@@ -608,6 +993,9 @@ public abstract class MainFrameMenu implements MenuBuilder {
      }
      }*/
     protected void setLanguageActionPerformed(ActionEvent evt) {
+        if (mainFrame.getPanel().checkEdited()) {
+            return;
+        }
         new SelectLanguageDialog(Main.getDefaultDialogsOwner()).display();
     }
 
@@ -637,7 +1025,7 @@ public abstract class MainFrameMenu implements MenuBuilder {
         }, 1000); // It takes some time registry change to apply
     }
 
-    protected void gotoDucumentClassActionPerformed(ActionEvent evt) {
+    protected void gotoDocumentClassActionPerformed(ActionEvent evt) {
         mainFrame.getPanel().gotoDocumentClass(mainFrame.getPanel().getCurrentSwf());
     }
 
@@ -678,7 +1066,7 @@ public abstract class MainFrameMenu implements MenuBuilder {
         AbstractButton button = (AbstractButton) evt.getSource();
         boolean selected = button.isSelected();
 
-        if (ViewMessages.showConfirmDialog(Main.getDefaultMessagesComponent(), translate("message.confirm.autodeobfuscate") + "\r\n" + (selected ? translate("message.confirm.on") : translate("message.confirm.off")), translate("message.confirm"), JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) {
+        if (ViewMessages.showConfirmDialog(Main.getDefaultMessagesComponent(), translate("message.confirm.autodeobfuscate") + "\r\n" + (selected ? translate("message.confirm.on") : translate("message.confirm.off")), translate("message.confirm"), JOptionPane.OK_CANCEL_OPTION, Configuration.warningDeobfuscation, JOptionPane.OK_OPTION) == JOptionPane.OK_OPTION) {
             Configuration.autoDeobfuscate.set(selected);
             mainFrame.getPanel().autoDeobfuscateChanged();
         } else {
@@ -696,86 +1084,173 @@ public abstract class MainFrameMenu implements MenuBuilder {
     }
 
     public void updateComponents() {
-        updateComponents(swf);
+        updateComponents(openable);
     }
 
-    public void updateComponents(SWF swf) {
-        this.swf = swf;
+    public void updateComponents(Openable openable) {
+        this.openable = openable;
         boolean isRunning = Main.isRunning();
         boolean isDebugRunning = Main.isDebugRunning();
         boolean isDebugPaused = Main.isDebugPaused();
+        boolean isListening = Main.isListening();
+        boolean isSessionConnected = Main.isSessionConnected();
 
         boolean isRunningOrDebugging = isRunning || isDebugRunning;
 
-        boolean swfSelected = swf != null;
+        SWF swf = (openable instanceof SWF) ? (SWF) openable : null;
+        boolean openableSelected = openable != null;
+        boolean swfSelected = openable instanceof SWF;
+        boolean abcSelected = openable instanceof ABC;
+        boolean isAs3 = false;
+        boolean canExportFlashDevelop = false;
+        boolean canExportIdea = false;
+        boolean canExportVsCode = false;
+        if (swf != null) {
+            isAs3 = swf.isAS3();
+            canExportFlashDevelop = SwfFlashDevelopExporter.canExportSwf(swf);
+            canExportIdea = SwfIntelliJIdeaExporter.canExportSwf(swf);
+            canExportVsCode = SwfVsCodeExporter.canExportSwf(swf);
+        }
+        if (abcSelected) {
+            isAs3 = true;
+        }
         boolean isWorking = Main.isWorking();
         List<ABCContainerTag> abcList = swf != null ? swf.getAbcList() : null;
-        boolean hasAbc = swfSelected && abcList != null && !abcList.isEmpty();
+        boolean hasAbc = openableSelected && abcList != null && !abcList.isEmpty();
         boolean hasDebugger = hasAbc && DebuggerTools.hasDebugger(swf);
         MainPanel mainPanel = mainFrame.getPanel();
         boolean swfLoaded = mainPanel != null ? !mainPanel.getSwfs().isEmpty() : false;
+        boolean swfIsNew = openableSelected && openable.getOpenableList() != null && openable.getOpenableList().sourceInfo.isEmpty();
+        boolean anythingModified = mainPanel != null ? mainPanel.isModified() : false;
+        boolean swfModified = swf == null ? false : swf.isModified();
+
+        boolean allSameSwf = true;
+        boolean allSameOpenable = true;
+        boolean openableOrListSelected = openable != null;
+        if (mainPanel != null) {
+            List<TreeItem> items = mainPanel.getCurrentTree().getSelected();
+            SWF firstSwf = null;
+            Openable firstOpenable = null;
+            for (TreeItem item : items) {
+                if (item instanceof OpenableList) {
+                    if (items.size() == 1) {
+                        openableOrListSelected = true;
+                    }
+                    allSameSwf = false;
+                    break;
+                }
+                Openable fopenable = item.getOpenable();
+                if (firstOpenable == null) {
+                    firstOpenable = fopenable;
+                } else {
+                    if (fopenable != firstOpenable) {
+                        allSameOpenable = false;
+                    }
+                }
+                if (firstSwf == null) {
+                    if (fopenable instanceof SWF) {
+                        firstSwf = (SWF) fopenable;
+                    } else {
+                        allSameSwf = false;
+                        break;
+                    }
+                } else {
+                    if (item.getOpenable() != firstSwf) {
+                        allSameSwf = false;
+                        break;
+                    }
+                }
+            }
+        }
 
         setMenuEnabled("_/open", !isWorking);
         setMenuEnabled("/file/open", !isWorking);
-        setMenuEnabled("_/save", swfSelected && !isWorking);
-        setMenuEnabled("/file/save", swfSelected && !isWorking);
-        setMenuEnabled("_/saveAs", swfSelected && !isWorking);
-        setMenuEnabled("/file/saveAs", swfSelected && !isWorking);
-        setMenuEnabled("/file/saveAsExe", swfSelected && !isWorking);
-        setMenuEnabled("_/close", swfSelected && !isWorking);
-        setMenuEnabled("/file/close", swfSelected && !isWorking);
+        setMenuEnabled("_/save", openableSelected && !isWorking && swfModified);
+        setMenuEnabled("/file/save", openableSelected && !isWorking && swfModified);
+        setMenuEnabled("_/saveAs", openableSelected && !isWorking);
+        setMenuEnabled("/file/saveAs", openableSelected && !isWorking);
+        setMenuEnabled("_/saveAll", !isWorking && anythingModified);
+        setMenuEnabled("/file/saveAll", !isWorking && anythingModified);
+        setMenuEnabled("_/close", openableOrListSelected && !isWorking);
+        setMenuEnabled("/file/close", openableOrListSelected && !isWorking);
         setMenuEnabled("_/closeAll", swfLoaded && !isWorking);
         setMenuEnabled("/file/closeAll", swfLoaded && !isWorking);
-        setMenuEnabled("/file/reload", swfSelected && !isWorking);
+        setMenuEnabled("/file/reload", openableSelected && !swfIsNew && !isWorking);
 
-        setMenuEnabled("/file/export", swfSelected);
-        setMenuEnabled("_/exportAll", swfSelected && !isWorking);
-        setMenuEnabled("/file/export/exportAll", swfSelected && !isWorking);
+        setMenuEnabled("/file/export", openableSelected);
+        setMenuEnabled("_/exportAll", openableSelected && !isWorking);
+        setMenuEnabled("/file/export/exportAll", openableSelected && !isWorking);
         setMenuEnabled("_/exportFla", swfSelected && !isWorking);
-        setMenuEnabled("/file/export/exportFla", swfSelected && !isWorking);
-        setMenuEnabled("_/exportSelected", swfSelected && !isWorking);
-        setMenuEnabled("/file/export/exportSelected", swfSelected && !isWorking);
-        setMenuEnabled("/file/export/exportXml", swfSelected && !isWorking);
+        setMenuEnabled("/file/export/exportFla", allSameSwf && openableSelected && !isWorking);
+        //setMenuEnabled("_/exportFlashDevelop", swfSelected && !isWorking && canExportFlashDevelop);
+        setMenuEnabled("/file/export/exportMore/exportFlashDevelop", allSameSwf && openableSelected && isAs3 && !isWorking && canExportFlashDevelop);
+        //setMenuEnabled("_/exportIdea", swfSelected && !isWorking && canExportIdea);
+        setMenuEnabled("/file/export/exportMore/exportIdea", allSameSwf && openableSelected && isAs3 && !isWorking && canExportIdea);
+        //setMenuEnabled("_/exportVsCode", swfSelected && !isWorking && canExportVsCode);
+        setMenuEnabled("/file/export/exportMore/exportVsCode", allSameSwf && openableSelected && isAs3 && !isWorking && canExportVsCode);
+        setMenuEnabled("/file/export/exportMore/exportJava", swfSelected && !isWorking);
+        setMenuEnabled("/file/export/exportMore/exportSwc", swfSelected && !isWorking);
+        setMenuEnabled("/file/export/exportMore/exportExe", swfSelected && !isWorking);
+        setMenuEnabled("/file/export/exportMore/exportXaml", swfSelected && !isWorking);
 
-        setMenuEnabled("/file/import", swfSelected);
-        setMenuEnabled("/file/import/importText", swfSelected && !isWorking);
-        setMenuEnabled("/file/import/importScript", swfSelected && !isWorking);
-        setMenuEnabled("/file/import/importSymbolClass", swfSelected && !isWorking);
-        setMenuEnabled("/file/import/importXml", swfSelected && !isWorking);
+        setMenuEnabled("_/exportSelected", openableSelected && !isWorking);
+        setMenuEnabled("/file/export/exportSelected", openableSelected && !isWorking);
+        //setMenuEnabled("/file/export/exportXml", swfSelected && !isWorking);
 
-        setMenuEnabled("/tools/deobfuscation", swfSelected);
+        setMenuEnabled("/file/import", openableSelected);
+        /*setMenuEnabled("/import/importtab", openableSelected);
+        setMenuEnabled("/import/importtab/importText", allSameSwf && swfSelected && !isWorking);
+        setMenuEnabled("/import/importtab/importScript", allSameOpenable && openableSelected && !isWorking);
+        setMenuEnabled("/import/importtab/importImages", allSameSwf && swfSelected && !isWorking);
+        setMenuEnabled("/import/importtab/importSprites", allSameSwf && swfSelected && !isWorking);
+        setMenuEnabled("/import/importtab/importShapes", allSameSwf && swfSelected && !isWorking);
+        setMenuEnabled("/import/importtab/importShapesNoFill", allSameSwf && swfSelected && !isWorking);
+        setMenuEnabled("/import/importtab/importMovies", allSameSwf && swfSelected && !isWorking);
+        setMenuEnabled("/import/importtab/importSounds", allSameSwf && swfSelected && !isWorking);
+        setMenuEnabled("/import/importtab/importSymbolClass", allSameSwf && swfSelected && !isWorking);
+        setMenuEnabled("/import/importtab/importXml", allSameSwf && swfSelected && !isWorking);*/
+        setMenuEnabled("/file/import/importXml", allSameSwf && swfSelected && !isWorking);
+        setMenuEnabled("/file/import/createTagFromFile", allSameSwf && swfSelected && !isWorking);        
+        setMenuEnabled("/file/import/bulkImport", allSameSwf && swfSelected && !isWorking);
+
+        setMenuEnabled("/tools/deobfuscation", openableSelected);
         setMenuEnabled("/tools/deobfuscation/renameOneIdentifier", swfSelected && !isWorking);
         setMenuEnabled("/tools/deobfuscation/renameInvalidIdentifiers", swfSelected && !isWorking);
         setMenuEnabled("/tools/deobfuscation/renameColliding", swfSelected && !isWorking);
         setMenuEnabled("/tools/deobfuscation/deobfuscation", hasAbc);
 
-        setMenuEnabled("/tools/search", swfSelected);
+        setMenuEnabled("/tools/search", openableSelected);
         setMenuEnabled("/tools/replace", swfSelected);
-        setMenuEnabled("/tools/timeline", swfSelected);
-        setMenuEnabled("/tools/showProxy", !isWorking);
+        //setMenuEnabled("/file/view/easy", swfSelected);
+        setMenuEnabled("/tools/abcExplorer", isAs3);
 
         setMenuEnabled("/tools/gotoDocumentClass", hasAbc);
+
         /*setMenuEnabled("/tools/debugger/debuggerSwitch", hasAbc);
          setMenuChecked("/tools/debugger/debuggerSwitch", hasDebugger);
          setMenuEnabled("/tools/debugger/debuggerReplaceTrace", hasAbc && hasDebugger);*/
         //setMenuEnabled("/tools/debugger/debuggerInjectLoader", hasAbc && hasDebugger);
-
         setMenuEnabled("_/checkUpdates", !isWorking);
         setMenuEnabled("/help/checkUpdates", !isWorking);
         //setMenuEnabled("/help/helpUs", !isWorking);
         setMenuEnabled("/help/homePage", !isWorking);
+        setMenuEnabled("/help/wiki", !isWorking);
         setMenuEnabled("_/about", !isWorking);
         setMenuEnabled("/help/about", !isWorking);
 
         setMenuEnabled("/file/start/run", swfSelected && !isRunningOrDebugging);
         setMenuEnabled("/file/start/debug", swfSelected && !isRunningOrDebugging);
         setMenuEnabled("/file/start/debugpcode", swfSelected && !isRunningOrDebugging);
+        setMenuEnabled("/file/start/debuglisten", !isDebugRunning);
 
         setMenuEnabled("/file/start/stop", isRunningOrDebugging);
         setMenuEnabled("/debugging/debug/stop", isRunningOrDebugging); //same as previous
 
-        setPathVisible("/debugging", isDebugRunning);
-        setPathVisible("/debugging/debug", isDebugRunning);
+        setMenuEnabled("/debuggingListen/debug/stopListening", isListening);
+        setMenuEnabled("/debuggingListen/debug/disconnectSession", isSessionConnected);
+
+        setPathVisible("/debugging", !isListening && isDebugRunning);
+        setPathVisible("/debugging/debug", !isListening && isDebugRunning);
         //setMenuEnabled("/debugging/debug/pause", isDebugRunning);
         setMenuEnabled("/debugging/debug/stepOver", isDebugPaused);
         setMenuEnabled("/debugging/debug/stepInto", isDebugPaused);
@@ -783,17 +1258,40 @@ public abstract class MainFrameMenu implements MenuBuilder {
         setMenuEnabled("/debugging/debug/continue", isDebugPaused);
         //setMenuEnabled("/debugging/debug/stack", isDebugPaused);
         //setMenuEnabled("/debugging/debug/watch", isDebugPaused);
+
+        setPathVisible("/debuggingListen", isListening);
+        setPathVisible("/debuggingListen/debug", isListening);
+        setMenuEnabled("/debuggingListen/debug/stepOver", isDebugPaused);
+        setMenuEnabled("/debuggingListen/debug/stepInto", isDebugPaused);
+        setMenuEnabled("/debuggingListen/debug/stepOut", isDebugPaused);
+        setMenuEnabled("/debuggingListen/debug/continue", isDebugPaused);
+
         StringBuilder titleBuilder = new StringBuilder();
         titleBuilder.append(ApplicationInfo.applicationVerName);
 
-        if (Configuration.displayFileName.get() && swf != null) {
+        if (Configuration.displayFileName.get() && openable != null) {
             titleBuilder.append(" - ");
-            if (swf.swfList != null && swf.swfList.isBundle()) {
-                titleBuilder.append(swf.swfList.name).append("/");
-            }
-            titleBuilder.append(swf.getFileTitle());
+            titleBuilder.append(openable.getFullPathTitle());
         }
         mainFrame.setTitle(titleBuilder.toString());
+
+        if (mainPanel != null) {
+            switch (mainPanel.getCurrentView()) {
+                case MainPanel.VIEW_RESOURCES:
+                    setGroupSelection("view", "/file/view/viewResources");
+                    break;
+                case MainPanel.VIEW_TAGLIST:
+                    setGroupSelection("view", "/file/view/viewTagList");
+                    break;
+                case MainPanel.VIEW_DUMP:
+                    setGroupSelection("view", "/file/view/viewHex");
+                    break;
+                case MainPanel.VIEW_EASY:
+                    setGroupSelection("view", null);
+                    setMenuChecked("/file/view/easy", true);
+                    break;
+            }
+        }
     }
 
     private void registerHotKeys() {
@@ -809,9 +1307,14 @@ public abstract class MainFrameMenu implements MenuBuilder {
             addMenuItem("_", null, null, null, 0, null, false, null, false);
             addMenuItem("_/open", translate("menu.file.open"), "open32", this::openActionPerformed, PRIORITY_TOP, this::loadRecent, false, null, false);
             addMenuItem("_/save", translate("menu.file.save"), "save32", this::saveActionPerformed, PRIORITY_TOP, null, true, null, false);
+            addMenuItem("_/saveAll", translate("menu.file.saveAll"), "saveall32", this::saveAllActionPerformed, PRIORITY_TOP, null, true, null, false);
             addMenuItem("_/saveAs", translate("menu.file.saveas"), "saveas32", this::saveAsActionPerformed, PRIORITY_TOP, null, true, null, false);
             addSeparator("_");
             addMenuItem("_/exportFla", translate("menu.file.export.fla"), "exportfla32", this::exportFlaActionPerformed, PRIORITY_TOP, null, true, null, false);
+            /*addMenuItem("_/exportFlashDevelop", translate("menu.file.export.flashDevelop"), "exportflashdevelop32", this::exportFlashDevelopActionPerformed, PRIORITY_TOP, null, true, null, false);
+            addMenuItem("_/exportIdea", translate("menu.file.export.idea"), "exportidea32", this::exportIdeaActionPerformed, PRIORITY_TOP, null, true, null, false);
+            addMenuItem("_/exportVsCode", translate("menu.file.export.vsCode"), "exportvscode32", this::exportVsCodeActionPerformed, PRIORITY_TOP, null, true, null, false);
+             */
             addMenuItem("_/exportAll", translate("menu.file.export.all"), "export32", this::exportAllActionPerformed, PRIORITY_TOP, null, true, null, false);
             addMenuItem("_/exportSelected", translate("menu.file.export.selection"), "exportsel32", this::exportSelectedActionPerformed, PRIORITY_TOP, null, true, null, false);
             addSeparator("_");
@@ -833,43 +1336,85 @@ public abstract class MainFrameMenu implements MenuBuilder {
             finishMenu("/file/open");
         }
 
-        addMenuItem("/file/save", translate("menu.file.save"), "save32", this::saveActionPerformed, PRIORITY_TOP, null, true, new HotKey("CTRL+SHIFT+S"), false);
+        addMenuItem("/file/new", translate("menu.file.new"), "newswf32", this::newActionPerformed, PRIORITY_TOP, null, true, null, false);
+        addMenuItem("/file/save", translate("menu.file.save"), "save16", this::saveActionPerformed, PRIORITY_TOP, null, true, new HotKey("CTRL+SHIFT+S"), false);
+        addMenuItem("/file/saveAll", translate("menu.file.saveAll"), "saveall32", this::saveAllActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
         addMenuItem("/file/saveAs", translate("menu.file.saveas"), "saveas16", this::saveAsActionPerformed, PRIORITY_MEDIUM, null, true, new HotKey("CTRL+SHIFT+A"), false);
-        addMenuItem("/file/saveAsExe", translate("menu.file.saveasexe"), "saveasexe16", this::saveAsExeActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
         addMenuItem("/file/reload", translate("menu.file.reload"), "reload16", this::reloadActionPerformed, PRIORITY_MEDIUM, null, true, new HotKey("CTRL+SHIFT+R"), false);
         addMenuItem("/file/reloadAll", translate("menu.file.reloadAll"), "reload16", this::reloadAllActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/close", translate("menu.file.close"), "close32", this::closeActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/closeAll", translate("menu.file.closeAll"), "closeall32", this::closeAllActionPerformed, PRIORITY_MEDIUM, null, true, new HotKey("CTRL+SHIFT+X"), false);
 
         addSeparator("/file");
 
         addMenuItem("/file/export", translate("menu.export"), null, null, 0, null, false, null, false);
         addMenuItem("/file/export/exportFla", translate("menu.file.export.fla"), "exportfla32", this::exportFlaActionPerformed, PRIORITY_TOP, null, true, null, false);
-        addMenuItem("/file/export/exportXml", translate("menu.file.export.xml"), "exportxml32", this::exportXmlActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
-        addMenuItem("/file/export/exportAll", translate("menu.file.export.all"), "export16", this::exportAllActionPerformed, PRIORITY_MEDIUM, null, true, new HotKey("CTRL+SHIFT+E"), false);
+        addMenuItem("/file/export/exportAll", translate("menu.file.export.all"), "exportall16", this::exportAllActionPerformed, PRIORITY_MEDIUM, null, true, new HotKey("CTRL+SHIFT+E"), false);
         addMenuItem("/file/export/exportSelected", translate("menu.file.export.selection"), "exportsel16", this::exportSelectedActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+
+        addMenuItem("/file/export/exportMore", translate("menu.export.file"), "export16", null, PRIORITY_MEDIUM, null, false, null, false);
+        addMenuItem("/file/export/exportMore/exportXml", "XML", "exportxml16", this::exportXmlActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/export/exportMore/exportFlashDevelop", "Flash Develop", "exportflashdevelop16", this::exportFlashDevelopActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/export/exportMore/exportIdea", "IntelliJ Idea", "exportidea16", this::exportIdeaActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/export/exportMore/exportVsCode", "Visual Studio Code", "exportvscode16", this::exportVsCodeActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/export/exportMore/exportJava", "Java", "exportjava16", this::exportJavaActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/export/exportMore/exportSwc", "SWC", "bundleswc16", this::exportSwcActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/export/exportMore/exportExe", "EXE", "saveasexe16", this::saveAsExeActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/export/exportMore/exportXaml", "XAML", "exportxml16", this::exportXamlActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+
+        finishMenu("/file/export/exportMore");
+
         finishMenu("/file/export");
 
         addMenuItem("/file/import", translate("menu.import"), null, null, 0, null, false, null, false);
-        addMenuItem("/file/import/importXml", translate("menu.file.import.xml"), "importxml32", this::importXmlActionPerformed, PRIORITY_TOP, null, true, null, false);
-        addMenuItem("/file/import/importText", translate("menu.file.import.text"), "importtext32", this::importTextActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
-        addMenuItem("/file/import/importScript", translate("menu.file.import.script"), "importscript32", this::importScriptActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
-        addMenuItem("/file/import/importSymbolClass", translate("menu.file.import.symbolClass"), "importsymbolclass32", this::importSymbolClassActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/import/importXml", translate("menu.file.import.xml"), "importxml32", this::importXmlActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        
+        addMenuItem("/file/import/createTagFromFile", translate("menu.file.import.createTagFromFile"), "import16", null, PRIORITY_MEDIUM, null, false, null, false);
+        addMenuItem("/file/import/createTagFromFile/shape", translate("tag.shape.create"), "importshape16", (ActionEvent e) -> createTagFromFile(DefineShape4Tag.class, TreeNodeType.SHAPE), PRIORITY_MEDIUM, null, false, null, false);
+        addMenuItem("/file/import/createTagFromFile/morphshape", translate("tag.morphshape.create"), "importmorphshape16", (ActionEvent e) -> createTagFromFile(DefineMorphShape2Tag.class, TreeNodeType.MORPH_SHAPE), PRIORITY_MEDIUM, null, false, null, false);
+        addMenuItem("/file/import/createTagFromFile/image", translate("tag.image.create"), "importimage16", (ActionEvent e) -> createTagFromFile(DefineBitsLossless2Tag.class, TreeNodeType.IMAGE), PRIORITY_MEDIUM, null, false, null, false);
+        addMenuItem("/file/import/createTagFromFile/sprite", translate("tag.sprite.create"), "importsprite16", (ActionEvent e) -> createTagFromFile(DefineSpriteTag.class, TreeNodeType.SPRITE), PRIORITY_MEDIUM, null, false, null, false);
+        addMenuItem("/file/import/createTagFromFile/movie", translate("tag.movie.create"), "importmovie16", (ActionEvent e) -> createTagFromFile(DefineVideoStreamTag.class, TreeNodeType.MOVIE), PRIORITY_MEDIUM, null, false, null, false);
+        addMenuItem("/file/import/createTagFromFile/sound", translate("tag.sound.create"), "importsound16", (ActionEvent e) -> createTagFromFile(DefineSoundTag.class, TreeNodeType.SOUND), PRIORITY_MEDIUM, null, false, null, false);
+        addMenuItem("/file/import/createTagFromFile/font", translate("tag.font.create"), "importfont16", (ActionEvent e) -> createTagFromFile(DefineFont3Tag.class, TreeNodeType.FONT), PRIORITY_MEDIUM, null, false, null, false);
+        addMenuItem("/file/import/createTagFromFile/binaryData", translate("tag.binaryData.create"), "importbinarydata16", (ActionEvent e) -> createTagFromFile(DefineBinaryDataTag.class, TreeNodeType.BINARY_DATA), PRIORITY_MEDIUM, null, false, null, false);
+        
+        finishMenu("/file/import/createTagFromFile");                
+        
+        addMenuItem("/file/import/bulkImport", translate("menu.file.import.bulkImport"), "bulkimport16", null, PRIORITY_MEDIUM, null, false, null, false);
+        addMenuItem("/file/import/bulkImport/text", translate("menu.file.import.text"), "importtext32", this::importTextActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/import/bulkImport/script", translate("menu.file.import.script"), "importscript32", this::importScriptActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/import/bulkImport/images", translate("menu.file.import.image"), "importimage32", this::importImagesActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/import/bulkImport/shapes", translate("menu.file.import.shape"), "importshape32", this::importShapesActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/import/bulkImport/shapesNoFill", translate("menu.file.import.shapeNoFill"), "importshape32", this::importShapesNoFillActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/import/bulkImport/sprites", translate("menu.file.import.sprite"), "importsprite32", this::importSpritesActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/import/bulkImport/movies", translate("menu.file.import.movie"), "importmovie32", this::importMoviesActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/import/bulkImport/sounds", translate("menu.file.import.sound"), "importsound32", this::importSoundsActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/import/bulkImport/symbolClass", translate("menu.file.import.symbolClass"), "importsymbolclass32", this::importSymbolClassActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        finishMenu("/file/import/bulkImport");
+
         finishMenu("/file/import");
 
         addMenuItem("/file/start", translate("menu.file.start"), null, null, 0, null, false, null, false);
         addMenuItem("/file/start/run", translate("menu.file.start.run"), "play32", this::runActionPerformed, PRIORITY_TOP, null, true, new HotKey("F6"), false);
-        addMenuItem("/file/start/debug", translate("menu.file.start.debug"), "debug32", this::debugActionPerformed, PRIORITY_TOP, null, true, new HotKey("CTRL+F5"), false);
         addMenuItem("/file/start/stop", translate("menu.file.start.stop"), "stop32", this::stopActionPerformed, PRIORITY_TOP, null, true, null, false);
+        addMenuItem("/file/start/debug", translate("menu.file.start.debug"), "debug32", this::debugActionPerformed, PRIORITY_MEDIUM, null, true, new HotKey("CTRL+F5"), false);
         addMenuItem("/file/start/debugpcode", translate("menu.file.start.debugpcode"), "debug32", this::debugPCodeActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/file/start/debuglisten", translate("menu.file.start.debuglisten"), "listen32", this::debugListenActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
         finishMenu("/file/start");
 
         addMenuItem("/file/view", translate("menu.view"), null, null, 0, null, false, null, false);
+        if (!supportsAppMenu()) {
+            addToggleMenuItem("/file/view/alwaysOnTop", translate("menu.file.view.alwaysOnTop"), null, null, this::alwaysOnTopActionPerformed, 0, null);
+        }
         addToggleMenuItem("/file/view/viewResources", translate("menu.file.view.resources"), "view", "viewresources16", this::viewResourcesActionPerformed, PRIORITY_MEDIUM, null);
+        addToggleMenuItem("/file/view/viewTagList", translate("menu.file.view.tagList"), "view", "taglist16", this::viewTagListActionPerformed, PRIORITY_MEDIUM, null);
         addToggleMenuItem("/file/view/viewHex", translate("menu.file.view.hex"), "view", "viewhex16", this::viewHexActionPerformed, PRIORITY_MEDIUM, null);
+        addToggleMenuItem("/file/view/easy", translate("menu.file.view.easy"), null, "easy32", this::easyActionPerformed, PRIORITY_TOP, null);
+
         finishMenu("/file/view");
 
         addSeparator("/file");
-        addMenuItem("/file/close", translate("menu.file.close"), "close32", this::closeActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
-        addMenuItem("/file/closeAll", translate("menu.file.closeAll"), "closeall32", this::closeAllActionPerformed, PRIORITY_MEDIUM, null, true, new HotKey("CTRL+SHIFT+X"), false);
 
         if (!supportsAppMenu()) {
             addSeparator("/file");
@@ -877,12 +1422,6 @@ public abstract class MainFrameMenu implements MenuBuilder {
         }
 
         finishMenu("/file");
-
-        if (Configuration.dumpView.get()) {
-            setGroupSelection("view", "/file/view/viewHex");
-        } else {
-            setGroupSelection("view", "/file/view/viewResources");
-        }
 
         /*
          menu.file.start = Start
@@ -913,6 +1452,17 @@ public abstract class MainFrameMenu implements MenuBuilder {
         finishMenu("/debugging/debug");
         finishMenu("/debugging");
 
+        addMenuItem("/debuggingListen", translate("menu.debugging"), null, null, 0, null, false, null, true);
+        addMenuItem("/debuggingListen/debug", translate("menu.debugging.debug"), null, null, 0, null, false, null, false);
+        addMenuItem("/debuggingListen/debug/stopListening", translate("menu.debugging.debug.stopListening"), "stop32", this::stopActionPerformed, PRIORITY_TOP, null, true, null, false);
+        addMenuItem("/debuggingListen/debug/disconnectSession", translate("menu.debugging.debug.disconnectSession"), "disconnect32", this::disconnectSessionActionPerformed, PRIORITY_TOP, null, true, null, false);
+        addMenuItem("/debuggingListen/debug/continue", translate("menu.debugging.debug.continue"), "continue32", this::continueActionPerformed, PRIORITY_TOP, null, true, new HotKey("F5"), false);
+        addMenuItem("/debuggingListen/debug/stepOver", translate("menu.debugging.debug.stepOver"), "stepover32", this::stepOverActionPerformed, PRIORITY_MEDIUM, null, true, new HotKey("F8"), false);
+        addMenuItem("/debuggingListen/debug/stepInto", translate("menu.debugging.debug.stepInto"), "stepinto32", this::stepIntoActionPerformed, PRIORITY_MEDIUM, null, true, new HotKey("F7"), false);
+        addMenuItem("/debuggingListen/debug/stepOut", translate("menu.debugging.debug.stepOut"), "stepout32", this::stepOutActionPerformed, PRIORITY_MEDIUM, null, true, new HotKey("CTRL+F7"), false);
+        finishMenu("/debuggingListen/debug");
+        finishMenu("/debuggingListen");
+
         addMenuItem("/tools", translate("menu.tools"), null, null, 0, null, false, null, false);
         addMenuItem("/tools/search", translate("menu.tools.search"), "search16", this::searchActionPerformed, PRIORITY_TOP, this::loadRecentSearches, !supportsMenuAction(), null, false);
 
@@ -924,12 +1474,14 @@ public abstract class MainFrameMenu implements MenuBuilder {
         }
 
         addMenuItem("/tools/replace", translate("menu.tools.replace"), "replace32", this::replaceActionPerformed, PRIORITY_TOP, null, true, null, false);
-        addToggleMenuItem("/tools/timeline", translate("menu.tools.timeline"), null, "timeline32", this::timelineActionPerformed, PRIORITY_TOP, null);
 
-        addMenuItem("/tools/showProxy", translate("menu.tools.proxy"), "proxy16", this::showProxyActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/tools/abcExplorer", translate("menu.tools.abcexplorer"), "abcexplorer32", this::abcExplorerActionPerformed, PRIORITY_TOP, null, true, null, false);
+        addMenuItem("/tools/gotoDocumentClass", translate("menu.tools.gotoDocumentClass"), "gotomainclass32", this::gotoDocumentClassActionPerformed, PRIORITY_TOP, null, true, null, false);
+        addMenuItem("/tools/solEditor", translate("menu.tools.solEditor"), "soleditor32", this::solEditorActionPerformed, PRIORITY_TOP, null, true, null, false);
         if (Platform.isWindows()) {
-            addMenuItem("/tools/searchMemory", translate("menu.tools.searchMemory"), "loadmemory16", this::searchMemoryActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+            addMenuItem("/tools/searchMemory", translate("menu.tools.searchMemory"), "loadmemory16", this::searchMemoryActionPerformed, PRIORITY_TOP, null, true, null, false);
         }
+        //addMenuItem("/tools/saveAsExe", translate("menu.file.saveasexe"), "saveasexe16", this::saveAsExeActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
 
         //addMenuItem("/tools/searchCache", translate("menu.tools.searchCache"), "loadcache16", this::searchCacheActionPerformed, PRIORITY_MEDIUM, null, true, null);
         addMenuItem("/tools/deobfuscation", translate("menu.tools.deobfuscation"), "deobfuscate16", null, 0, null, false, null, false);
@@ -945,21 +1497,22 @@ public abstract class MainFrameMenu implements MenuBuilder {
          //addMenuItem("/tools/debugger/debuggerInjectLoader", "Inject Loader", "debuggerreplace16", this::debuggerInjectLoader, PRIORITY_MEDIUM, null, true,false);
          addMenuItem("/tools/debugger/debuggerShowLog", translate("menu.debugger.showlog"), "debuggerlog16", this::debuggerShowLogActionPerformed, PRIORITY_MEDIUM, null, true, null,false);
          finishMenu("/tools/debugger");*/
-        addMenuItem("/tools/gotoDocumentClass", translate("menu.tools.gotoDocumentClass"), "gotomainclass32", this::gotoDucumentClassActionPerformed, PRIORITY_TOP, null, true, null, false);
         finishMenu("/tools");
 
         //Settings
         addMenuItem("/settings", translate("menu.settings"), null, null, 0, null, false, null, false);
 
         addToggleMenuItem("/settings/autoDeobfuscation", translate("menu.settings.autodeobfuscation"), null, null, this::autoDeobfuscationActionPerformed, 0, null);
+        addToggleMenuItem("/settings/autoDeobfuscateIdentifiers", translate("menu.settings.autoDeobfuscateIdentifiers"), null, null, this::autoDeobfuscateIdentifiersActionPerformed, 0, null);
         addToggleMenuItem("/settings/simplifyExpressions", translate("menu.settings.simplifyExpressions"), null, null, this::simplifyExpressionsActionPerformed, 0, null);
         //addToggleMenuItem("/settings/internalViewer", translate("menu.settings.internalflashviewer"), null, null, this::internalViewerSwitchActionPerformed, 0, null);
-        addToggleMenuItem("/settings/parallelSpeedUp", translate("menu.settings.parallelspeedup"), null, null, this::parallelSpeedUpActionPerformed, 0, null);
         addToggleMenuItem("/settings/disableDecompilation", translate("menu.settings.disabledecompilation"), null, null, this::disableDecompilationActionPerformed, 0, null);
+        addToggleMenuItem("/settings/parallelSpeedUp", translate("menu.settings.parallelspeedup"), null, null, this::parallelSpeedUpActionPerformed, 0, null);
         //addToggleMenuItem("/settings/cacheOnDisk", translate("menu.settings.cacheOnDisk"), null, null, this::cacheOnDiskActionPerformed, 0, null);
-        addToggleMenuItem("/settings/gotoMainClassOnStartup", translate("menu.settings.gotoMainClassOnStartup"), null, null, this::gotoDucumentClassOnStartupActionPerformed, 0, null);
-        addToggleMenuItem("/settings/autoRenameIdentifiers", translate("menu.settings.autoRenameIdentifiers"), null, null, this::autoRenameIdentifiersActionPerformed, 0, null);
+        addToggleMenuItem("/settings/gotoMainClassOnStartup", translate("menu.settings.gotoMainClassOnStartup"), null, null, this::gotoDocumentClassOnStartupActionPerformed, 0, null);
+        //addToggleMenuItem("/settings/autoRenameIdentifiers", translate("menu.settings.autoRenameIdentifiers"), null, null, this::autoRenameIdentifiersActionPerformed, 0, null);
         addToggleMenuItem("/settings/autoOpenLoadedSWFs", translate("menu.settings.autoOpenLoadedSWFs"), null, null, this::autoOpenLoadedSWFsActionPerformed, 0, null);
+        addToggleMenuItem("/settings/flattenASPackages", translate("menu.settings.flattenASPackages"), null, null, this::flattenASPackagesActionPerformed, 0, null);
         if (Platform.isWindows()) {
             addToggleMenuItem("/settings/associate", translate("menu.settings.addtocontextmenu"), null, null, this::associateActionPerformed, 0, null);
         }
@@ -981,6 +1534,7 @@ public abstract class MainFrameMenu implements MenuBuilder {
         addMenuItem("/settings/advancedSettings/advancedSettings", translate("menu.advancedsettings.advancedsettings"), "settings32", this::advancedSettingsActionPerformed, PRIORITY_TOP, null, true, null, false);
         addMenuItem("/settings/advancedSettings/clearRecentFiles", translate("menu.tools.otherTools.clearRecentFiles"), "clearrecent16", this::clearRecentFilesActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
         addMenuItem("/settings/advancedSettings/clearRecentSearches", translate("menu.tools.otherTools.clearRecentSearches"), "clearrecent16", this::clearRecentSearchesActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/settings/advancedSettings/clearPinnedItems", translate("menu.tools.otherTools.clearPinnedItems"), "clearrecent16", this::clearPinnedItemsActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
         finishMenu("/settings/advancedSettings");
 
         finishMenu("/settings");
@@ -1019,9 +1573,13 @@ public abstract class MainFrameMenu implements MenuBuilder {
             setMenuChecked("/settings/gotoMainClassOnStartup", newValue);
         });
 
-        setMenuChecked("/settings/autoRenameIdentifiers", Configuration.autoRenameIdentifiers.get());
+        /*setMenuChecked("/settings/autoRenameIdentifiers", Configuration.autoRenameIdentifiers.get());
         Configuration.autoRenameIdentifiers.addListener(configListenerAutoRenameIdentifiers = (Boolean newValue) -> {
             setMenuChecked("/settings/autoRenameIdentifiers", newValue);
+        });*/
+        setMenuChecked("/settings/autoDeobfuscateIdentifiers", Configuration.autoDeobfuscateIdentifiers.get());
+        Configuration.autoDeobfuscateIdentifiers.addListener(configListenerAutoDeobfuscateIdentifiers = (Boolean newValue) -> {
+            setMenuChecked("/settings/autoDeobfuscateIdentifiers", newValue);
         });
 
         setMenuChecked("/settings/autoOpenLoadedSWFs", Configuration.autoOpenLoadedSWFs.get());
@@ -1029,21 +1587,11 @@ public abstract class MainFrameMenu implements MenuBuilder {
             setMenuChecked("/settings/autoOpenLoadedSWFs", newValue);
         });
 
-        /*
-        if (externalFlashPlayerUnavailable) {
-            setMenuEnabled("/settings/internalViewer", false);
-        }
-         */
+        setMenuChecked("/settings/flattenASPackages", Configuration.flattenASPackages.get());
+        Configuration.flattenASPackages.addListener(configListenerFlattenASPackages = (Boolean newValue) -> {
+            setMenuChecked("/settings/flattenASPackages", newValue);
+        });
 
- /*int deobfuscationMode = Configuration.deobfuscationMode.get();
-         switch (deobfuscationMode) {
-         case 0:
-         setGroupSelection("deobfuscation", "/settings/deobfuscation/old");
-         break;
-         case 1:
-         setGroupSelection("deobfuscation", "/settings/deobfuscation/new");
-         break;
-         }*/
         if (Platform.isWindows()) {
             setMenuChecked("/settings/associate", ContextMenuTools.isAddedToContextMenu());
         }
@@ -1052,6 +1600,7 @@ public abstract class MainFrameMenu implements MenuBuilder {
         addMenuItem("/help", translate("menu.help"), null, null, 0, null, false, null, false);
         //addMenuItem("/help/helpUs", translate("menu.help.helpus"), "donate32", this::helpUsActionPerformed, PRIORITY_TOP, null, true, null, false);
         addMenuItem("/help/homePage", translate("menu.help.homepage"), "homepage16", this::homePageActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
+        addMenuItem("/help/wiki", translate("menu.help.wiki"), "wiki16", this::wikiActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
         addSeparator("/help");
         addMenuItem("/help/checkUpdates", translate("menu.help.checkupdates"), "update16", this::checkUpdatesActionPerformed, PRIORITY_MEDIUM, null, true, null, false);
         addMenuItem("/help/about", translate("menu.help.about"), "about32", this::aboutActionPerformed, PRIORITY_TOP, null, true, null, false);
@@ -1071,6 +1620,9 @@ public abstract class MainFrameMenu implements MenuBuilder {
                     nswf.clearAllCache();
                 }
             }, PRIORITY_MEDIUM, null, true, null, false);
+            addMenuItem("/debug/emptyAllCache", "Empty all caches", "continue16", e -> {
+                Cache.clearAll();
+            }, PRIORITY_MEDIUM, null, true, null, false);
             addMenuItem("/debug/memoryInformation", "Memory information", "continue16", e -> {
                 String architecture = System.getProperty("sun.arch.data.model");
                 Runtime runtime = Runtime.getRuntime();
@@ -1078,7 +1630,8 @@ public abstract class MainFrameMenu implements MenuBuilder {
                         + "Jre 64bit: " + Helper.is64BitJre() + Helper.newLine
                         + "Os 64bit: " + Helper.is64BitOs() + Helper.newLine
                         + "Max: " + (runtime.maxMemory() / 1024 / 1024) + "MB" + Helper.newLine
-                        + "Used: " + (runtime.totalMemory() / 1024 / 1024) + "MB" + Helper.newLine
+                        + "Total: " + (runtime.totalMemory() / 1024 / 1024) + "MB" + Helper.newLine
+                        + "Used: " + ((runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024) + "MB" + Helper.newLine
                         + "Free: " + (runtime.freeMemory() / 1024 / 1024) + "MB";
                 ViewMessages.showMessageDialog(Main.getDefaultMessagesComponent(), info);
                 SWF nswf = mainFrame.getPanel().getCurrentSwf();
@@ -1095,24 +1648,13 @@ public abstract class MainFrameMenu implements MenuBuilder {
             addMenuItem("/debug/openTestSwfs", "Open test SWFs", "continue16", e -> {
                 String path;
 
-                SWFSourceInfo[] sourceInfos = new SWFSourceInfo[2];
+                OpenableSourceInfo[] sourceInfos = new OpenableSourceInfo[2];
                 String mainPath = Main.class.getProtectionDomain().getCodeSource().getLocation().getPath();
                 path = mainPath + "\\..\\..\\libsrc\\ffdec_lib\\testdata\\as2\\as2.swf";
-                sourceInfos[0] = new SWFSourceInfo(null, path, null);
+                sourceInfos[0] = new OpenableSourceInfo(null, path, null);
                 path = mainPath + "\\..\\..\\libsrc\\ffdec_lib\\testdata\\as3\\as3.swf";
-                sourceInfos[1] = new SWFSourceInfo(null, path, null);
+                sourceInfos[1] = new OpenableSourceInfo(null, path, null);
                 Main.openFile(sourceInfos);
-            }, PRIORITY_MEDIUM, null, true, null, false);
-            addMenuItem("/debug/createNewSwf", "Create new SWF", "continue16", e -> {
-                SWF swf = new SWF();
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                try {
-                    swf.saveTo(baos);
-                } catch (IOException ex) {
-                    Logger.getLogger(MainFrameMenu.class.getName()).log(Level.SEVERE, null, ex);
-                }
-
-                Main.openFile(new SWFSourceInfo(new ByteArrayInputStream(baos.toByteArray()), "new.swf", "New SWF"));
             }, PRIORITY_MEDIUM, null, true, null, false);
             finishMenu("/debug");
         }
@@ -1124,14 +1666,48 @@ public abstract class MainFrameMenu implements MenuBuilder {
         viewResourcesActionPerformed(null);
     }
 
+    public void showTagListView() {
+        viewTagListActionPerformed(null);
+    }
+
+    private void reselectView() {
+        switch (mainFrame.getPanel().getCurrentView()) {
+            case MainPanel.VIEW_RESOURCES:
+                setMenuChecked("/file/view/viewResources", true);
+                break;
+            case MainPanel.VIEW_TAGLIST:
+                setMenuChecked("/file/view/viewTagList", true);
+                break;
+            case MainPanel.VIEW_DUMP:
+                setMenuChecked("/file/view/viewHex", true);
+                break;
+            case MainPanel.VIEW_EASY:
+                setMenuChecked("/file/view/easy", true);
+                break;
+        }
+    }
+
+    private void alwaysOnTopActionPerformed(ActionEvent evt) {
+        mainFrame.getWindow().setAlwaysOnTop(!mainFrame.getWindow().isAlwaysOnTop());
+        setMenuChecked("/file/view/alwaysOnTop", mainFrame.getWindow().isAlwaysOnTop());
+    }
+
     private void viewResourcesActionPerformed(ActionEvent evt) {
+        if (mainFrame.getPanel().checkEdited()) {
+            reselectView();
+            return;
+        }
         Configuration.dumpView.set(false);
         mainFrame.getPanel().showView(MainPanel.VIEW_RESOURCES);
         setGroupSelection("view", "/file/view/viewResources");
-        setMenuChecked("/tools/timeline", false);
+        setMenuChecked("/file/view/easy", false);
     }
 
     private void viewHexActionPerformed(ActionEvent evt) {
+        if (mainFrame.getPanel().checkEdited()) {
+            reselectView();
+            return;
+        }
         Configuration.dumpView.set(true);
         MainPanel mainPanel = mainFrame.getPanel();
         if (mainPanel.isModified()) {
@@ -1140,7 +1716,19 @@ public abstract class MainFrameMenu implements MenuBuilder {
 
         mainPanel.showView(MainPanel.VIEW_DUMP);
         setGroupSelection("view", "/file/view/viewHex");
-        setMenuChecked("/tools/timeline", false);
+        setMenuChecked("/file/view/easy", false);
+    }
+
+    private void viewTagListActionPerformed(ActionEvent evt) {
+        if (mainFrame.getPanel().checkEdited()) {
+            reselectView();
+            return;
+        }
+        Configuration.dumpView.set(false);
+        MainPanel mainPanel = mainFrame.getPanel();
+        mainPanel.showView(MainPanel.VIEW_TAGLIST);
+        setGroupSelection("view", "/file/view/viewTagList");
+        setMenuChecked("/file/view/easy", false);
     }
 
     private void debuggerSwitchActionPerformed(ActionEvent evt) {
@@ -1155,16 +1743,13 @@ public abstract class MainFrameMenu implements MenuBuilder {
         //setMenuEnabled("/tools/debugger/debuggerInjectLoader", isMenuChecked("/tools/debugger/debuggerSwitch"));
     }
 
-    private void timelineActionPerformed(ActionEvent evt) {
-        if (isMenuChecked("/tools/timeline")) {
-            if (!mainFrame.getPanel().showView(MainPanel.VIEW_TIMELINE)) {
-                setMenuChecked("/tools/timeline", false);
+    private void easyActionPerformed(ActionEvent evt) {
+        if (isMenuChecked("/file/view/easy")) {
+            if (!mainFrame.getPanel().showView(MainPanel.VIEW_EASY)) {
+                setMenuChecked("/file/view/easy", false);
             } else {
                 setGroupSelection("view", null);
             }
-        } else if (Configuration.dumpView.get()) {
-            setGroupSelection("view", "/file/view/viewHex");
-            mainFrame.getPanel().showView(MainPanel.VIEW_DUMP);
         } else {
             setGroupSelection("view", "/file/view/viewResources");
             mainFrame.getPanel().showView(MainPanel.VIEW_RESOURCES);
@@ -1177,7 +1762,7 @@ public abstract class MainFrameMenu implements MenuBuilder {
         SWF swf = Main.getMainFrame().getPanel().getCurrentSwf();
 
         if (swf != null) {
-            List<Integer> indices = Main.searchResultsStorage.getIndicesForSwf(swf);
+            List<Integer> indices = Main.searchResultsStorage.getIndicesForOpenable(swf);
             int j = 0;
             for (int i = 0; i < indices.size(); i++) {
                 final int fi = indices.get(i);
@@ -1194,7 +1779,7 @@ public abstract class MainFrameMenu implements MenuBuilder {
                     } else {
                         sr = new SearchResultsDialog<>(Main.getDefaultDialogsOwner(), searched, Main.searchResultsStorage.isIgnoreCaseAt(fi), Main.searchResultsStorage.isRegExpAt(fi), listeners);
                     }
-                    sr.setResults(Main.searchResultsStorage.getSearchResultsAt(mainFrame.getPanel().getAllSwfs(), fi));
+                    sr.setResults(Main.searchResultsStorage.getSearchResultsAt(mainFrame.getPanel().getAllOpenablesAndSwfs(), fi));
                     sr.setVisible(true);
                     Main.getMainFrame().getPanel().searchResultsDialogs.add(sr);
                 };
@@ -1211,7 +1796,7 @@ public abstract class MainFrameMenu implements MenuBuilder {
 
     protected void clearRecentSearchesForCurrentSwfActionPerformed(ActionEvent evt) {
         if (ViewMessages.showConfirmDialog(Main.getDefaultMessagesComponent(), translate("message.confirm.recentSearches.clear"), translate("message.confirm"), JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) {
-            Main.searchResultsStorage.clearForSwf(swf);
+            Main.searchResultsStorage.clearForOpenable(openable);
         }
     }
 
@@ -1248,24 +1833,33 @@ public abstract class MainFrameMenu implements MenuBuilder {
         Configuration.decompile.removeListener(configListenerDecompile);
         //Configuration.cacheOnDisk.removeListener(configListenerCacheOnDisk);
         Configuration.gotoMainClassOnStartup.removeListener(configListenerGotoMainClassOnStartup);
-        Configuration.autoRenameIdentifiers.removeListener(configListenerAutoRenameIdentifiers);
+        //Configuration.autoRenameIdentifiers.removeListener(configListenerAutoRenameIdentifiers);
+        Configuration.autoDeobfuscateIdentifiers.removeListener(configListenerAutoDeobfuscateIdentifiers);
         Configuration.autoOpenLoadedSWFs.removeListener(configListenerAutoOpenLoadedSWFs);
 
         Main.stopRun();
     }
 
     public boolean runActionPerformed(ActionEvent evt) {
-        Main.run(swf);
+        Main.run((SWF) openable);
         return true;
     }
 
     public boolean debugActionPerformed(ActionEvent evt) {
-        Main.runDebug(swf, false);
+        Main.runDebug((SWF) openable, false);
         return true;
     }
 
+    public void debugListenActionPerformed(ActionEvent evt) {
+        if (ViewMessages.showConfirmDialog(mainFrame.getPanel(), "<div align=\"center\">" + translate("message.info.debugListen").replace("\n", "<br>") + "</div>", translate("message.info"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.INFORMATION_MESSAGE, Configuration.showDebugListenInfo, JOptionPane.OK_OPTION) != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        Main.startDebugListening();
+    }
+
     public boolean debugPCodeActionPerformed(ActionEvent evt) {
-        Main.runDebug(swf, true);
+        Main.runDebug((SWF) openable, true);
         return true;
     }
 
@@ -1274,13 +1868,18 @@ public abstract class MainFrameMenu implements MenuBuilder {
         return true;
     }
 
+    public boolean disconnectSessionActionPerformed(ActionEvent evt) {
+        Main.disconnectSession();
+        return true;
+    }
+
     public boolean pauseActionPerformed(ActionEvent evt) {
         try {
-            DebuggerCommands cmd = Main.getDebugHandler().getCommands();
+            DebuggerCommands cmd = Main.getCurrentDebugSession().getCommands();
             //TODO
 
         } catch (IOException ex) {
-            Main.getDebugHandler().disconnect();
+            Main.getCurrentDebugSession().disconnect();
             //ignore
         }
         return true;
@@ -1290,13 +1889,13 @@ public abstract class MainFrameMenu implements MenuBuilder {
 
         try {
 
-            DebuggerCommands cmd = Main.getDebugHandler().getCommands();
+            DebuggerCommands cmd = Main.getCurrentDebugSession().getCommands();
             mainFrame.getPanel().clearDebuggerColors();
-            Main.startWork(AppStrings.translate("work.debugging") + "...", null);
+            Main.startWork(AppStrings.translate("work.debugging") + "...", null, true);
 
             cmd.stepOver();
         } catch (IOException ex) {
-            Main.getDebugHandler().disconnect();
+            Main.getCurrentDebugSession().disconnect();
             //ignore
         }
         return true;
@@ -1304,13 +1903,13 @@ public abstract class MainFrameMenu implements MenuBuilder {
 
     public boolean stepIntoActionPerformed(ActionEvent evt) {
         try {
-            DebuggerCommands cmd = Main.getDebugHandler().getCommands();
+            DebuggerCommands cmd = Main.getCurrentDebugSession().getCommands();
             mainFrame.getPanel().clearDebuggerColors();
-            Main.startWork(AppStrings.translate("work.debugging") + "...", null);
+            Main.startWork(AppStrings.translate("work.debugging") + "...", null, true);
 
             cmd.stepInto();
         } catch (IOException ex) {
-            Main.getDebugHandler().disconnect();
+            Main.getCurrentDebugSession().disconnect();
             //ignore
         }
 
@@ -1319,12 +1918,12 @@ public abstract class MainFrameMenu implements MenuBuilder {
 
     public boolean stepOutActionPerformed(ActionEvent evt) {
         try {
-            DebuggerCommands cmd = Main.getDebugHandler().getCommands();
+            DebuggerCommands cmd = Main.getCurrentDebugSession().getCommands();
             mainFrame.getPanel().clearDebuggerColors();
-            Main.startWork(AppStrings.translate("work.debugging") + "...", null);
+            Main.startWork(AppStrings.translate("work.debugging") + "...", null, true);
             cmd.stepOut();
         } catch (IOException ex) {
-            Main.getDebugHandler().disconnect();
+            Main.getCurrentDebugSession().disconnect();
             //ignore
         }
 
@@ -1333,16 +1932,25 @@ public abstract class MainFrameMenu implements MenuBuilder {
 
     public boolean continueActionPerformed(ActionEvent evt) {
         try {
-            DebuggerCommands cmd = Main.getDebugHandler().getCommands();
+            DebuggerCommands cmd = Main.getCurrentDebugSession().getCommands();
             mainFrame.getPanel().clearDebuggerColors();
-            Main.startWork(AppStrings.translate("work.debugging") + "...", null);
+            Main.startWork(AppStrings.translate("work.debugging") + "...", null, true);
             cmd.sendContinue();
         } catch (IOException ex) {
-            Main.getDebugHandler().disconnect();
+            Main.getCurrentDebugSession().disconnect();
             //ignore
         }
 
         return true;
+    }
+
+    protected void abcExplorerActionPerformed(ActionEvent evt) {
+
+        if (openable == null) {
+            return;
+        }
+
+        mainFrame.getPanel().showAbcExplorer(openable, null);
     }
 
     public boolean stackActionPerformed(ActionEvent evt) {

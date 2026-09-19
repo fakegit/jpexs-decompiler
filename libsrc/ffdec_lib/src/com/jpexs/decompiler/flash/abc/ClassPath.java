@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,33 +16,69 @@
  */
 package com.jpexs.decompiler.flash.abc;
 
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.graph.DottedChain;
 import java.io.Serializable;
+import java.util.LinkedHashSet;
 import java.util.Objects;
 
 /**
+ * Class path
  *
  * @author JPEXS
  */
 public class ClassPath implements Serializable {
 
+    /**
+     * Package name
+     */
     public final DottedChain packageStr;
 
+    /**
+     * Class name
+     */
     public final String className;
 
+    /**
+     * Namespace suffix
+     */
     public final String namespaceSuffix;
 
-    public ClassPath(DottedChain packageStr, String className, String namespaceSuffix) {
+    /**
+     * SWF
+     */
+    private final SWF swf;
+
+    /**
+     * Constructs a new class path
+     *
+     * @param packageStr Package name
+     * @param className Class name
+     * @param namespaceSuffix Namespace suffix
+     * @param swf SWF
+     */
+    public ClassPath(DottedChain packageStr, String className, String namespaceSuffix, SWF swf) {
         this.packageStr = packageStr == null ? DottedChain.TOPLEVEL : packageStr;
         this.className = className;
         this.namespaceSuffix = namespaceSuffix;
+        this.swf = swf;
     }
 
+    /**
+     * To string
+     *
+     * @return String
+     */
     @Override
     public String toString() {
-        return packageStr.add(className, namespaceSuffix).toPrintableString(true);
+        return packageStr.add(className, namespaceSuffix).toPrintableString(new LinkedHashSet<>() /*???*/, swf, true);
     }
 
+    /**
+     * To raw string
+     *
+     * @return Raw string
+     */
     public String toRawString() {
         return packageStr.add(className, namespaceSuffix).toRawString();
     }

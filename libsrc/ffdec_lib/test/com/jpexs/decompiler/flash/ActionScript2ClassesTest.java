@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,6 +22,7 @@ import com.jpexs.decompiler.flash.helpers.CodeFormatting;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.tags.DoInitActionTag;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -46,6 +47,7 @@ public class ActionScript2ClassesTest extends ActionScript2TestBase {
         Configuration.simplifyExpressions.set(false);
         Configuration.decompile.set(true);
         Configuration.registerNameFormat.set("_loc%d_");
+        Configuration.skipDetectionOfUninitializedClassFields.set(false);
         swf = new SWF(new BufferedInputStream(new FileInputStream("testdata/as2/as2.swf")), false);
     }
 
@@ -54,10 +56,11 @@ public class ActionScript2ClassesTest extends ActionScript2TestBase {
         assertNotNull(dia);
         HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
         try {
-            Action.actionsToSource(dia, dia.getActions(), "", writer);
+            Action.actionsToSource(swf.getUninitializedAs2ClassTraits(), dia, dia.getActions(), "", writer, Utf8Helper.charsetName);
         } catch (InterruptedException ex) {
             fail();
         }
+        writer.finishHilights();
         String actualResult = cleanPCode(writer.toString());
         String expectedResult = cleanPCode("class " + BASE_TEST_PACKAGE + "." + testClassName + "\r\n"
                 + "{\r\n"
@@ -181,5 +184,73 @@ public class ActionScript2ClassesTest extends ActionScript2TestBase {
                 + "{\r\n"
                 + "trace(\"okay\");\r\n"
                 + "}\r\n");
+    }
+
+    @Test
+    public void testCallSetterGetter() {
+        compareSrc("TestCallSetterGetter", "   var myobj;\n"
+                + "   function TestCallSetterGetter()\n"
+                + "   {\n"
+                + "   }\n"
+                + "   function testSetterCall()\n"
+                + "   {\n"
+                + "      this.myobj.myvar = 5;\n"
+                + "   }\n"
+                + "   function testGetterCall()\n"
+                + "   {\n"
+                + "      return this.myobj.myvar;\n"
+                + "   }\n"
+                + "   function testStatGetterCall()\n"
+                + "   {\n"
+                + "      return com.jpexs.flash.test.testcases.TestSetterGetter.mystvar;\n"
+                + "   }\n"
+                + "   function testStatSetterCall(val)\n"
+                + "   {\n"
+                + "      com.jpexs.flash.test.testcases.TestSetterGetter.mystvar = 6;\n"
+                + "   }");
+    }
+
+    @Test
+    public void testReturnInConstructor() {
+        compareSrc("TestReturnInConstructor", "   function TestReturnInConstructor()\n"
+                + "   {\n"
+                + "      var _loc1_ = 3;\n"
+                + "      if(_loc1_ == 3)\n"
+                + "      {\n"
+                + "         trace(\"A\");\n"
+                + "         return;\n"
+                + "      }\n"
+                + "      trace(\"B\");\n"
+                + "   }\n"
+                + "   function func()\n"
+                + "   {\n"
+                + "      var _loc1_ = 3;\n"
+                + "      if(_loc1_ == 3)\n"
+                + "      {\n"
+                + "         trace(\"A\");\n"
+                + "         return undefined;\n"
+                + "      }\n"
+                + "      trace(\"B\");\n"
+                + "      return 5;\n"
+                + "   }");
+    }
+
+    @Test
+    public void testUnpopped() {
+        compareSrc("TestUnpopped", "var a;\n"
+                + "   var c = true;\n"
+                + "   function TestUnpopped()\n"
+                + "   {\n"
+                + "      \n"
+                + "   }\n"
+                + "   function run()\n"
+                + "   {\n"
+                + "      this.a; //unpopped\n"
+                + "      trace(\"b\");\n"
+                + "      if(this.c)\n"
+                + "      {\n"
+                + "         trace(\"c\");\n"
+                + "      }\n"
+                + "   }");
     }
 }

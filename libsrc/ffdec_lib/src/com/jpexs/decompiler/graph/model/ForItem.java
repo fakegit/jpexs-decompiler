@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,6 +23,7 @@ import com.jpexs.decompiler.flash.helpers.NulWriter;
 import com.jpexs.decompiler.graph.Block;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.Loop;
@@ -32,19 +33,35 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * For loop.
  *
  * @author JPEXS
  */
 public class ForItem extends LoopItem implements Block {
 
+    /**
+     * First commands
+     */
     public List<GraphTargetItem> firstCommands;
 
+    /**
+     * Expression
+     */
     public GraphTargetItem expression;
 
+    /**
+     * Final commands
+     */
     public List<GraphTargetItem> finalCommands;
 
+    /**
+     * Commands
+     */
     public List<GraphTargetItem> commands;
 
+    /**
+     * Label used
+     */
     private boolean labelUsed;
 
     @Override
@@ -81,9 +98,20 @@ public class ForItem extends LoopItem implements Block {
         visitor.visit(expression);
     }
 
-
-    public ForItem(GraphSourceItem src, GraphSourceItem lineStartIns, Loop loop, List<GraphTargetItem> firstCommands, GraphTargetItem expression, List<GraphTargetItem> finalCommands, List<GraphTargetItem> commands) {
-        super(src, lineStartIns, loop);
+    /**
+     * Constructor.
+     *
+     * @param dialect Dialect
+     * @param src Source
+     * @param lineStartIns Line start instruction
+     * @param loop Loop
+     * @param firstCommands First commands
+     * @param expression Expression
+     * @param finalCommands Final commands
+     * @param commands Commands
+     */
+    public ForItem(GraphTargetDialect dialect, GraphSourceItem src, GraphSourceItem lineStartIns, Loop loop, List<GraphTargetItem> firstCommands, GraphTargetItem expression, List<GraphTargetItem> finalCommands, List<GraphTargetItem> commands) {
+        super(dialect, src, lineStartIns, loop);
         this.firstCommands = firstCommands;
         this.expression = expression;
         this.finalCommands = finalCommands;
@@ -158,6 +186,20 @@ public class ForItem extends LoopItem implements Block {
     }
 
     @Override
+    public List<BreakItem> getBreaks() {
+        List<BreakItem> ret = new ArrayList<>();
+        for (GraphTargetItem ti : commands) {
+            if (ti instanceof BreakItem) {
+                ret.add((BreakItem) ti);
+            }
+            if (ti instanceof Block) {
+                ret.addAll(((Block) ti).getBreaks());
+            }
+        }
+        return ret;
+    }
+    
+    @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         return generator.generate(localData, this);
     }
@@ -170,5 +212,15 @@ public class ForItem extends LoopItem implements Block {
     @Override
     public GraphTargetItem returnType() {
         return TypeItem.UNBOUNDED;
+    }
+
+    @Override
+    public boolean hasBaseBody() {
+        return true;
+    }
+
+    @Override
+    public List<GraphTargetItem> getBaseBodyCommands() {
+        return commands;
     }
 }

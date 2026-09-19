@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -33,13 +33,20 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Print.
  *
  * @author JPEXS
  */
 public class PrintActionItem extends ActionItem {
 
+    /**
+     * Target
+     */
     private final GraphTargetItem target;
 
+    /**
+     * Bounding box
+     */
     private final GraphTargetItem boundingBox;
 
     @Override
@@ -48,6 +55,14 @@ public class PrintActionItem extends ActionItem {
         visitor.visit(boundingBox);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param target Target
+     * @param boundingBox Bounding box
+     */
     public PrintActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem target, GraphTargetItem boundingBox) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.target = target;
@@ -57,7 +72,7 @@ public class PrintActionItem extends ActionItem {
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("print");
-        writer.spaceBeforeCallParenthesies(2);
+        writer.spaceBeforeCallParenthesis(2);
         writer.append("(");
         target.toString(writer, localData);
         writer.append(",");
@@ -66,18 +81,25 @@ public class PrintActionItem extends ActionItem {
     }
 
     @Override
-    public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        return toSource(localData, generator, true);
-    }
-
-    @Override
     public List<GraphSourceItem> toSourceIgnoreReturnValue(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         return toSource(localData, generator, false);
     }
 
+    @Override
+    public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+        return toSource(localData, generator, true);
+    }
+
     private List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator, boolean needsReturn) throws CompilationException {
         ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
-        return toSourceMerge(localData, generator, new AddActionItem(getSrc(), getLineStartItem(), asGenerator.pushConstTargetItem("print:#"), boundingBox, true), target, new ActionGetURL2(0, false, false), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}) : null);
+        String charset = asGenerator.getCharset();
+        if (boundingBox instanceof DirectValueActionItem) {
+            DirectValueActionItem directValue = ((DirectValueActionItem) boundingBox);
+            if (directValue.isString() && "bmovie".equals(directValue.getAsString())) {
+                return toSourceMerge(localData, generator, asGenerator.pushConstTargetItem("print:"), target, new ActionGetURL2(0, false, false, charset), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}, charset) : null);
+            }
+        }
+        return toSourceMerge(localData, generator, new AddActionItem(getSrc(), getLineStartItem(), asGenerator.pushConstTargetItem("print:#"), boundingBox, true), target, new ActionGetURL2(0, false, false, charset), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}, charset) : null);
     }
 
     @Override

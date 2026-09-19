@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,9 +17,8 @@
 package com.jpexs.decompiler.flash.abc.avm2.model.clauses;
 
 import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.SetTypeIns;
 import com.jpexs.decompiler.flash.abc.avm2.model.AVM2Item;
-import com.jpexs.decompiler.flash.abc.avm2.model.CoerceAVM2Item;
-import com.jpexs.decompiler.flash.abc.avm2.model.ConvertAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.FullMultinameAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.GetSlotAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.LocalRegAVM2Item;
@@ -35,17 +34,38 @@ import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 
 /**
+ * Declaration.
  *
  * @author JPEXS
  */
 public class DeclarationAVM2Item extends AVM2Item {
 
+    /**
+     * Assignment
+     */
     public GraphTargetItem assignment;
 
+    /**
+     * Type
+     */
     public GraphTargetItem type;
 
+    /**
+     * Type is null
+     */
+    public boolean typeIsNull = false;
+
+    /**
+     * Show value
+     */
     public boolean showValue = true;
 
+    /**
+     * Constructor.
+     *
+     * @param assignment Assignment
+     * @param type Type
+     */
     public DeclarationAVM2Item(GraphTargetItem assignment, GraphTargetItem type) {
         super(assignment.getSrc(), assignment.getLineStartItem(), assignment.getPrecedence());
         this.type = type;
@@ -58,6 +78,11 @@ public class DeclarationAVM2Item extends AVM2Item {
         visitor.visit(assignment);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param assignment Assignment
+     */
     public DeclarationAVM2Item(GraphTargetItem assignment) {
         this(assignment, null);
     }
@@ -65,58 +90,60 @@ public class DeclarationAVM2Item extends AVM2Item {
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
 
-        if (assignment instanceof LocalRegAVM2Item) { //for..in
+        if (assignment instanceof LocalRegAVM2Item) { //for..in / for each
             LocalRegAVM2Item lti = (LocalRegAVM2Item) assignment;
-            String localName = localRegName(localData.localRegNames, lti.regIndex);
+            String localName = localRegName(localData.abc.getSwf(), localData.localRegNames, lti.regIndex, localData.usedDeobfuscations);
             HighlightData srcData = getSrcData();
             srcData.localName = localName;
             srcData.declaration = true;
             srcData.regIndex = lti.regIndex;
-            srcData.declaredType = DottedChain.ALL;
             writer.append("var ");
             writer.append(localName);
+            // Keep convert/coerce-after-nextvalue as for-each var type (e.g. var t:int).
+            if (type != null && !type.equals(TypeItem.UNBOUNDED) && !type.equals(TypeItem.UNKNOWN)) {
+                srcData.declaredType = (type instanceof TypeItem) ? ((TypeItem) type).fullTypeName : DottedChain.ALL;
+                writer.append(":");
+                type.appendTry(writer, localData);
+            } else {
+                srcData.declaredType = DottedChain.ALL;
+            }
             return writer;
         }
 
-        if (assignment instanceof GetSlotAVM2Item) { //for..in
+        if (assignment instanceof GetSlotAVM2Item) { //for..in / for each
             GetSlotAVM2Item sti = (GetSlotAVM2Item) assignment;
             HighlightData srcData = getSrcData();
             srcData.localName = sti.getNameAsStr(localData);
             srcData.declaration = true;
-            srcData.declaredType = DottedChain.ALL;
             writer.append("var ");
             sti.getName(writer, localData);
+            if (type != null && !type.equals(TypeItem.UNBOUNDED) && !type.equals(TypeItem.UNKNOWN)) {
+                srcData.declaredType = (type instanceof TypeItem) ? ((TypeItem) type).fullTypeName : DottedChain.ALL;
+                writer.append(":");
+                type.appendTry(writer, localData);
+            } else {
+                srcData.declaredType = DottedChain.ALL;
+            }
             return writer;
         }
 
         if (assignment instanceof SetLocalAVM2Item) {
             SetLocalAVM2Item lti = (SetLocalAVM2Item) assignment;
-            String localName = localRegName(localData.localRegNames, lti.regIndex);
+            String localName = localRegName(localData.abc.getSwf(), localData.localRegNames, lti.regIndex, localData.usedDeobfuscations);
             HighlightData srcData = getSrcData();
             srcData.localName = localName;
             srcData.declaration = true;
             srcData.regIndex = lti.regIndex;
 
             GraphTargetItem val = lti.value;
-            GraphTargetItem coerType = TypeItem.UNBOUNDED;
-            if (lti.value instanceof CoerceAVM2Item) {
-                coerType = ((CoerceAVM2Item) lti.value).typeObj;
-            }
-            if (lti.value instanceof ConvertAVM2Item) {
-                coerType = ((ConvertAVM2Item) lti.value).type;
-            }
-            //strip coerce if its declared as this type
-            if (coerType.equals(type) && !coerType.equals(TypeItem.UNBOUNDED)) {
-                val = val.value;
-            }
-            srcData.declaredType = (coerType instanceof TypeItem) ? ((TypeItem) coerType).fullTypeName : DottedChain.ALL;
+            srcData.declaredType = (type instanceof TypeItem) ? ((TypeItem) type).fullTypeName : DottedChain.ALL;
             writer.append("var ");
             writer.append(localName);
             writer.append(":");
             type.appendTry(writer, localData);
             if (showValue) {
                 writer.append(" = ");
-                val.toString(writer, localData);
+                SetTypeIns.handleSetCoerce(val, type).toString(writer, localData);
             }
             return writer;
         }
@@ -127,18 +154,6 @@ public class DeclarationAVM2Item extends AVM2Item {
             srcData.declaration = true;
 
             GraphTargetItem val = ssti.value;
-            GraphTargetItem coerType = TypeItem.UNBOUNDED;
-            if (ssti.value instanceof CoerceAVM2Item) {
-                coerType = ((CoerceAVM2Item) ssti.value).typeObj;
-            }
-            if (ssti.value instanceof ConvertAVM2Item) {
-                coerType = ((ConvertAVM2Item) ssti.value).type;
-            }
-            //strip coerce if its declared as this type
-            if (coerType.equals(type) && !coerType.equals(TypeItem.UNBOUNDED)) {
-                val = val.value;
-            }
-
             srcData.declaredType = (type instanceof TypeItem) ? ((TypeItem) type).fullTypeName : DottedChain.ALL;
             writer.append("var ");
             ssti.getName(writer, localData);
@@ -147,7 +162,7 @@ public class DeclarationAVM2Item extends AVM2Item {
             type.appendTry(writer, localData);
             if (showValue) {
                 writer.append(" = ");
-                val.toString(writer, localData);
+                SetTypeIns.handleSetCoerce(val, type).toString(writer, localData);
             }
             return writer;
         }
@@ -159,33 +174,25 @@ public class DeclarationAVM2Item extends AVM2Item {
             srcData.declaration = true;
 
             GraphTargetItem val = spti.value;
-            GraphTargetItem coerType = TypeItem.UNBOUNDED;
-            if (spti.value instanceof CoerceAVM2Item) {
-                coerType = ((CoerceAVM2Item) spti.value).typeObj;
-            }
-            if (spti.value instanceof ConvertAVM2Item) {
-                coerType = ((ConvertAVM2Item) spti.value).type;
-            }
-            //strip coerce if its declared as this type
-            if (coerType.equals(type) && !coerType.equals(TypeItem.UNBOUNDED)) {
-                val = val.value;
-            }
-
             srcData.declaredType = (type instanceof TypeItem) ? ((TypeItem) type).fullTypeName : DottedChain.ALL;
             writer.append("var ");
-            writer.append(IdentifiersDeobfuscation.printIdentifier(true, ((FullMultinameAVM2Item) spti.propertyName).resolvedMultinameName));
+            writer.append(IdentifiersDeobfuscation.printIdentifier(localData.abc.getSwf(), localData.usedDeobfuscations, true, ((FullMultinameAVM2Item) spti.propertyName).resolvedMultinameName));
             writer.append(":");
 
             type.appendTry(writer, localData);
             if (showValue) {
                 writer.append(" = ");
-                val.toString(writer, localData);
+                SetTypeIns.handleSetCoerce(val, type).toString(writer, localData);
             }
             return writer;
         }
 
         writer.append("var ");
-        return assignment.toString(writer, localData);
+        assignment.toString(writer, localData);
+        writer.append(":");
+
+        type.appendTry(writer, localData);
+        return writer;
     }
 
     @Override

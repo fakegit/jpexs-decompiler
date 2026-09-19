@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.helpers;
 
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
@@ -33,6 +34,11 @@ public class StringBuilderTextWriter extends GraphTextWriter {
 
     private int writtenBytes;
 
+    /**
+     * Constructor.
+     * @param formatting Code formatting
+     * @param writer StringBuilder to write to
+     */
     public StringBuilderTextWriter(CodeFormatting formatting, StringBuilder writer) {
         super(formatting);
         this.writer = writer;
@@ -40,36 +46,42 @@ public class StringBuilderTextWriter extends GraphTextWriter {
 
     @Override
     public GraphTextWriter hilightSpecial(String text, HighlightSpecialType type, String specialValue, HighlightData data) {
+        addLineLength(text.length());
         writeToOutputStream(text);
         return this;
     }
 
     @Override
-    public StringBuilderTextWriter append(String str) {
+    public GraphTextWriter appendWithData(String str, HighlightData data) {
+        addLineLength(str.length());
         writeToOutputStream(str);
         return this;
     }
 
     @Override
-    public GraphTextWriter appendWithData(String str, HighlightData data) {
+    public StringBuilderTextWriter append(String str) {
+        addLineLength(str.length());
         writeToOutputStream(str);
         return this;
     }
 
     @Override
     public StringBuilderTextWriter append(String str, long offset, long fileOffset) {
+        addLineLength(str.length());
         writeToOutputStream(str);
         return this;
     }
 
     @Override
     public StringBuilderTextWriter appendNoHilight(int i) {
+        addLineLength(Integer.toString(i).length());
         writeToOutputStream(Integer.toString(i));
         return this;
     }
 
     @Override
     public StringBuilderTextWriter appendNoHilight(String str) {
+        addLineLength(str.length());
         writeToOutputStream(str);
         return this;
     }
@@ -90,6 +102,7 @@ public class StringBuilderTextWriter extends GraphTextWriter {
     public StringBuilderTextWriter newLine() {
         writeToOutputStream(formatting.newLineChars);
         newLine = true;
+        lineLength = 0;        
         return this;
     }
 

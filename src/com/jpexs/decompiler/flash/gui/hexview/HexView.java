@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -45,7 +45,6 @@ import javax.swing.table.TableColumn;
 import javax.swing.table.TableModel;
 
 /**
- *
  * @author JPEXS
  */
 public class HexView extends JTable {
@@ -182,7 +181,9 @@ public class HexView extends JTable {
             int col = table.columnAtPoint(point);
             int row = table.rowAtPoint(point);
             mouseOverIdx = -1;
-            getModel().fireTableCellUpdated(row, col);
+            if (row > -1 && col > -1) {
+                getModel().fireTableCellUpdated(row, col);
+            }
             if (listener != null) {
                 listener.byteMouseMoved(-1, (byte) 0);
             }
@@ -199,7 +200,10 @@ public class HexView extends JTable {
             int row = table.rowAtPoint(point);
             int idx = getIdxByColAndRow(row, col);
             mouseOverIdx = idx;
-            getModel().fireTableCellUpdated(row, col);
+            
+            if (row > -1 && col > -1) {
+                getModel().fireTableCellUpdated(row, col);
+            }
 
             if (listener != null) {
                 listener.byteMouseMoved(idx, idx == -1 ? 0 : getModel().getData()[idx]);
@@ -315,15 +319,6 @@ public class HexView extends JTable {
         getModel().fireTableDataChanged();
     }
 
-    public void scrollToByte(long byteNum) {
-
-        int row = (int) (byteNum / bytesInRow);
-
-        //final int pageSize = (int) (getParent().getSize().getHeight() / getRowHeight());
-        getSelectionModel().setSelectionInterval(row, row);
-        scrollRectToVisible(new Rectangle(getCellRect(row, 0, true)));
-    }
-
     private int getIdxByColAndRow(int row, int col) {
         int idx = -1;
         if (row < 0 || col < 0) {
@@ -345,6 +340,15 @@ public class HexView extends JTable {
 
         int idx = getIdxByColAndRow(row, col);
         return idx;
+    }
+
+    public void scrollToByte(long byteNum) {
+
+        int row = (int) (byteNum / bytesInRow);
+
+        //final int pageSize = (int) (getParent().getSize().getHeight() / getRowHeight());
+        getSelectionModel().setSelectionInterval(row, row);
+        scrollRectToVisible(new Rectangle(getCellRect(row, 0, true)));
     }
 
     public void scrollToByte(long[] byteNumStarts, long[] byteNumEnds) {

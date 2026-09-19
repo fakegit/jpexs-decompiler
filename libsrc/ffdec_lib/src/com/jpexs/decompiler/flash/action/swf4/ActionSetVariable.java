@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,12 +17,16 @@
 package com.jpexs.decompiler.flash.action.swf4;
 
 import com.jpexs.decompiler.flash.BaseLocalData;
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
 import com.jpexs.decompiler.flash.action.StoreTypeAction;
+import com.jpexs.decompiler.flash.action.as2.Trait;
+import com.jpexs.decompiler.flash.action.model.CompoundableBinaryOpAs12;
 import com.jpexs.decompiler.flash.action.model.ConstantPool;
 import com.jpexs.decompiler.flash.action.model.DecrementActionItem;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
+import com.jpexs.decompiler.flash.action.model.EvalActionItem;
 import com.jpexs.decompiler.flash.action.model.GetVariableActionItem;
 import com.jpexs.decompiler.flash.action.model.IncrementActionItem;
 import com.jpexs.decompiler.flash.action.model.PostDecrementActionItem;
@@ -30,6 +34,7 @@ import com.jpexs.decompiler.flash.action.model.PostIncrementActionItem;
 import com.jpexs.decompiler.flash.action.model.SetVariableActionItem;
 import com.jpexs.decompiler.flash.action.model.StoreRegisterActionItem;
 import com.jpexs.decompiler.flash.action.model.TemporaryRegister;
+import com.jpexs.decompiler.flash.action.model.TemporaryRegisterMark;
 import com.jpexs.decompiler.flash.action.model.operations.PreDecrementActionItem;
 import com.jpexs.decompiler.flash.action.model.operations.PreIncrementActionItem;
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
@@ -39,19 +44,27 @@ import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SecondPassData;
 import com.jpexs.decompiler.graph.TranslateStack;
 import com.jpexs.decompiler.graph.model.CompoundableBinaryOp;
+import com.jpexs.decompiler.graph.model.DuplicateItem;
 import com.jpexs.decompiler.graph.model.LocalData;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
+ * SetVariable action - Sets a variable value.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 4)
 public class ActionSetVariable extends Action implements StoreTypeAction {
 
+    /**
+     * Constructor.
+     */
     public ActionSetVariable() {
-        super(0x1D, 0);
+        super(0x1D, 0, Utf8Helper.charsetName);
     }
 
     @Override
@@ -71,7 +84,7 @@ public class ActionSetVariable extends Action implements StoreTypeAction {
     }
 
     @Override
-    public void translate(SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+    public void translate(Set<String> usedDeobfuscations, Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
         GraphTargetItem value = stack.pop().getThroughDuplicate();
         GraphTargetItem name = stack.pop();
         String nameStr;
@@ -110,8 +123,16 @@ public class ActionSetVariable extends Action implements StoreTypeAction {
                     if (((IncrementActionItem) value).object instanceof GetVariableActionItem) {
                         ((GetVariableActionItem) ((IncrementActionItem) value).object).printObfuscatedName = true;
                     }
-                    output.add(new PostIncrementActionItem(this, lineStartAction, ((IncrementActionItem) value).object));
+                    stack.addToOutput(new PostIncrementActionItem(this, lineStartAction, ((IncrementActionItem) value).object));
                     return;
+                }
+            }
+            if (((IncrementActionItem) value).object instanceof EvalActionItem) {
+                if (((IncrementActionItem) value).object.value instanceof DuplicateItem) {
+                    if (((IncrementActionItem) value).object.value.value == name) {                        
+                        stack.addToOutput(new PostIncrementActionItem(this, lineStartAction, new GetVariableActionItem(null, null, name)));
+                        return;
+                    }
                 }
             }
         }
@@ -121,8 +142,16 @@ public class ActionSetVariable extends Action implements StoreTypeAction {
                     if (((DecrementActionItem) value).object instanceof GetVariableActionItem) {
                         ((GetVariableActionItem) ((DecrementActionItem) value).object).printObfuscatedName = true;
                     }
-                    output.add(new PostDecrementActionItem(this, lineStartAction, ((DecrementActionItem) value).object));
+                    stack.addToOutput(new PostDecrementActionItem(this, lineStartAction, ((DecrementActionItem) value).object));
                     return;
+                }
+            }
+            if (((DecrementActionItem) value).object instanceof EvalActionItem) {
+                if (((DecrementActionItem) value).object.value instanceof DuplicateItem) {
+                    if (((DecrementActionItem) value).object.value.value == name) {                        
+                        stack.addToOutput(new PostDecrementActionItem(this, lineStartAction, new GetVariableActionItem(null, null, name)));
+                        return;
+                    }
                 }
             }
         }
@@ -134,7 +163,7 @@ public class ActionSetVariable extends Action implements StoreTypeAction {
         if (inside instanceof StoreRegisterActionItem) {
             inside = inside.value;
         }
-        if (inside instanceof CompoundableBinaryOp) {
+        if (inside instanceof CompoundableBinaryOpAs12) {
             if (!name.hasSideEffect()) {
                 CompoundableBinaryOp binaryOp = (CompoundableBinaryOp) inside;
                 if (binaryOp.getLeftSide() instanceof GetVariableActionItem) {
@@ -143,6 +172,13 @@ public class ActionSetVariable extends Action implements StoreTypeAction {
                         setVar.setCompoundValue(binaryOp.getRightSide());
                         setVar.setCompoundOperator(binaryOp.getOperator());
                     }
+                } else if (
+                        binaryOp.getLeftSide() instanceof EvalActionItem
+                        && binaryOp.getLeftSide().value instanceof DuplicateItem
+                        && binaryOp.getLeftSide().value.value == name
+                ) {
+                    setVar.setCompoundValue(binaryOp.getRightSide());
+                    setVar.setCompoundOperator(binaryOp.getOperator());
                 }
             }
         }
@@ -171,12 +207,14 @@ public class ActionSetVariable extends Action implements StoreTypeAction {
                     ((SetVariableActionItem) ret).setValue(sr);
                 }
 
-                variables.put("__register" + sr.register.number, new TemporaryRegister(sr.register.number, ret));
+                TemporaryRegister tr = new TemporaryRegister(sr.register.number, ret);
+                variables.put("__register" + sr.register.number, tr);
+                stack.addToOutput(new TemporaryRegisterMark(tr));
                 return;
             }
         }
 
-        output.add(ret);
+        stack.addToOutput(ret);
     }
 
     @Override
@@ -185,10 +223,10 @@ public class ActionSetVariable extends Action implements StoreTypeAction {
     }
 
     @Override
-    public String getVariableName(TranslateStack stack, ConstantPool cpool) {
+    public String getVariableName(Set<String> usedDeobfuscations, TranslateStack stack, ConstantPool cpool, SWF swf) {
         if (stack.size() < 2) {
             return null;
         }
-        return stack.get(stack.size() - 2).toStringNoQuotes(LocalData.create(cpool));
+        return stack.get(stack.size() - 2).toStringNoQuotes(LocalData.create(cpool, swf, usedDeobfuscations));
     }
 }

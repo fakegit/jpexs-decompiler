@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -28,15 +28,19 @@ import com.jpexs.decompiler.flash.importers.ShapeImporter;
 import com.jpexs.decompiler.flash.importers.svg.css.CssParseException;
 import com.jpexs.decompiler.flash.importers.svg.css.CssParser;
 import com.jpexs.decompiler.flash.importers.svg.css.CssSelectorToXPath;
+import com.jpexs.decompiler.flash.math.BezierEdge;
+import com.jpexs.decompiler.flash.tags.DefineMorphShape2Tag;
 import com.jpexs.decompiler.flash.tags.DefineShape4Tag;
 import com.jpexs.decompiler.flash.tags.ExportAssetsTag;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.decompiler.flash.tags.base.MorphShapeTag;
 import com.jpexs.decompiler.flash.tags.base.ShapeTag;
 import com.jpexs.decompiler.flash.types.FILLSTYLE;
 import com.jpexs.decompiler.flash.types.FILLSTYLEARRAY;
 import com.jpexs.decompiler.flash.types.FOCALGRADIENT;
 import com.jpexs.decompiler.flash.types.GRADIENT;
 import com.jpexs.decompiler.flash.types.GRADRECORD;
+import com.jpexs.decompiler.flash.types.ILINESTYLE;
 import com.jpexs.decompiler.flash.types.LINESTYLE;
 import com.jpexs.decompiler.flash.types.LINESTYLE2;
 import com.jpexs.decompiler.flash.types.LINESTYLEARRAY;
@@ -50,6 +54,7 @@ import com.jpexs.decompiler.flash.types.shaperecords.SHAPERECORD;
 import com.jpexs.decompiler.flash.types.shaperecords.StraightEdgeRecord;
 import com.jpexs.decompiler.flash.types.shaperecords.StyleChangeRecord;
 import com.jpexs.helpers.Helper;
+import com.jpexs.helpers.Reference;
 import com.jpexs.helpers.SerializableImage;
 import java.awt.Color;
 import java.awt.geom.Rectangle2D;
@@ -57,6 +62,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
+import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -83,6 +89,7 @@ import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
 /**
+ * SVG importer.
  *
  * @author JPEXS
  */
@@ -90,16 +97,99 @@ public class SvgImporter {
 
     private final Set<String> shownWarnings = new HashSet<>();
 
-    ShapeTag shapeTag;
+    /**
+     * Shape or morphshape tag
+     */
+    Tag shapeTag;
+
+    ShapeTag endShape;
 
     private Rectangle2D.Double viewBox;
 
+    private double width;
+
+    private double height;
+
+    /**
+     * Constructor.
+     *
+     * @param st Shape tag
+     * @param svgXml SVG XML
+     * @return Imported tag
+     */
     public Tag importSvg(ShapeTag st, String svgXml) {
-        return importSvg(st, svgXml, true);
+        return importSvg((Tag) st, null, svgXml, true);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param mst Morph shape tag
+     * @param svgXml SVG XML
+     * @return Imported tag
+     */
+    public Tag importSvg(MorphShapeTag mst, String svgXml) {
+        return importSvg((Tag) mst, null, svgXml, true);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param st Shape tag
+     * @param svgXml SVG XML
+     * @param fill Fill flag
+     * @return Imported tag
+     */
     public Tag importSvg(ShapeTag st, String svgXml, boolean fill) {
+        return importSvg((Tag) st, null, svgXml, fill);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param mst Morph shape tag
+     * @param svgXml SVG XML
+     * @param fill Fill flag
+     * @return Imported tag
+     */
+    public Tag importSvg(MorphShapeTag mst, String svgXml, boolean fill) {
+        return importSvg((Tag) mst, null, svgXml, fill);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param startShape Start shape tag
+     * @param endShape End shape tag
+     * @param svgXml SVG XML
+     * @param fill Fill flag
+     * @return Imported tag
+     */
+    public Tag importSvg(ShapeTag startShape, ShapeTag endShape, String svgXml, boolean fill) {
+        return importSvg((Tag) startShape, endShape, svgXml, fill);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param st Start shape tag
+     * @param endShape End shape tag
+     * @param svgXml SVG XML
+     * @param fill Fill flag
+     * @return Imported tag
+     */
+    private Tag importSvg(Tag st, ShapeTag endShape, String svgXml, boolean fill) {
         shapeTag = st;
+        this.endShape = endShape;
+
+        boolean morphShape = st instanceof MorphShapeTag;
+
+        if (st instanceof DefineShape4Tag) {
+            DefineShape4Tag shape4 = (DefineShape4Tag) st;
+            shape4.usesFillWindingRule = false;
+            shape4.usesNonScalingStrokes = false;
+            shape4.usesScalingStrokes = false;
+        }
 
         SHAPEWITHSTYLE shapes = new SHAPEWITHSTYLE();
         shapes.fillStyles = new FILLSTYLEARRAY();
@@ -107,12 +197,34 @@ public class SvgImporter {
         shapes.fillStyles.fillStyles = new FILLSTYLE[0];
         shapes.lineStyles.lineStyles = new LINESTYLE[0];
 
-        int shapeNum = st.getShapeNum();
-        RECT rect = st.getRect();
+        SHAPEWITHSTYLE shapes2 = new SHAPEWITHSTYLE();
+        shapes2.fillStyles = new FILLSTYLEARRAY();
+        shapes2.lineStyles = new LINESTYLEARRAY();
+        shapes2.fillStyles.fillStyles = new FILLSTYLE[0];
+        shapes2.lineStyles.lineStyles = new LINESTYLE[0];
+
+        int shapeNum = 0;
+        RECT rect = null;
+
+        if (st instanceof ShapeTag) {
+            shapeNum = ((ShapeTag) st).getShapeNum();
+            rect = ((ShapeTag) st).getRect();
+        }
+        if (st instanceof MorphShapeTag) {
+            int morphShapeNum = ((MorphShapeTag) st).getShapeNum();
+            if (morphShapeNum == 2) {
+                shapeNum = 4;
+            } else {
+                shapeNum = 3;
+            }
+            rect = ((MorphShapeTag) st).getRect();
+        }
+
         int origXmin = rect.Xmin;
         int origYmin = rect.Ymin;
 
         shapes.shapeRecords = new ArrayList<>();
+        shapes2.shapeRecords = new ArrayList<>();
 
         Rectangle2D.Double viewBox = null;
         try {
@@ -174,40 +286,180 @@ public class SvgImporter {
             }
 
             this.viewBox = viewBox;
+            this.width = width;
+            this.height = height;
 
-            SvgStyle style = new SvgStyle(this, idMap, rootElement);
+            Map<String, Integer> cachedBitmaps = new HashMap<>();
+            SvgStyle style = new SvgStyle(this, idMap, rootElement, cachedBitmaps);
             Matrix transform = new Matrix();
 
-            if (!fill) {
-                rect.Xmin -= origXmin;
-                rect.Xmax -= origXmin;
-                rect.Ymin -= origYmin;
-                rect.Ymax -= origYmin;
-                rect.Xmin = (int) Math.round(viewBox.x * SWF.unitDivisor);
-                rect.Ymin = (int) Math.round(viewBox.y * SWF.unitDivisor);
-                rect.Xmax = (int) Math.round((viewBox.x + viewBox.width) * SWF.unitDivisor);
-                rect.Ymax = (int) Math.round((viewBox.y + viewBox.height) * SWF.unitDivisor);
-            } else {
-                double ratioX = rect.getWidth() / width / SWF.unitDivisor;
-                double ratioY = rect.getHeight() / height / SWF.unitDivisor;
-                transform = Matrix.getScaleInstance(ratioX, ratioY);
-                transform.translate(origXmin / SWF.unitDivisor / ratioX, origYmin / SWF.unitDivisor / ratioY);
+            if (fill) {
+                double ratioX = rect.getWidth() / width;
+                double ratioY = rect.getHeight() / height;
+                transform = Matrix.getScaleInstance(ratioX / SWF.unitDivisor, ratioY / SWF.unitDivisor);
+                transform.translate(origXmin / ratioX, origYmin / ratioY);
             }
 
-            processSvgObject(idMap, shapeNum, shapes, rootElement, transform, style);
+            transform = transform.preConcatenate(Matrix.getTranslateInstance(-viewBox.x, -viewBox.y));
+            if (viewBox.height != 0 && viewBox.width != 0) {
+                double ratioX = width / viewBox.width;
+                double ratioY = height / viewBox.height;
+                transform = transform.preConcatenate(Matrix.getScaleInstance(ratioX, ratioY));
+            }
+
+            processSvgObject(idMap, shapeNum, shapes, rootElement, transform, style, morphShape, cachedBitmaps, false);
+            if (rootElement.hasAttribute("ffdec:objectType")
+                    && "morphshape".equals(rootElement.getAttribute("ffdec:objectType"))
+                    && applyAnimation(rootElement)) {
+                processSvgObject(idMap, shapeNum, shapes2, rootElement, transform, style, morphShape, cachedBitmaps, true);
+            }
         } catch (SAXException | IOException | ParserConfigurationException ex) {
             Logger.getLogger(ShapeImporter.class.getName()).log(Level.SEVERE, null, ex);
         }
 
         shapes.shapeRecords.add(new EndShapeRecord());
+        shapes2.shapeRecords.add(new EndShapeRecord());
 
-        st.shapes = shapes;
+        if (st instanceof ShapeTag) {
+            ShapeTag shape = (ShapeTag) st;
+            shape.shapes = shapes;
+            if (!fill) {
+                shape.updateBounds();
+            }
+        }
+        if (endShape != null) {
+
+            endShape.shapes = shapes2;
+            endShape.updateBounds();
+        }
+        if (st instanceof MorphShapeTag) {
+            shapes.updateMorphShapeTag((MorphShapeTag) st, fill);
+        }
+
         st.setModified(true);
+        if (endShape != null) {
+            endShape.setModified(true);
+        }
 
         return (Tag) st;
     }
 
-    // Generate id-element map, because getElementById does not work in some cases (namespaces?)
+    /**
+     * Applies animation to the element.
+     *
+     * @param element Element
+     * @return True if animation was applied
+     */
+    protected boolean applyAnimation(Element element) {
+        NodeList nodeList = element.getChildNodes();
+        boolean result = false;
+        for (int i = 0; i < nodeList.getLength(); i++) {
+            Node node = nodeList.item(i);
+            if (node instanceof Element) {
+                Element childElement = (Element) node;
+                if ("animate".equals(childElement.getTagName())) {
+                    if (childElement.hasAttribute("attributeName") && childElement.hasAttribute("values")) {
+                        String values = childElement.getAttribute("values");
+                        String attributeName = childElement.getAttribute("attributeName");
+                        if (values.contains(";")) {
+                            String[] parts = values.split(";");
+                            if (parts.length >= 2) {
+                                element.setAttribute(attributeName, parts[1]);
+                                result = true;
+                            }
+                        }
+                    }
+                } else if ("animateTransform".equals(childElement.getTagName())) {
+                    if (childElement.hasAttribute("attributeName")
+                            && childElement.hasAttribute("type")
+                            && (childElement.hasAttribute("to") || childElement.hasAttribute("values"))) {
+                        String type = childElement.getAttribute("type");
+                        String additive = childElement.hasAttribute("additive") ? childElement.getAttribute("additive") : "replace";
+                        String attributeName = childElement.getAttribute("attributeName");
+                        Matrix originalMatrix = Matrix.parseSvgMatrix(element.getAttribute(attributeName), 1, 1);
+                        String to = "";
+                        if (childElement.hasAttribute("values") && childElement.getAttribute("values").contains(";")) {
+                            to = childElement.getAttribute("values").split(";")[1];
+                        } else if (childElement.hasAttribute("to")) {
+                            to = childElement.getAttribute("to");
+                        }
+                        String[] toParts = Matrix.parseSvgNumberList(to);
+
+                        Matrix newMatrix = null;
+                        switch (type) {
+                            case "scale":
+                                double scaleX;
+                                double scaleY;
+                                if (toParts.length == 2) {
+                                    scaleX = parseNumber(toParts[0]);
+                                    scaleY = parseNumber(toParts[1]);
+                                } else if (toParts.length == 1) {
+                                    scaleX = parseNumber(toParts[0]);
+                                    scaleY = scaleX;
+                                } else {
+                                    break;
+                                }
+                                newMatrix = Matrix.getScaleInstance(scaleX, scaleY);
+                                break;
+                            case "translate":
+                                if (toParts.length == 2) {
+                                    double translateX = parseNumber(toParts[0]);
+                                    double translateY = parseNumber(toParts[1]);
+                                    newMatrix = Matrix.getTranslateInstance(translateX, translateY);
+                                }
+                                break;
+                            case "rotate":
+                                if (toParts.length == 1 || toParts.length == 3) {
+                                    double rotateAngle = parseNumber(toParts[0]);
+                                    double tx = 0;
+                                    double ty = 0;
+                                    if (toParts.length == 3) {
+                                        tx = parseNumber(toParts[1]);
+                                        ty = parseNumber(toParts[2]);
+                                    }
+                                    newMatrix = Matrix.getRotateInstance(rotateAngle, tx, ty);
+                                }
+                                break;
+                            case "skewX":
+                                if (toParts.length == 1) {
+                                    double skewXAngle = parseNumber(toParts[0]);
+                                    newMatrix = Matrix.getSkewXInstance(skewXAngle);
+                                }
+                                break;
+                            case "skewY":
+                                if (toParts.length == 1) {
+                                    double skewYAngle = parseNumber(toParts[0]);
+                                    newMatrix = Matrix.getSkewYInstance(skewYAngle);
+                                }
+                                break;
+                        }
+                        if (newMatrix != null) {
+                            if ("replace".equals(additive)) {
+                                element.setAttribute(attributeName, newMatrix.getSvgTransformationString(1, 1));
+                            }
+                            if ("sum".equals(additive)) {
+                                element.setAttribute(attributeName, originalMatrix.concatenate(newMatrix).getSvgTransformationString(1, 1));
+                            }
+                        }
+                    }
+                } else {
+                    if (applyAnimation(childElement)) {
+                        result = true;
+                    }
+                }
+            }
+
+        }
+        return result;
+    }
+
+    /**
+     * Populates IDs. Generates id-element map, because getElementById does not
+     * work in some cases (namespaces?)
+     *
+     * @param el Element
+     * @param out Output map
+     */
     protected void populateIds(Element el, Map<String, Element> out) {
         if (el.hasAttribute("id")) {
             out.put(el.getAttribute("id"), el);
@@ -226,7 +478,7 @@ public class SvgImporter {
         CssSelectorToXPath selectorToXPath = new CssSelectorToXPath();
         Document doc = element.getOwnerDocument();
         try {
-            cssParser.styleshet();
+            cssParser.stylesheet();
             XPath xPath = XPathFactory.newInstance().newXPath();
             for (int i = 0; i < cssParser.getCountRulesets(); i++) {
                 String selector = cssParser.getSelector(i);
@@ -238,11 +490,11 @@ public class SvgImporter {
                         NamedNodeMap attrs = node.getAttributes();
                         Node styleAttr = attrs.getNamedItem("ffdec-style");
                         if (styleAttr != null) {
-                            styleAttr.setNodeValue(styleAttr.getNodeValue() + ";" + "{" + cssParser.getSpecifity(i) + "}" + cssParser.getDeclarations(i));
+                            styleAttr.setNodeValue(styleAttr.getNodeValue() + ";" + "{" + cssParser.getSpecificity(i) + "}" + cssParser.getDeclarations(i));
                             attrs.setNamedItem(styleAttr);
                         } else {
                             Node styleNode = doc.createAttribute("ffdec-style");
-                            styleNode.setNodeValue("{" + cssParser.getSpecifity(i) + "}" + cssParser.getDeclarations(i));
+                            styleNode.setNodeValue("{" + cssParser.getSpecificity(i) + "}" + cssParser.getDeclarations(i));
                             attrs.setNamedItem(styleNode);
                         }
                     }
@@ -270,7 +522,7 @@ public class SvgImporter {
         }
     }
 
-    private void processSwitch(Element element, Map<String, Element> idMap, int shapeNum, SHAPEWITHSTYLE shapes, Matrix transform, SvgStyle style) {
+    private void processSwitch(Element element, Map<String, Element> idMap, int shapeNum, SHAPEWITHSTYLE shapes, Matrix transform, SvgStyle style, boolean morphShape, Map<String, Integer> cachedBitmaps, boolean shape2) {
         for (int i = 0; i < element.getChildNodes().getLength(); i++) {
             Node childNode = element.getChildNodes().item(i);
             if (childNode instanceof Element) {
@@ -281,45 +533,45 @@ public class SvgImporter {
                 if (childElement.hasAttribute("systemLanguage")) {
                     String systemLanguage = childElement.getAttribute("systemLanguage");
                     if (systemLanguage.equals("en-us") || systemLanguage.equals("en")) {
-                        processElement(childElement, idMap, shapeNum, shapes, transform, style);
+                        processElement(childElement, idMap, shapeNum, shapes, transform, style, morphShape, cachedBitmaps, shape2);
                         return;
                     }
                     continue;
                 }
-                processElement(childElement, idMap, shapeNum, shapes, transform, style);
+                processElement(childElement, idMap, shapeNum, shapes, transform, style, morphShape, cachedBitmaps, shape2);
                 return;
             }
         }
     }
 
-    private void processElement(Element element, Map<String, Element> idMap, int shapeNum, SHAPEWITHSTYLE shapes, Matrix transform, SvgStyle style) {
+    private void processElement(Element element, Map<String, Element> idMap, int shapeNum, SHAPEWITHSTYLE shapes, Matrix transform, SvgStyle style, boolean morphShape, Map<String, Integer> cachedBitmaps, boolean shape2) {
         if (element.hasAttribute("requiredExtensions") && !element.getAttribute("requiredExtensions").isEmpty()) {
             return;
         }
         String tagName = element.getTagName();
-        SvgStyle newStyle = new SvgStyle(this, idMap, element);
+        SvgStyle newStyle = new SvgStyle(this, idMap, element, cachedBitmaps);
         Matrix m = Matrix.parseSvgMatrix(element.getAttribute("transform"), 1, 1);
         Matrix m2 = m == null ? transform : transform.concatenate(m);
         if ("switch".equals(tagName)) {
-            processSwitch(element, idMap, shapeNum, shapes, transform, style);
+            processSwitch(element, idMap, shapeNum, shapes, transform, style, morphShape, cachedBitmaps, shape2);
         } else if ("style".equals(tagName)) {
             processStyle(element);
         } else if ("g".equals(tagName)) {
-            processSvgObject(idMap, shapeNum, shapes, element, m2, newStyle);
+            processSvgObject(idMap, shapeNum, shapes, element, m2, newStyle, morphShape, cachedBitmaps, shape2);
         } else if ("path".equals(tagName)) {
-            processPath(shapeNum, shapes, element, m2, newStyle);
+            processPath(shapeNum, shapes, element, m2, newStyle, morphShape, shape2);
         } else if ("circle".equals(tagName)) {
-            processCircle(shapeNum, shapes, element, m2, newStyle);
+            processCircle(shapeNum, shapes, element, m2, newStyle, morphShape);
         } else if ("ellipse".equals(tagName)) {
-            processEllipse(shapeNum, shapes, element, m2, newStyle);
+            processEllipse(shapeNum, shapes, element, m2, newStyle, morphShape);
         } else if ("rect".equals(tagName)) {
-            processRect(shapeNum, shapes, element, m2, newStyle);
+            processRect(shapeNum, shapes, element, m2, newStyle, morphShape);
         } else if ("line".equals(tagName)) {
-            processLine(shapeNum, shapes, element, m2, newStyle);
+            processLine(shapeNum, shapes, element, m2, newStyle, morphShape);
         } else if ("polyline".equals(tagName)) {
-            processPolyline(shapeNum, shapes, element, m2, newStyle);
+            processPolyline(shapeNum, shapes, element, m2, newStyle, morphShape);
         } else if ("polygon".equals(tagName)) {
-            processPolygon(shapeNum, shapes, element, m2, newStyle);
+            processPolygon(shapeNum, shapes, element, m2, newStyle, morphShape);
         } else if ("defs".equals(tagName)) {
             processDefs(element);
         } else if ("title".equals(tagName) || "desc".equals(tagName)
@@ -329,43 +581,159 @@ public class SvgImporter {
             showWarning(tagName + "tagNotSupported", "The SVG tag '" + tagName + "' is not supported.");
         }
     }
-    private void processSvgObject(Map<String, Element> idMap, int shapeNum, SHAPEWITHSTYLE shapes, Element element, Matrix transform, SvgStyle style) {
+
+    private void processSvgObject(Map<String, Element> idMap, int shapeNum, SHAPEWITHSTYLE shapes, Element element, Matrix transform, SvgStyle style, boolean morphShape, Map<String, Integer> cachedFills, boolean shape2) {
         for (int i = 0; i < element.getChildNodes().getLength(); i++) {
             Node childNode = element.getChildNodes().item(i);
             if (childNode instanceof Element) {
                 Element childElement = (Element) childNode;
-                processElement(childElement, idMap, shapeNum, shapes, transform, style);
+                processElement(childElement, idMap, shapeNum, shapes, transform, style, morphShape, cachedFills, shape2);
             }
         }
     }
 
-    private void processCommands(int shapeNum, SHAPEWITHSTYLE shapes, List<PathCommand> commands, Matrix transform, SvgStyle style) {
+    private void autoCloseFillPath(boolean empty, List<SHAPERECORD> newRecords, int fillStyle, int lineStyle, Point startPoint, Point prevPoint) {
+        if (!empty) {
+            if (!startPoint.equals(prevPoint)) {
+                if (fillStyle != 0) {
+                    if (lineStyle != 0) {
+                        StyleChangeRecord scr = new StyleChangeRecord();
+                        scr.lineStyle = 0; //no line
+                        scr.stateLineStyle = true;
+                        newRecords.add(scr);
+                    }
+
+                    StraightEdgeRecord serclose = new StraightEdgeRecord();
+                    Point p = startPoint;
+                    serclose.deltaX = (int) Math.round(p.x - prevPoint.x);
+                    serclose.deltaY = (int) Math.round(p.y - prevPoint.y);
+                    serclose.generalLineFlag = true;
+                    serclose.calculateBits();
+                    newRecords.add(serclose);
+
+                    if (lineStyle != 0) {
+                        StyleChangeRecord scr = new StyleChangeRecord();
+                        scr.lineStyle = lineStyle;
+                        scr.stateLineStyle = true;
+                        newRecords.add(scr);
+                    }
+                }
+            }
+        }
+    }
+
+    private void addStraightRecord(List<SHAPERECORD> newRecords, int deltaX, int deltaY) {
+        StraightEdgeRecord ser = new StraightEdgeRecord();
+        ser.deltaX = deltaX;
+        ser.deltaY = deltaY;
+        ser.generalLineFlag = true;
+        ser.simplify();
+        ser.calculateBits();
+
+        //Line is too long, split into half
+        if (ser.numBits > StraightEdgeRecord.MAX_NUM_BITS) {
+            int deltaX1 = deltaX / 2;
+            int deltaY1 = deltaY / 2;
+            int deltaX2 = deltaX1;
+            int deltaY2 = deltaY1;
+
+            if (deltaX1 + deltaX2 < deltaX) {
+                deltaX2++;
+            }
+            if (deltaY1 + deltaY2 < deltaY) {
+                deltaY2++;
+            }
+
+            addStraightRecord(newRecords, deltaX1, deltaY1);
+            addStraightRecord(newRecords, deltaX2, deltaY2);
+            return;
+        }
+
+        newRecords.add(ser);
+    }
+
+    private void addCurvedRecord(List<SHAPERECORD> newRecords, int controlDeltaX, int controlDeltaY, int anchorDeltaX, int anchorDeltaY) {
+        CurvedEdgeRecord cer = new CurvedEdgeRecord();
+        cer.controlDeltaX = controlDeltaX;
+        cer.controlDeltaY = controlDeltaY;
+        cer.anchorDeltaX = anchorDeltaX;
+        cer.anchorDeltaY = anchorDeltaY;
+        cer.calculateBits();
+
+        //Curve is too long, split into half
+        if (cer.numBits > CurvedEdgeRecord.MAX_NUM_BITS) {
+            BezierEdge be = new BezierEdge(0, 0, cer.controlDeltaX, cer.controlDeltaY, cer.controlDeltaX + cer.anchorDeltaX, cer.controlDeltaY + cer.anchorDeltaY);
+            Reference<BezierEdge> leftRef = new Reference<>(null);
+            Reference<BezierEdge> rightRef = new Reference<>(null);
+            be.split(0.5, leftRef, rightRef);
+            BezierEdge left = leftRef.getVal();
+            BezierEdge right = rightRef.getVal();
+            int controlDeltaX1 = (int) Math.round(left.points.get(1).getX());
+            int controlDeltaY1 = (int) Math.round(left.points.get(1).getY());
+            int anchorDeltaX1 = (int) Math.round(left.points.get(2).getX()) - controlDeltaX1;
+            int anchorDeltaY1 = (int) Math.round(left.points.get(2).getY()) - controlDeltaY1;
+            int controlDeltaX2 = (int) Math.round(right.points.get(1).getX()) - controlDeltaX1 - anchorDeltaX1;
+            int controlDeltaY2 = (int) Math.round(right.points.get(1).getY()) - controlDeltaY1 - anchorDeltaY1;
+            int anchorDeltaX2 = controlDeltaX + anchorDeltaX - controlDeltaX1 - anchorDeltaX1 - controlDeltaX2;
+            int anchorDeltaY2 = controlDeltaY + anchorDeltaY - controlDeltaY1 - anchorDeltaY1 - controlDeltaY2;
+
+            addCurvedRecord(newRecords, controlDeltaX1, controlDeltaY1, anchorDeltaX1, anchorDeltaY1);
+            addCurvedRecord(newRecords, controlDeltaX2, controlDeltaY2, anchorDeltaX2, anchorDeltaY2);
+            return;
+        }
+
+        newRecords.add(cer);
+    }
+
+    private void processCommands(int shapeNum, SHAPEWITHSTYLE shapes, List<PathCommand> commands, Matrix transform, SvgStyle style, boolean morphShape, boolean shape2) {
+
+        if ("nonzero".equals(style.getFillRule())) {
+            SvgFill fill = style.getFill();
+            if (fill != null && !(fill instanceof SvgTransparentFill)) {
+                if (!shape2 && (shapeTag instanceof DefineShape4Tag)) {
+                    DefineShape4Tag shape4 = (DefineShape4Tag) shapeTag;
+                    shape4.usesFillWindingRule = true;
+                }
+                if (shape2 && (endShape instanceof DefineShape4Tag)) {
+                    DefineShape4Tag shape4 = (DefineShape4Tag) endShape;
+                    shape4.usesFillWindingRule = true;
+                }
+            }
+        }
+
         Matrix transform2 = transform.preConcatenate(Matrix.getScaleInstance(SWF.unitDivisor));
         Point prevPoint = new Point(0, 0);
         Point startPoint = prevPoint;
         double x0 = 0;
         double y0 = 0;
 
-        StyleChangeRecord scrStyle = getStyleChangeRecord(shapeNum, style);
-        int fillStyle = scrStyle.fillStyle1;
+        StyleChangeRecord scrStyle = getStyleChangeRecord(shapeNum, style, morphShape, transform);
+        int fillStyle = morphShape ? scrStyle.fillStyle0 : scrStyle.fillStyle1;
         int lineStyle = scrStyle.lineStyle;
         scrStyle.stateFillStyle0 = true;
-        scrStyle.stateFillStyle1 = true;
+        if (!morphShape) {
+            scrStyle.stateFillStyle1 = true;
+        }
         scrStyle.stateLineStyle = true;
         scrStyle.fillStyle0 = 0;
-        scrStyle.fillStyle1 = 0;
+        if (!morphShape) {
+            scrStyle.fillStyle1 = 0;
+        }
         scrStyle.lineStyle = 0;
 
         List<SHAPERECORD> newRecords = new ArrayList<>();
 
         newRecords.add(scrStyle);
 
-        LINESTYLE lineStyleObj = scrStyle.lineStyles.lineStyles.length < 1 ? null : scrStyle.lineStyles.lineStyles[0];
         LINESTYLE2 lineStyle2Obj = null;
-        if (lineStyleObj instanceof LINESTYLE2) {
-            lineStyle2Obj = (LINESTYLE2) lineStyleObj;
-            lineStyle2Obj.noClose = true;
+        if (shapeNum == 4) {
+            lineStyle2Obj = scrStyle.lineStyles.lineStyles2.length < 1 ? null : scrStyle.lineStyles.lineStyles2[0];
+            if (lineStyle2Obj != null) {
+                lineStyle2Obj.noClose = true;
+            }
         }
+
+        boolean empty = true;
 
         for (PathCommand command : commands) {
             double x = x0;
@@ -380,10 +748,17 @@ public class SvgImporter {
             char cmd = command.command;
             switch (cmd) {
                 case 'M':
+                    autoCloseFillPath(empty, newRecords, fillStyle, lineStyle, startPoint, prevPoint);
+
                     StyleChangeRecord scr = new StyleChangeRecord();
                     if (fillStyle != 0) {
-                        scr.stateFillStyle1 = true;
-                        scr.fillStyle1 = fillStyle;
+                        if (morphShape) {
+                            scr.stateFillStyle0 = true;
+                            scr.fillStyle0 = fillStyle;
+                        } else {
+                            scr.stateFillStyle1 = true;
+                            scr.fillStyle1 = fillStyle;
+                        }
                     }
                     if (lineStyle != 0) {
                         scr.lineStyle = lineStyle;
@@ -401,77 +776,73 @@ public class SvgImporter {
 
                     newRecords.add(scr);
                     startPoint = prevPoint;
+                    empty = true;
                     break;
                 case 'Z':
-                    StraightEdgeRecord serz = new StraightEdgeRecord();
                     p = startPoint;
-                    serz.deltaX = (int) Math.round(p.x - prevPoint.x);
-                    serz.deltaY = (int) Math.round(p.y - prevPoint.y);
-                    prevPoint = new Point(prevPoint.x + serz.deltaX, prevPoint.y + serz.deltaY);
-                    serz.generalLineFlag = true;
-                    newRecords.add(serz);
+                    int deltaX = (int) Math.round(p.x - prevPoint.x);
+                    int deltaY = (int) Math.round(p.y - prevPoint.y);
+                    prevPoint = new Point(prevPoint.x + deltaX, prevPoint.y + deltaY);
+                    addStraightRecord(newRecords, deltaX, deltaY);
                     if (lineStyle2Obj != null) {
                         lineStyle2Obj.noClose = false;
                     }
+                    empty = true;
                     break;
                 case 'L':
-                    StraightEdgeRecord serl = new StraightEdgeRecord();
                     x = command.params[0];
                     y = command.params[1];
 
                     p = transform2.transform(x, y);
-                    serl.deltaX = (int) Math.round(p.x - prevPoint.x);
-                    serl.deltaY = (int) Math.round(p.y - prevPoint.y);
-                    prevPoint = new Point(prevPoint.x + serl.deltaX, prevPoint.y + serl.deltaY);
-                    serl.generalLineFlag = true;
-                    serl.simplify();
-                    newRecords.add(serl);
+                    deltaX = (int) Math.round(p.x - prevPoint.x);
+                    deltaY = (int) Math.round(p.y - prevPoint.y);
+                    prevPoint = new Point(prevPoint.x + deltaX, prevPoint.y + deltaY);
+                    addStraightRecord(newRecords, deltaX, deltaY);
+                    empty = false;
                     break;
                 case 'H':
-                    StraightEdgeRecord serh = new StraightEdgeRecord();
                     x = command.params[0];
 
                     p = transform2.transform(x, y);
-                    serh.deltaX = (int) Math.round(p.x - prevPoint.x);
+                    deltaX = (int) Math.round(p.x - prevPoint.x);
                     //deltaX is not enough as transformation can make deltaY difference
-                    serh.deltaY = (int) Math.round(p.y - prevPoint.y);
-                    prevPoint = new Point(prevPoint.x + serh.deltaX, prevPoint.y + serh.deltaY);
-                    serh.generalLineFlag = true;
-                    serh.simplify();
-                    newRecords.add(serh);
+                    deltaY = (int) Math.round(p.y - prevPoint.y);
+                    prevPoint = new Point(prevPoint.x + deltaX, prevPoint.y + deltaY);
+                    addStraightRecord(newRecords, deltaX, deltaY);
+                    empty = false;
                     break;
                 case 'V':
-                    StraightEdgeRecord serv = new StraightEdgeRecord();
                     y = command.params[0];
 
                     p = transform2.transform(x, y);
 
                     //deltaY is not enough as transformation can make deltaX difference
-                    serv.deltaX = (int) Math.round(p.x - prevPoint.x);
-                    serv.deltaY = (int) Math.round(p.y - prevPoint.y);
-                    prevPoint = new Point(prevPoint.x + serv.deltaX, prevPoint.y + serv.deltaY);
-                    serv.generalLineFlag = true;
-                    serv.simplify();
-                    newRecords.add(serv);
+                    deltaX = (int) Math.round(p.x - prevPoint.x);
+                    deltaY = (int) Math.round(p.y - prevPoint.y);
+                    prevPoint = new Point(prevPoint.x + deltaX, prevPoint.y + deltaY);
+                    addStraightRecord(newRecords, deltaX, deltaY);
+                    empty = false;
                     break;
                 case 'Q':
-                    CurvedEdgeRecord cer = new CurvedEdgeRecord();
                     x = command.params[0];
                     y = command.params[1];
 
                     p = transform2.transform(x, y);
-                    cer.controlDeltaX = (int) Math.round(p.x - prevPoint.x);
-                    cer.controlDeltaY = (int) Math.round(p.y - prevPoint.y);
-                    prevPoint = new Point(prevPoint.x + cer.controlDeltaX, prevPoint.y + cer.controlDeltaY);
+                    int controlDeltaX = (int) Math.round(p.x - prevPoint.x);
+                    int controlDeltaY = (int) Math.round(p.y - prevPoint.y);
+
+                    prevPoint = new Point(prevPoint.x + controlDeltaX, prevPoint.y + controlDeltaY);
 
                     x = command.params[2];
                     y = command.params[3];
 
                     p = transform2.transform(x, y);
-                    cer.anchorDeltaX = (int) Math.round(p.x - prevPoint.x);
-                    cer.anchorDeltaY = (int) Math.round(p.y - prevPoint.y);
-                    prevPoint = new Point(prevPoint.x + cer.anchorDeltaX, prevPoint.y + cer.anchorDeltaY);
-                    newRecords.add(cer);
+                    int anchorDeltaX = (int) Math.round(p.x - prevPoint.x);
+                    int anchorDeltaY = (int) Math.round(p.y - prevPoint.y);
+                    prevPoint = new Point(prevPoint.x + anchorDeltaX, prevPoint.y + anchorDeltaY);
+
+                    addCurvedRecord(newRecords, controlDeltaX, controlDeltaY, anchorDeltaX, anchorDeltaY);
+                    empty = false;
                     break;
                 case 'C':
                     showWarning("cubicCurvesNotSupported", "Cubic curves are not supported by Flash.");
@@ -497,19 +868,20 @@ public class SvgImporter {
 
                     List<Double> quadCoordinates = new CubicToQuad().cubicToQuad(pStart.x, pStart.y, pControl1.x, pControl1.y, pControl2.x, pControl2.y, p.x, p.y, 1);
                     for (int i = 2; i < quadCoordinates.size();) {
-                        CurvedEdgeRecord cerc = new CurvedEdgeRecord();
                         p = new Point(quadCoordinates.get(i++), quadCoordinates.get(i++));
-                        cerc.controlDeltaX = (int) Math.round(p.x - prevPoint.x);
-                        cerc.controlDeltaY = (int) Math.round(p.y - prevPoint.y);
-                        prevPoint = new Point(prevPoint.x + cerc.controlDeltaX, prevPoint.y + cerc.controlDeltaY);
+                        int subControlDeltaX = (int) Math.round(p.x - prevPoint.x);
+                        int subControlDeltaY = (int) Math.round(p.y - prevPoint.y);
+                        prevPoint = new Point(prevPoint.x + subControlDeltaX, prevPoint.y + subControlDeltaY);
 
                         p = new Point(quadCoordinates.get(i++), quadCoordinates.get(i++));
-                        cerc.anchorDeltaX = (int) Math.round(p.x - prevPoint.x);
-                        cerc.anchorDeltaY = (int) Math.round(p.y - prevPoint.y);
-                        prevPoint = new Point(prevPoint.x + cerc.anchorDeltaX, prevPoint.y + cerc.anchorDeltaY);
-                        newRecords.add(cerc);
+                        int subAnchorDeltaX = (int) Math.round(p.x - prevPoint.x);
+                        int subAnchorDeltaY = (int) Math.round(p.y - prevPoint.y);
+                        prevPoint = new Point(prevPoint.x + subAnchorDeltaX, prevPoint.y + subAnchorDeltaY);
+
+                        addCurvedRecord(newRecords, subControlDeltaX, subControlDeltaY, subAnchorDeltaX, subAnchorDeltaY);
                     }
 
+                    empty = false;
                     break;
                 default:
                     Logger.getLogger(ShapeImporter.class.getName()).log(Level.WARNING, "Unknown command: {0}", command);
@@ -519,13 +891,12 @@ public class SvgImporter {
             x0 = x;
             y0 = y;
         }
-        applyStyleGradients(SHAPERECORD.getBounds(newRecords), scrStyle, transform2, shapeNum, style);
+        autoCloseFillPath(empty, newRecords, fillStyle, lineStyle, startPoint, prevPoint);
+        applyStyleGradients(SHAPERECORD.getBounds(newRecords, shapes.lineStyles, shapeNum, false), scrStyle, transform2, shapeNum, style);
         shapes.shapeRecords.addAll(newRecords);
     }
 
-    private void processPath(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style) {
-        String data = childElement.getAttribute("d");
-
+    private List<PathCommand> processPathD(String data) {
         char command = 0;
         Point startPoint = new Point(0, 0);
         Point prevCControlPoint = null;
@@ -810,7 +1181,7 @@ public class SvgImporter {
                         break;
                     default:
                         Logger.getLogger(ShapeImporter.class.getName()).log(Level.WARNING, "Unknown command: {0}", command);
-                        return;
+                        return new ArrayList<>();
                 }
 
                 if (cmd != 'C' && cmd != 'S') {
@@ -827,8 +1198,13 @@ public class SvgImporter {
         } catch (NumberFormatException e) {
             // ignore remaining data as specified in SVG Specification F.2 Error processing
         }
+        return pathCommands;
+    }
 
-        processCommands(shapeNum, shapes, pathCommands, transform, style);
+    private void processPath(int shapeNum, SHAPEWITHSTYLE shapes, Element element, Matrix transform, SvgStyle style, boolean morphShape, boolean shape2) {
+        String data = element.getAttribute("d");
+        List<PathCommand> pathCommands = processPathD(data);
+        processCommands(shapeNum, shapes, pathCommands, transform, style, morphShape, shape2);
     }
 
     private double calcAngle(double ux, double uy, double vx, double vy) {
@@ -842,7 +1218,7 @@ public class SvgImporter {
         return sign * Math.acos(ux * vx + uy * vy / (lu * lv));
     }
 
-    private void processCircle(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style) {
+    private void processCircle(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style, boolean morphShape) {
         String attr = childElement.getAttribute("cx");
         double cx = attr.length() > 0 ? parseCoordinate(attr, viewBox.width) : 0;
 
@@ -852,10 +1228,10 @@ public class SvgImporter {
         attr = childElement.getAttribute("r");
         double r = attr.length() > 0 ? parseLength(attr, (viewBox.width + viewBox.height) / 2) : 0;
 
-        processEllipse(shapeNum, shapes, transform, style, cx, cy, r, r);
+        processEllipse(shapeNum, shapes, transform, style, cx, cy, r, r, morphShape);
     }
 
-    private void processEllipse(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style) {
+    private void processEllipse(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style, boolean morphShape) {
         String attr = childElement.getAttribute("cx");
         double cx = attr.length() > 0 ? parseCoordinate(attr, viewBox.width) : 0;
 
@@ -868,10 +1244,10 @@ public class SvgImporter {
         attr = childElement.getAttribute("ry");
         double ry = attr.length() > 0 ? parseLength(attr, viewBox.height) : 0;
 
-        processEllipse(shapeNum, shapes, transform, style, cx, cy, rx, ry);
+        processEllipse(shapeNum, shapes, transform, style, cx, cy, rx, ry, morphShape);
     }
 
-    private void processEllipse(int shapeNum, SHAPEWITHSTYLE shapes, Matrix transform, SvgStyle style, double cx, double cy, double rx, double ry) {
+    private void processEllipse(int shapeNum, SHAPEWITHSTYLE shapes, Matrix transform, SvgStyle style, double cx, double cy, double rx, double ry, boolean morphShape) {
         double sqrt2RXHalf = Math.sqrt(2) * rx / 2;
         double sqrt2Minus1RX = (Math.sqrt(2) - 1) * rx;
         double sqrt2RYHalf = Math.sqrt(2) * ry / 2;
@@ -926,10 +1302,10 @@ public class SvgImporter {
         serz.command = 'Z';
         pathCommands.add(serz);
 
-        processCommands(shapeNum, shapes, pathCommands, transform, style);
+        processCommands(shapeNum, shapes, pathCommands, transform, style, morphShape, false);
     }
 
-    private void processRect(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style) {
+    private void processRect(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style, boolean morphShape) {
         String attr = childElement.getAttribute("x");
         double x = attr.length() > 0 ? parseCoordinate(attr, viewBox.width) : 0;
 
@@ -1037,10 +1413,10 @@ public class SvgImporter {
         serz.command = 'Z';
         pathCommands.add(serz);
 
-        processCommands(shapeNum, shapes, pathCommands, transform, style);
+        processCommands(shapeNum, shapes, pathCommands, transform, style, morphShape, false);
     }
 
-    private void processLine(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style) {
+    private void processLine(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style, boolean morphShape) {
         String attr = childElement.getAttribute("x1");
         double x1 = attr.length() > 0 ? parseCoordinate(attr, viewBox.width) : 0;
 
@@ -1065,18 +1441,18 @@ public class SvgImporter {
 
         pathCommands.add(cer);
 
-        processCommands(shapeNum, shapes, pathCommands, transform, style);
+        processCommands(shapeNum, shapes, pathCommands, transform, style, morphShape, false);
     }
 
-    private void processPolyline(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style) {
-        processPolyline(shapeNum, shapes, childElement, transform, style, false);
+    private void processPolygon(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style, boolean morphShape) {
+        processPolyline(shapeNum, shapes, childElement, transform, style, true, morphShape);
     }
 
-    private void processPolygon(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style) {
-        processPolyline(shapeNum, shapes, childElement, transform, style, true);
+    private void processPolyline(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style, boolean morphShape) {
+        processPolyline(shapeNum, shapes, childElement, transform, style, false, morphShape);
     }
 
-    private void processPolyline(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style, boolean close) {
+    private void processPolyline(int shapeNum, SHAPEWITHSTYLE shapes, Element childElement, Matrix transform, SvgStyle style, boolean close, boolean morphShape) {
         String data = childElement.getAttribute("points");
 
         char command = 'M';
@@ -1126,18 +1502,30 @@ public class SvgImporter {
             pathCommands.add(serz);
         }
 
-        processCommands(shapeNum, shapes, pathCommands, transform, style);
+        processCommands(shapeNum, shapes, pathCommands, transform, style, morphShape, false);
+    }
+
+    public double getWidth() {
+        return width;
+    }
+
+    public double getHeight() {
+        return height;
+    }
+
+    public Rectangle2D.Double getViewBox() {
+        return viewBox;
     }
 
     //Stub for w3 test. TODO: refactor and move to test directory. It's here because of easy access - compiling single file
     private static void svgTest(String name) throws IOException, InterruptedException {
         System.err.println("running test " + name);
         if (!new File(name + ".original.svg").exists()) {
-            URL svgUrl = new URL("http://www.w3.org/Graphics/SVG/Test/20061213/svggen/" + name + ".svg");
+            URL svgUrl = URI.create("https://www.w3.org/Graphics/SVG/Test/20061213/svggen/" + name + ".svg").toURL();
             byte[] svgData = Helper.readStream(svgUrl.openStream());
             Helper.writeFile(name + ".orig.svg", svgData);
 
-            URL pngUrl = new URL("http://www.w3.org/Graphics/SVG/Test/20061213/png/full-" + name + ".png");
+            URL pngUrl = URI.create("https://www.w3.org/Graphics/SVG/Test/20061213/png/full-" + name + ".png").toURL();
             byte[] pngData = Helper.readStream(pngUrl.openStream());
             Helper.writeFile(name + ".orig.png", pngData);
         }
@@ -1148,7 +1536,7 @@ public class SvgImporter {
         st = (DefineShape4Tag) (new SvgImporter().importSvg(st, svgDataS, false));
         swf.addTag(st);
         SerializableImage si = new SerializableImage(480, 360, BufferedImage.TYPE_4BYTE_ABGR);
-        BitmapExporter.export(swf, st.shapes, Color.yellow, si, new Matrix(), new Matrix(), null, true);
+        BitmapExporter.export(st.getWindingRule(), st.getShapeNum(), swf, st.shapes, Color.yellow, si, 1, new Matrix(), new Matrix(), null, true, true, 1);
         List<Tag> li = new ArrayList<>();
         li.add(st);
         ImageIO.write(si.getBufferedImage(), "PNG", new File(name + ".imported.png"));
@@ -1159,69 +1547,75 @@ public class SvgImporter {
         swf.assignExportNamesToSymbols();
         st.shapeBounds.Xmax = (int) (si.getWidth() * SWF.unitDivisor);
         st.shapeBounds.Ymax = (int) (si.getHeight() * SWF.unitDivisor);
-        new ShapeExporter().exportShapes(null, "./outex/", swf, new ReadOnlyTagList(li), new ShapeExportSettings(ShapeExportMode.SVG, 1), null, 1);
+        new ShapeExporter().exportShapes(null, "./outex/", swf, new ReadOnlyTagList(li), new ShapeExportSettings(ShapeExportMode.SVG, 1), null, 1, 1);
     }
 
-    //Test for SVG
+    /**
+     * Test for SVG.
+     *
+     * @param args The command line arguments
+     * @throws IOException On I/O error
+     * @throws InterruptedException On interrupt
+     */
     public static void main(String[] args) throws IOException, InterruptedException {
-//        svgTest("animate-elem-02-t");
-//        svgTest("animate-elem-03-t");
-//        svgTest("animate-elem-04-t");
-//        svgTest("animate-elem-05-t");
-//        svgTest("animate-elem-06-t");
-//        svgTest("animate-elem-07-t");
-//        svgTest("animate-elem-08-t");
-//        svgTest("animate-elem-09-t");
-//        svgTest("animate-elem-10-t");
-//        svgTest("animate-elem-11-t");
-//        svgTest("animate-elem-12-t");
-//        svgTest("animate-elem-13-t");
-//        svgTest("animate-elem-14-t");
-//        svgTest("animate-elem-15-t");
-//        svgTest("animate-elem-17-t");
-//        svgTest("animate-elem-19-t");
-//        svgTest("animate-elem-20-t");
-//        svgTest("animate-elem-21-t");
-//        svgTest("animate-elem-22-b");
-//        svgTest("animate-elem-23-t");
-//        svgTest("animate-elem-24-t");
-//        svgTest("animate-elem-25-t");
-//        svgTest("animate-elem-26-t");
-//        svgTest("animate-elem-27-t");
-//        svgTest("animate-elem-28-t");
-//        svgTest("animate-elem-29-b");
-//        svgTest("animate-elem-30-t");
-//        svgTest("animate-elem-31-t");
-//        svgTest("animate-elem-32-t");
-//        svgTest("animate-elem-33-t");
-//        svgTest("animate-elem-34-t");
-//        svgTest("animate-elem-36-t");
-//        svgTest("animate-elem-37-t");
-//        svgTest("animate-elem-39-t");
-//        svgTest("animate-elem-40-t");
-//        svgTest("animate-elem-41-t");
-//        svgTest("animate-elem-44-t");
-//        svgTest("animate-elem-46-t");
-//        svgTest("animate-elem-52-t");
-//        svgTest("animate-elem-60-t");
-//        svgTest("animate-elem-61-t");
-//        svgTest("animate-elem-62-t");
-//        svgTest("animate-elem-63-t");
-//        svgTest("animate-elem-64-t");
-//        svgTest("animate-elem-65-t");
-//        svgTest("animate-elem-66-t");
-//        svgTest("animate-elem-67-t");
-//        svgTest("animate-elem-68-t");
-//        svgTest("animate-elem-69-t");
-//        svgTest("animate-elem-70-t");
-//        svgTest("animate-elem-77-t");
-//        svgTest("animate-elem-78-t");
-//        svgTest("animate-elem-80-t");
-//        svgTest("animate-elem-81-t");
-//        svgTest("animate-elem-82-t");
-//        svgTest("animate-elem-83-t");
-//        svgTest("animate-elem-84-t");
-//        svgTest("animate-elem-85-t");
+        //svgTest("animate-elem-02-t");
+        //svgTest("animate-elem-03-t");
+        //svgTest("animate-elem-04-t");
+        //svgTest("animate-elem-05-t");
+        //svgTest("animate-elem-06-t");
+        //svgTest("animate-elem-07-t");
+        //svgTest("animate-elem-08-t");
+        //svgTest("animate-elem-09-t");
+        //svgTest("animate-elem-10-t");
+        //svgTest("animate-elem-11-t");
+        //svgTest("animate-elem-12-t");
+        //svgTest("animate-elem-13-t");
+        //svgTest("animate-elem-14-t");
+        //svgTest("animate-elem-15-t");
+        //svgTest("animate-elem-17-t");
+        //svgTest("animate-elem-19-t");
+        //svgTest("animate-elem-20-t");
+        //svgTest("animate-elem-21-t");
+        //svgTest("animate-elem-22-b");
+        //svgTest("animate-elem-23-t");
+        //svgTest("animate-elem-24-t");
+        //svgTest("animate-elem-25-t");
+        //svgTest("animate-elem-26-t");
+        //svgTest("animate-elem-27-t");
+        //svgTest("animate-elem-28-t");
+        //svgTest("animate-elem-29-b");
+        //svgTest("animate-elem-30-t");
+        //svgTest("animate-elem-31-t");
+        //svgTest("animate-elem-32-t");
+        //svgTest("animate-elem-33-t");
+        //svgTest("animate-elem-34-t");
+        //svgTest("animate-elem-36-t");
+        //svgTest("animate-elem-37-t");
+        //svgTest("animate-elem-39-t");
+        //svgTest("animate-elem-40-t");
+        //svgTest("animate-elem-41-t");
+        //svgTest("animate-elem-44-t");
+        //svgTest("animate-elem-46-t");
+        //svgTest("animate-elem-52-t");
+        //svgTest("animate-elem-60-t");
+        //svgTest("animate-elem-61-t");
+        //svgTest("animate-elem-62-t");
+        //svgTest("animate-elem-63-t");
+        //svgTest("animate-elem-64-t");
+        //svgTest("animate-elem-65-t");
+        //svgTest("animate-elem-66-t");
+        //svgTest("animate-elem-67-t");
+        //svgTest("animate-elem-68-t");
+        //svgTest("animate-elem-69-t");
+        //svgTest("animate-elem-70-t");
+        //svgTest("animate-elem-77-t");
+        //svgTest("animate-elem-78-t");
+        //svgTest("animate-elem-80-t");
+        //svgTest("animate-elem-81-t");
+        //svgTest("animate-elem-82-t");
+        //svgTest("animate-elem-83-t");
+        //svgTest("animate-elem-84-t");
+        //svgTest("animate-elem-85-t");
         svgTest("color-prof-01-f");
         svgTest("color-prop-01-b");
         svgTest("color-prop-02-f");
@@ -1241,60 +1635,60 @@ public class SvgImporter {
         svgTest("coords-viewattr-02-b");
         svgTest("coords-viewattr-03-b");
         svgTest("extend-namespace-01-f");
-//        svgTest("filters-blend-01-b");
-//        svgTest("filters-color-01-b");
-//        svgTest("filters-composite-02-b");
-//        svgTest("filters-comptran-01-b");
-//        svgTest("filters-conv-01-f");
-//        svgTest("filters-diffuse-01-f");
-//        svgTest("filters-displace-01-f");
-//        svgTest("filters-example-01-b");
-//        svgTest("filters-felem-01-b");
-//        svgTest("filters-gauss-01-b");
-//        svgTest("filters-image-01-b");
-//        svgTest("filters-light-01-f");
-//        svgTest("filters-morph-01-f");
-//        svgTest("filters-offset-01-b");
-//        svgTest("filters-specular-01-f");
-//        svgTest("filters-tile-01-b");
-//        svgTest("filters-turb-01-f");
-//        svgTest("fonts-desc-02-t");
-//        svgTest("fonts-elem-01-t");
-//        svgTest("fonts-elem-02-t");
-//        svgTest("fonts-elem-03-b");
-//        svgTest("fonts-elem-04-b");
-//        svgTest("fonts-elem-05-t");
-//        svgTest("fonts-elem-06-t");
-//        svgTest("fonts-elem-07-b");
-//        svgTest("fonts-glyph-02-t");
-//        svgTest("fonts-glyph-03-t");
-//        svgTest("fonts-glyph-04-t");
-//        svgTest("fonts-kern-01-t");
-//        svgTest("interact-cursor-01-f");
-//        svgTest("interact-dom-01-b");
-//        svgTest("interact-events-01-b");
-//        svgTest("interact-order-01-b");
-//        svgTest("interact-order-02-b");
-//        svgTest("interact-order-03-b");
-//        svgTest("interact-zoom-01-t");
-//        svgTest("linking-a-01-b");
-//        svgTest("linking-a-02-b");
-//        svgTest("linking-a-03-b");
-//        svgTest("linking-a-04-t");
-//        svgTest("linking-a-05-t");
-//        svgTest("linking-a-07-t");
-//        svgTest("linking-uri-01-b");
-//        svgTest("linking-uri-02-b");
-//        svgTest("linking-uri-03-t");
-//        svgTest("masking-intro-01-f");
-//        svgTest("masking-mask-01-b");
-//        svgTest("masking-opacity-01-b");
-//        svgTest("masking-path-01-b");
-//        svgTest("masking-path-02-b");
-//        svgTest("masking-path-03-b");
-//        svgTest("masking-path-04-b");
-//        svgTest("masking-path-05-f");
-//        svgTest("metadata-example-01-b");
+        //svgTest("filters-blend-01-b");
+        //svgTest("filters-color-01-b");
+        //svgTest("filters-composite-02-b");
+        //svgTest("filters-comptran-01-b");
+        //svgTest("filters-conv-01-f");
+        //svgTest("filters-diffuse-01-f");
+        //svgTest("filters-displace-01-f");
+        //svgTest("filters-example-01-b");
+        //svgTest("filters-felem-01-b");
+        //svgTest("filters-gauss-01-b");
+        //svgTest("filters-image-01-b");
+        //svgTest("filters-light-01-f");
+        //svgTest("filters-morph-01-f");
+        //svgTest("filters-offset-01-b");
+        //svgTest("filters-specular-01-f");
+        //svgTest("filters-tile-01-b");
+        //svgTest("filters-turb-01-f");
+        //svgTest("fonts-desc-02-t");
+        //svgTest("fonts-elem-01-t");
+        //svgTest("fonts-elem-02-t");
+        //svgTest("fonts-elem-03-b");
+        //svgTest("fonts-elem-04-b");
+        //svgTest("fonts-elem-05-t");
+        //svgTest("fonts-elem-06-t");
+        //svgTest("fonts-elem-07-b");
+        //svgTest("fonts-glyph-02-t");
+        //svgTest("fonts-glyph-03-t");
+        //svgTest("fonts-glyph-04-t");
+        //svgTest("fonts-kern-01-t");
+        //svgTest("interact-cursor-01-f");
+        //svgTest("interact-dom-01-b");
+        //svgTest("interact-events-01-b");
+        //svgTest("interact-order-01-b");
+        //svgTest("interact-order-02-b");
+        //svgTest("interact-order-03-b");
+        //svgTest("interact-zoom-01-t");
+        //svgTest("linking-a-01-b");
+        //svgTest("linking-a-02-b");
+        //svgTest("linking-a-03-b");
+        //svgTest("linking-a-04-t");
+        //svgTest("linking-a-05-t");
+        //svgTest("linking-a-07-t");
+        //svgTest("linking-uri-01-b");
+        //svgTest("linking-uri-02-b");
+        //svgTest("linking-uri-03-t");
+        //svgTest("masking-intro-01-f");
+        //svgTest("masking-mask-01-b");
+        //svgTest("masking-opacity-01-b");
+        //svgTest("masking-path-01-b");
+        //svgTest("masking-path-02-b");
+        //svgTest("masking-path-03-b");
+        //svgTest("masking-path-04-b");
+        //svgTest("masking-path-05-f");
+        //svgTest("metadata-example-01-b");
         svgTest("painting-fill-01-t");
         svgTest("painting-fill-02-t");
         svgTest("painting-fill-03-t");
@@ -1351,10 +1745,10 @@ public class SvgImporter {
         svgTest("render-elems-08-t");
         svgTest("render-groups-01-b");
         svgTest("render-groups-03-t");
-//        svgTest("script-handle-01-b");
-//        svgTest("script-handle-02-b");
-//        svgTest("script-handle-03-b");
-//        svgTest("script-handle-04-b");
+        //svgTest("script-handle-01-b");
+        //svgTest("script-handle-02-b");
+        //svgTest("script-handle-03-b");
+        //svgTest("script-handle-04-b");
         svgTest("shapes-circle-01-t");
         svgTest("shapes-circle-02-t");
         svgTest("shapes-ellipse-01-t");
@@ -1365,83 +1759,92 @@ public class SvgImporter {
         svgTest("shapes-polyline-01-t");
         svgTest("shapes-rect-01-t");
         svgTest("shapes-rect-02-t");
-//        svgTest("struct-cond-01-t");
-//        svgTest("struct-cond-02-t");
-//        svgTest("struct-cond-03-t");
-//        svgTest("struct-defs-01-t");
-//        svgTest("struct-dom-01-b");
-//        svgTest("struct-dom-02-b");
-//        svgTest("struct-dom-03-b");
-//        svgTest("struct-dom-04-b");
-//        svgTest("struct-dom-05-b");
-//        svgTest("struct-dom-06-b");
-//        svgTest("struct-frag-01-t");
-//        svgTest("struct-frag-02-t");
-//        svgTest("struct-frag-03-t");
-//        svgTest("struct-frag-04-t");
-//        svgTest("struct-frag-05-t");
-//        svgTest("struct-frag-06-t");
-//        svgTest("struct-group-01-t");
-//        svgTest("struct-group-02-b");
-//        svgTest("struct-group-03-t");
-//        svgTest("struct-image-01-t");
-//        svgTest("struct-image-02-b");
-//        svgTest("struct-image-03-t");
-//        svgTest("struct-image-04-t");
-//        svgTest("struct-image-05-b");
-//        svgTest("struct-image-06-t");
-//        svgTest("struct-image-07-t");
-//        svgTest("struct-image-08-t");
-//        svgTest("struct-image-09-t");
-//        svgTest("struct-image-10-t");
-//        svgTest("struct-symbol-01-b");
-//        svgTest("struct-use-01-t");
-//        svgTest("struct-use-03-t");
-//        svgTest("struct-use-05-b");
+        //svgTest("struct-cond-01-t");
+        //svgTest("struct-cond-02-t");
+        //svgTest("struct-cond-03-t");
+        //svgTest("struct-defs-01-t");
+        //svgTest("struct-dom-01-b");
+        //svgTest("struct-dom-02-b");
+        //svgTest("struct-dom-03-b");
+        //svgTest("struct-dom-04-b");
+        //svgTest("struct-dom-05-b");
+        //svgTest("struct-dom-06-b");
+        //svgTest("struct-frag-01-t");
+        //svgTest("struct-frag-02-t");
+        //svgTest("struct-frag-03-t");
+        //svgTest("struct-frag-04-t");
+        //svgTest("struct-frag-05-t");
+        //svgTest("struct-frag-06-t");
+        //svgTest("struct-group-01-t");
+        //svgTest("struct-group-02-b");
+        //svgTest("struct-group-03-t");
+        //svgTest("struct-image-01-t");
+        //svgTest("struct-image-02-b");
+        //svgTest("struct-image-03-t");
+        //svgTest("struct-image-04-t");
+        //svgTest("struct-image-05-b");
+        //svgTest("struct-image-06-t");
+        //svgTest("struct-image-07-t");
+        //svgTest("struct-image-08-t");
+        //svgTest("struct-image-09-t");
+        //svgTest("struct-image-10-t");
+        //svgTest("struct-symbol-01-b");
+        //svgTest("struct-use-01-t");
+        //svgTest("struct-use-03-t");
+        //svgTest("struct-use-05-b");
         svgTest("styling-css-01-b");
         svgTest("styling-css-02-b");
         svgTest("styling-css-03-b");
         svgTest("styling-css-04-f");
-//        svgTest("styling-css-05-b");
-//        svgTest("styling-css-06-b");
+        //svgTest("styling-css-05-b");
+        //svgTest("styling-css-06-b");
         svgTest("styling-inherit-01-b");
-//        svgTest("styling-pres-01-t");
-//        svgTest("text-align-01-b");
-//        svgTest("text-align-02-b");
-//        svgTest("text-align-03-b");
-//        svgTest("text-align-04-b");
-//        svgTest("text-align-05-b");
-//        svgTest("text-align-06-b");
-//        svgTest("text-align-08-b");
-//        svgTest("text-altglyph-01-b");
-//        svgTest("text-deco-01-b");
-//        svgTest("text-fonts-01-t");
-//        svgTest("text-fonts-02-t");
-//        svgTest("text-fonts-03-t");
-//        svgTest("text-intro-01-t");
-//        svgTest("text-intro-02-b");
-//        svgTest("text-intro-03-b");
-//        svgTest("text-intro-04-t");
-//        svgTest("text-intro-05-t");
-//        svgTest("text-path-01-b");
-//        svgTest("text-spacing-01-b");
-//        svgTest("text-text-01-b");
-//        svgTest("text-text-03-b");
-//        svgTest("text-text-04-t");
-//        svgTest("text-text-05-t");
-//        svgTest("text-text-06-t");
-//        svgTest("text-text-07-t");
-//        svgTest("text-text-08-b");
-//        svgTest("text-tref-01-b");
-//        svgTest("text-tselect-01-b");
-//        svgTest("text-tselect-02-f");
-//        svgTest("text-tspan-01-b");
-//        svgTest("text-ws-01-t");
-//        svgTest("text-ws-02-t");
-//        svgTest("types-basicDOM-01-b");            
+        //svgTest("styling-pres-01-t");
+        //svgTest("text-align-01-b");
+        //svgTest("text-align-02-b");
+        //svgTest("text-align-03-b");
+        //svgTest("text-align-04-b");
+        //svgTest("text-align-05-b");
+        //svgTest("text-align-06-b");
+        //svgTest("text-align-08-b");
+        //svgTest("text-altglyph-01-b");
+        //svgTest("text-deco-01-b");
+        //svgTest("text-fonts-01-t");
+        //svgTest("text-fonts-02-t");
+        //svgTest("text-fonts-03-t");
+        //svgTest("text-intro-01-t");
+        //svgTest("text-intro-02-b");
+        //svgTest("text-intro-03-b");
+        //svgTest("text-intro-04-t");
+        //svgTest("text-intro-05-t");
+        //svgTest("text-path-01-b");
+        //svgTest("text-spacing-01-b");
+        //svgTest("text-text-01-b");
+        //svgTest("text-text-03-b");
+        //svgTest("text-text-04-t");
+        //svgTest("text-text-05-t");
+        //svgTest("text-text-06-t");
+        //svgTest("text-text-07-t");
+        //svgTest("text-text-08-b");
+        //svgTest("text-tref-01-b");
+        //svgTest("text-tselect-01-b");
+        //svgTest("text-tselect-02-f");
+        //svgTest("text-tspan-01-b");
+        //svgTest("text-ws-01-t");
+        //svgTest("text-ws-02-t");
+        //svgTest("types-basicDOM-01-b");            
     }
 
-    private void applyFillGradients(SvgFill fill, FILLSTYLE fillStyle, RECT bounds, StyleChangeRecord scr, Matrix transform, int shapeNum, SvgStyle style) {
+    private double angle(double x1, double y1, double x2, double y2) {
+        double dx = x2 - x1;
+        double dy = y2 - y1;
+        if (dx == 0 && dy == 0) {
+            return 0;
+        }
+        return Math.atan2(dy, dx);
+    }
+
+    private void applyFillGradients(SvgFill fill, FILLSTYLE fillStyle, RECT bounds, StyleChangeRecord scr, Matrix transform, int shapeNum, SvgStyle style, double opacity) {
         if (fill == null || fillStyle == null) {
             return;
         }
@@ -1459,14 +1862,16 @@ public class SvgImporter {
                 double x2 = parseCoordinate(lgfill.x2, 1);
                 double y2 = parseCoordinate(lgfill.y2, 1);
 
-                Matrix xyMatrix = new Matrix();
-                xyMatrix.scaleX = (x2 - x1) * SWF.unitDivisor;
-                xyMatrix.rotateSkew0 = (y2 - y1) * SWF.unitDivisor;
-                xyMatrix.rotateSkew1 = -xyMatrix.rotateSkew0;
-                xyMatrix.scaleY = xyMatrix.scaleX;
-
-                Matrix gmatrix = new Matrix();
+                Matrix tMatrix = new Matrix();
                 if (lgfill.gradientUnits == SvgGradientUnits.OBJECT_BOUNDING_BOX) {
+                    Matrix xyMatrix = new Matrix();
+                    xyMatrix.scaleX = (x2 - x1) * SWF.unitDivisor;
+                    xyMatrix.rotateSkew0 = (y2 - y1) * SWF.unitDivisor;
+                    xyMatrix.rotateSkew1 = -xyMatrix.rotateSkew0;
+                    xyMatrix.scaleY = xyMatrix.scaleX;
+
+                    Matrix gmatrix = new Matrix();
+
                     gmatrix.scaleX = (bounds.Xmax - bounds.Xmin) / SWF.unitDivisor;
                     gmatrix.rotateSkew0 = 0;
                     gmatrix.rotateSkew1 = 0;
@@ -1475,23 +1880,49 @@ public class SvgImporter {
                     gmatrix.translateY = bounds.Ymin;
                     x1 *= bounds.getWidth();
                     y1 *= bounds.getHeight();
+
+                    Matrix zeroStartMatrix = Matrix.getTranslateInstance(0.5, 0);
+                    Matrix scaleMatrix = Matrix.getScaleInstance(1 / 16384.0 / 2);
+                    Matrix transMatrix = Matrix.getTranslateInstance(x1, y1);
+
+                    tMatrix = tMatrix.concatenate(transMatrix)
+                            .concatenate(gmatrix)
+                            .concatenate(xyMatrix)
+                            .concatenate(zeroStartMatrix)
+                            .concatenate(scaleMatrix);
                 } else {
-                    gmatrix = new Matrix(fillStyle.gradientMatrix);
+                    //SvgGradientUnits.USER_SPACE_ON_USE
+
                     x1 *= SWF.unitDivisor;
                     y1 *= SWF.unitDivisor;
+                    x2 *= SWF.unitDivisor;
+                    y2 *= SWF.unitDivisor;
+
+                    double L = 16384.0;
+
+                    double ux = x2 - x1;
+                    double uy = y2 - y1;
+                    double du = Math.hypot(x2 - x1, y2 - y1);
+                    double mx = (x1 + x2) / 2.0;
+                    double my = (y1 + y2) / 2.0;
+                    double ax = ux / du;
+                    double ay = uy / du;
+
+                    double k = du / (2 * L);
+
+                    double nx = -ay;
+                    double ny = ax;
+
+                    double newScaleX = k * (gradientMatrix.scaleX * ax + gradientMatrix.rotateSkew1 * ay);
+                    double newRotateSkew1 = k * (gradientMatrix.scaleX * nx + gradientMatrix.rotateSkew1 * ny);
+                    double newTranslateX = gradientMatrix.scaleX * mx + gradientMatrix.rotateSkew1 * my + gradientMatrix.translateX;
+
+                    double newRotateSkew0 = k * (gradientMatrix.rotateSkew0 * ax + gradientMatrix.scaleY * ay);
+                    double newScaleY = k * (gradientMatrix.rotateSkew0 * nx + gradientMatrix.scaleY * ny);
+                    double newTranslateY = gradientMatrix.rotateSkew0 * mx + gradientMatrix.scaleY * my + gradientMatrix.translateY;
+
+                    tMatrix = new Matrix(newScaleX, newScaleY, newRotateSkew0, newRotateSkew1, newTranslateX, newTranslateY);
                 }
-
-                Matrix zeroStartMatrix = Matrix.getTranslateInstance(0.5, 0);
-                Matrix scaleMatrix = Matrix.getScaleInstance(1 / 16384.0 / 2);
-                Matrix transMatrix = Matrix.getTranslateInstance(x1, y1);
-
-                Matrix tMatrix = new Matrix();
-                tMatrix = tMatrix
-                        .concatenate(transMatrix)
-                        .concatenate(gmatrix)
-                        .concatenate(xyMatrix)
-                        .concatenate(zeroStartMatrix)
-                        .concatenate(scaleMatrix);
                 fillStyle.gradientMatrix = tMatrix.toMATRIX();
             } else if (fill instanceof SvgRadialGradient) {
                 SvgRadialGradient rgfill = (SvgRadialGradient) fill;
@@ -1550,25 +1981,46 @@ public class SvgImporter {
                     break;
             }
 
-            fillStyle.gradient.gradientRecords = new GRADRECORD[gfill.stops.size()];
             int prevRatio = -1;
+
+            int recCount = 0;
             for (int i = 0; i < gfill.stops.size(); i++) {
                 SvgStop stop = gfill.stops.get(i);
-                Color color = stop.color;
-                color = new Color(color.getRed(), color.getGreen(), color.getBlue(), (int) Math.round(color.getAlpha() * style.getOpacity()));
-                fillStyle.gradient.gradientRecords[i] = new GRADRECORD();
-                fillStyle.gradient.gradientRecords[i].inShape3 = shapeNum >= 3;
-                fillStyle.gradient.gradientRecords[i].color = getRGB(shapeNum, color);
+
                 int ratio = Math.max((int) Math.round(stop.offset * 255), prevRatio + 1);
-                fillStyle.gradient.gradientRecords[i].ratio = ratio;
+                recCount++;
+                //two finish stops
+                if (ratio == 255 && i + 1 < gfill.stops.size()) {
+                    if (prevRatio == 254) {
+                        break;
+                    }
+                    ratio = 254;
+                }
                 prevRatio = ratio;
                 if (prevRatio == 255) {
                     break;
                 }
             }
+
+            prevRatio = -1;
+            fillStyle.gradient.gradientRecords = new GRADRECORD[recCount];
+            for (int i = 0; i < recCount; i++) {
+                SvgStop stop = gfill.stops.get(i);
+                Color color = stop.color;
+                color = new Color(color.getRed(), color.getGreen(), color.getBlue(), (int) Math.round(color.getAlpha() * opacity));
+                fillStyle.gradient.gradientRecords[i] = new GRADRECORD();
+                fillStyle.gradient.gradientRecords[i].inShape3 = shapeNum >= 3;
+                fillStyle.gradient.gradientRecords[i].color = getRGB(shapeNum, color);
+                int ratio = Math.max((int) Math.round(stop.offset * 255), prevRatio + 1);
+                if (ratio == 255 && i + 1 < recCount) {
+                    ratio = 254;
+                }
+                fillStyle.gradient.gradientRecords[i].ratio = ratio;
+                prevRatio = ratio;
+            }
         } else if (fill instanceof SvgBitmapFill) {
             SvgBitmapFill bfill = (SvgBitmapFill) fill;
-            fillStyle.fillStyleType = FILLSTYLE.REPEATING_BITMAP;
+            fillStyle.fillStyleType = bfill.smoothed ? FILLSTYLE.REPEATING_BITMAP : FILLSTYLE.NON_SMOOTHED_REPEATING_BITMAP;
             fillStyle.bitmapId = bfill.characterId;
             Matrix fillMatrix = Matrix.parseSvgMatrix(bfill.patternTransform, SWF.unitDivisor, SWF.unitDivisor);
             fillMatrix = transform.concatenate(Matrix.getScaleInstance(1 / SWF.unitDivisor)).concatenate(fillMatrix);
@@ -1579,22 +2031,26 @@ public class SvgImporter {
     private void applyStyleGradients(RECT bounds, StyleChangeRecord scr, Matrix transform, int shapeNum, SvgStyle style) {
         SvgFill fill = style.getFillWithOpacity();
         if (fill != null && fill != SvgTransparentFill.INSTANCE) {
-            applyFillGradients(fill, scr.fillStyles.fillStyles[0], bounds, scr, transform, shapeNum, style);
+            applyFillGradients(fill, scr.fillStyles.fillStyles[0], bounds, scr, transform, shapeNum, style, style.getOpacity() * style.getFillOpacity());
         }
         SvgFill strokeFill = style.getStrokeFillWithOpacity();
         if (strokeFill != null) {
-            if (scr.lineStyles.lineStyles.length > 0 && scr.lineStyles.lineStyles[0] instanceof LINESTYLE2) {
-                applyFillGradients(strokeFill, ((LINESTYLE2) scr.lineStyles.lineStyles[0]).fillType, bounds, scr, transform, shapeNum, style);
+            if (shapeNum == 4 && scr.lineStyles.lineStyles2.length > 0 && scr.lineStyles.lineStyles2[0] instanceof LINESTYLE2) {
+                applyFillGradients(strokeFill, ((LINESTYLE2) scr.lineStyles.lineStyles2[0]).fillType, bounds, scr, transform, shapeNum, style, style.getOpacity() * style.getStrokeOpacity());
             }
         }
     }
 
-    private StyleChangeRecord getStyleChangeRecord(int shapeNum, SvgStyle style) {
+    private StyleChangeRecord getStyleChangeRecord(int shapeNum, SvgStyle style, boolean morphShape, Matrix transform) {
         StyleChangeRecord scr = new StyleChangeRecord();
 
         scr.stateNewStyles = true;
         scr.fillStyles = new FILLSTYLEARRAY();
-        scr.stateFillStyle1 = true;
+        if (morphShape) {
+            scr.stateFillStyle0 = true;
+        } else {
+            scr.stateFillStyle1 = true;
+        }
         scr.stateLineStyle = true;
         SvgFill fill = style.getFillWithOpacity();
         if (fill != null && fill != SvgTransparentFill.INSTANCE) {
@@ -1608,10 +2064,18 @@ public class SvgImporter {
                 //...apply in second step - applyStyleGradients
             }
 
-            scr.fillStyle1 = 1;
+            if (morphShape) {
+                scr.fillStyle0 = 1;
+            } else {
+                scr.fillStyle1 = 1;
+            }
         } else {
             scr.fillStyles.fillStyles = new FILLSTYLE[0];
-            scr.fillStyle1 = 0;
+            if (morphShape) {
+                scr.fillStyle0 = 0;
+            } else {
+                scr.fillStyle1 = 0;
+            }
         }
 
         scr.lineStyles = new LINESTYLEARRAY();
@@ -1619,14 +2083,39 @@ public class SvgImporter {
         if (strokeFill != null && strokeFill != SvgTransparentFill.INSTANCE) {
             Color lineColor = strokeFill.toColor();
 
-            scr.lineStyles.lineStyles = new LINESTYLE[1];
-            LINESTYLE lineStyle = shapeNum <= 3 ? new LINESTYLE() : new LINESTYLE2();
-            lineStyle.color = getRGB(shapeNum, lineColor);
-            lineStyle.width = (int) Math.round(style.getStrokeWidth() * SWF.unitDivisor);
+            ILINESTYLE lineStyle = shapeNum <= 3 ? new LINESTYLE() : new LINESTYLE2();
+            lineStyle.setColor(getRGB(shapeNum, lineColor));
+            double scale = Math.sqrt(Math.abs(transform.scaleX * transform.scaleY - transform.rotateSkew0 * transform.rotateSkew1));
+
+            lineStyle.setWidth((int) Math.round(style.getStrokeWidth() * scale * SWF.unitDivisor));
             SvgLineCap lineCap = style.getStrokeLineCap();
             SvgLineJoin lineJoin = style.getStrokeLineJoin();
             if (lineStyle instanceof LINESTYLE2) {
                 LINESTYLE2 lineStyle2 = (LINESTYLE2) lineStyle;
+
+                String vectorEffect = style.getVectorEffect();
+                if ("non-scaling-stroke".equals(vectorEffect)) {
+                    lineStyle2.noHScaleFlag = true;
+                    lineStyle2.noVScaleFlag = true;
+                    if (shapeTag instanceof DefineShape4Tag) {
+                        DefineShape4Tag shape4 = (DefineShape4Tag) shapeTag;
+                        shape4.usesNonScalingStrokes = true;
+                    }
+                    if (shapeTag instanceof DefineMorphShape2Tag) {
+                        DefineMorphShape2Tag morph2 = (DefineMorphShape2Tag) shapeTag;
+                        morph2.usesNonScalingStrokes = true;
+                    }
+                } else {
+                    if (shapeTag instanceof DefineShape4Tag) {
+                        DefineShape4Tag shape4 = (DefineShape4Tag) shapeTag;
+                        shape4.usesScalingStrokes = true;
+                    }
+                    if (shapeTag instanceof DefineMorphShape2Tag) {
+                        DefineMorphShape2Tag morph2 = (DefineMorphShape2Tag) shapeTag;
+                        morph2.usesScalingStrokes = true;
+                    }
+                }
+
                 int swfCap = lineCap == SvgLineCap.BUTT ? LINESTYLE2.NO_CAP
                         : lineCap == SvgLineCap.ROUND ? LINESTYLE2.ROUND_CAP
                                 : lineCap == SvgLineCap.SQUARE ? LINESTYLE2.SQUARE_CAP : 0;
@@ -1643,6 +2132,8 @@ public class SvgImporter {
                                 : lineJoin == SvgLineJoin.BEVEL ? LINESTYLE2.BEVEL_JOIN : 0;
                 lineStyle2.joinStyle = swfJoin;
                 lineStyle2.miterLimitFactor = (float) style.getStrokeMiterLimit();
+                scr.lineStyles.lineStyles2 = new LINESTYLE2[1];
+                scr.lineStyles.lineStyles2[0] = lineStyle2;
             } else {
                 if (lineCap != SvgLineCap.ROUND) {
                     showWarning("lineCapNotSupported", "LineCap style not supported in shape " + shapeNum);
@@ -1650,12 +2141,14 @@ public class SvgImporter {
                 if (lineJoin != SvgLineJoin.ROUND) {
                     showWarning("lineJoinNotSupported", "LineJoin style not supported in shape " + shapeNum);
                 }
+                scr.lineStyles.lineStyles = new LINESTYLE[1];
+                scr.lineStyles.lineStyles[0] = (LINESTYLE) lineStyle;
             }
 
-            scr.lineStyles.lineStyles[0] = lineStyle;
             scr.lineStyle = 1;
         } else {
             scr.lineStyles.lineStyles = new LINESTYLE[0];
+            scr.lineStyles.lineStyles2 = new LINESTYLE2[0];
             scr.lineStyle = 0;
         }
 
@@ -1674,7 +2167,7 @@ public class SvgImporter {
         return parseLength(value, relativeTo);
     }
 
-    private double parseLength(String value, double relativeTo) {
+    public double parseLength(String value, double relativeTo) {
         if (value == null) {
             throw new NumberFormatException();
         }
@@ -1727,6 +2220,12 @@ public class SvgImporter {
         return result;
     }
 
+    /**
+     * Parses a number from a string.
+     *
+     * @param value The string
+     * @return The number
+     */
     public double parseNumber(String value) {
         if (value == null) {
             throw new NumberFormatException();
@@ -1736,6 +2235,12 @@ public class SvgImporter {
         return result;
     }
 
+    /**
+     * Parses a number or percent from a string.
+     *
+     * @param value The string
+     * @return The number
+     */
     public double parseNumberOrPercent(String value) {
         if (value == null) {
             throw new NumberFormatException();

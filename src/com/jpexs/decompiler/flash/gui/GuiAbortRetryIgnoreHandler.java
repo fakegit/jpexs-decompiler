@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@ import java.awt.Component;
 import javax.swing.JOptionPane;
 
 /**
- *
  * @author JPEXS
  */
 public class GuiAbortRetryIgnoreHandler implements AbortRetryIgnoreHandler {
@@ -59,7 +58,7 @@ public class GuiAbortRetryIgnoreHandler implements AbortRetryIgnoreHandler {
             if (mf != null) {
                 cmp = mf.getPanel();
             }
-            int result = ViewMessages.showOptionDialog(cmp, AppStrings.translate("error.occured").replace("%error%", msg), AppStrings.translate("error"), JOptionPane.YES_NO_OPTION, JOptionPane.ERROR_MESSAGE, null, options, "");
+            int result = ViewMessages.showOptionDialog(cmp, AppStrings.translate("error.occurred").replace("%error%", msg), AppStrings.translate("error"), JOptionPane.YES_NO_OPTION, JOptionPane.ERROR_MESSAGE, null, options, "");
             if (result == AbortRetryIgnoreHandler.IGNORE_ALL) {
                 ignoreAll = true;
                 result = AbortRetryIgnoreHandler.IGNORE;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -25,20 +26,21 @@ import com.jpexs.decompiler.flash.types.BasicType;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.helpers.ByteArrayRange;
+import com.jpexs.helpers.JpegFixer;
 import com.jpexs.helpers.SerializableImage;
 import java.awt.Dimension;
+import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * DefineBits tag - Contains a JPEG image. JPEG header is not included in the
+ * data - needs JPEGTables tag.
  *
  * @author JPEXS
  */
@@ -55,7 +57,7 @@ public class DefineBitsTag extends ImageTag implements TagChangedListener {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineBitsTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -67,9 +69,9 @@ public class DefineBitsTag extends ImageTag implements TagChangedListener {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineBitsTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -86,7 +88,7 @@ public class DefineBitsTag extends ImageTag implements TagChangedListener {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -115,72 +117,19 @@ public class DefineBitsTag extends ImageTag implements TagChangedListener {
         return ImageFormat.JPEG;
     }
 
-    private static List<byte[]> parseJpegChunks(byte[] data) {
-        //A little inspired by shum way :-)
-        List<byte[]> ret = new ArrayList<>();
-        int pos = 0;
-        int n = data.length;
-        // Finding first marker, and skipping the data before this marker.
-        // (FF 00 - code is escaped FF; FF FF ... (FF xx) - fill bytes before marker).
-        while (pos < n && ((data[pos] & 0xFF) != 0xFF
-                || (pos + 1 < n && ((data[pos + 1] & 0xFF) == 0x00 || (data[pos + 1] & 0xFF) == 0xFF)))) {
-            pos++;
-        }
-
-        while (pos < n) {
-            int start = pos++;
-            int code = data[pos++] & 0xFF;
-
-            // Some tags have length field -- using it
-            if ((code >= 0xC0 && code <= 0xC7)
-                    || (code >= 0xC9 && code <= 0xCF)
-                    || (code >= 0xDA && code <= 0xEF)
-                    || code == 0xFE) {
-                int length = (data[pos] & 0xFF) << 8 + (data[pos + 1] & 0xFF);
-                pos += length;
-            }
-
-            // Finding next marker.
-            while (pos < n && ((data[pos] & 0xFF) != 0xFF
-                    || (pos + 1 < n && ((data[pos + 1] & 0xff) == 0x00 || (data[pos + 1] & 0xFF) == 0xFF)))) {
-                pos++;
-            }
-
-            if (code == 0xD8 || code == 0xD9) {
-                // Removing SOI and EOI to avoid wrong EOI-SOI pairs in the middle.
-                continue;
-            }
-            ret.add(Arrays.copyOfRange(data, start, pos));
-        }
-        return ret;
-    }
-
     @Override
     public InputStream getOriginalImageData() {
         if (swf.getJtt() != null) {
             try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-                int errorLength = hasErrorHeader(jpegData) ? 4 : 0;
-
-                List<byte[]> jpegChunks = parseJpegChunks(jpegData.getRangeData(errorLength, jpegData.getLength() - errorLength));
                 ByteArrayRange jttdata = swf.getJtt().jpegData;
                 if (jttdata.getLength() != 0) {
-                    int jttErrorLength = hasErrorHeader(jttdata) ? 4 : 0;
-                    List<byte[]> chunksJtt = parseJpegChunks(jttdata.getRangeData(jttErrorLength, jttdata.getLength() - jttErrorLength));
-                    for (int c = 0; c < jpegChunks.size(); c++) {
-                        int chunkType = (jpegChunks.get(c)[1] & 0xFF);
-                        if (chunkType >= 0xC0 && chunkType <= 0xCF) {
-                            jpegChunks.addAll(c, chunksJtt);
-                            break;
-                        }
-                    }
+                    baos.write(jttdata.getRangeData());
                 }
-                jpegChunks.add(0, new byte[]{(byte) 0xFF, (byte) 0xD8}); //SOI to beginning                
-                jpegChunks.add(new byte[]{(byte) 0xFF, (byte) 0xD9}); //EOI to the end
-
-                for (byte[] chunk : jpegChunks) {
-                    baos.write(chunk);
-                }
-                return new ByteArrayInputStream(baos.toByteArray());
+                baos.write(jpegData.getRangeData());
+                JpegFixer fixer = new JpegFixer();
+                ByteArrayOutputStream baos2 = new ByteArrayOutputStream();
+                fixer.fixJpeg(new ByteArrayInputStream(baos.toByteArray()), baos2);
+                return new ByteArrayInputStream(baos2.toByteArray());
             } catch (IOException ex) {
                 // this should never happen, since IOException comes from OutputStream, but ByteArrayOutputStream should never throw it
                 throw new Error(ex);
@@ -208,7 +157,11 @@ public class DefineBitsTag extends ImageTag implements TagChangedListener {
             }
         }
 
-        return null;
+        SerializableImage img = new SerializableImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE);
+        Graphics g = img.getGraphics();
+        g.setColor(SWF.ERROR_COLOR);
+        g.fillRect(0, 0, 1, 1);
+        return img;
     }
 
     @Override
@@ -220,13 +173,13 @@ public class DefineBitsTag extends ImageTag implements TagChangedListener {
         InputStream imageStream = getOriginalImageData();
         if (imageStream != null) {
             try {
-                return ImageHelper.getDimesion(imageStream);
+                return ImageHelper.getDimension(imageStream);
             } catch (IOException ex) {
                 Logger.getLogger(DefineBitsJPEG3Tag.class.getName()).log(Level.SEVERE, "Failed to get image dimension", ex);
             }
         }
 
-        return null;
+        return new Dimension(1, 1);
     }
 
     @Override

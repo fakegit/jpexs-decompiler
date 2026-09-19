@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,31 +26,66 @@ import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
-import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.List;
 import java.util.Objects;
 
 /**
+ * Call property.
  *
  * @author JPEXS
  */
 public class CallPropertyAVM2Item extends AVM2Item {
 
+    /**
+     * Receiver
+     */
     public GraphTargetItem receiver;
 
+    /**
+     * Property name
+     */
     public GraphTargetItem propertyName;
 
+    /**
+     * Arguments
+     */
     public List<GraphTargetItem> arguments;
 
+    /**
+     * Is void
+     */
     public boolean isVoid;
 
-    public CallPropertyAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, boolean isVoid, GraphTargetItem receiver, GraphTargetItem propertyName, List<GraphTargetItem> arguments) {
+    /**
+     * Type
+     */
+    public GraphTargetItem type;
+
+    /**
+     * Is static
+     */
+    public boolean isStatic;
+
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param isVoid Is void
+     * @param receiver Receiver
+     * @param propertyName Property name
+     * @param arguments Arguments
+     * @param type Type
+     * @param isStatic Is static
+     */
+    public CallPropertyAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, boolean isVoid, GraphTargetItem receiver, GraphTargetItem propertyName, List<GraphTargetItem> arguments, GraphTargetItem type, boolean isStatic) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.receiver = receiver;
         this.propertyName = propertyName;
         this.arguments = arguments;
         this.isVoid = isVoid;
+        this.type = type;
+        this.isStatic = isStatic;
     }
 
     @Override
@@ -62,12 +97,12 @@ public class CallPropertyAVM2Item extends AVM2Item {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        formatProperty(writer, receiver, propertyName, localData);
-        writer.spaceBeforeCallParenthesies(arguments.size());
+        formatProperty(writer, receiver, propertyName, localData, isStatic, false);
+        writer.spaceBeforeCallParenthesis(arguments.size());
         writer.append("(");
         for (int a = 0; a < arguments.size(); a++) {
-            if (a > 0) {
-                writer.append(",");
+            if (a > 0) {               
+                writer.allowWrapHere().append(",");
             }
             arguments.get(a).toString(writer, localData);
         }
@@ -83,7 +118,7 @@ public class CallPropertyAVM2Item extends AVM2Item {
 
     @Override
     public GraphTargetItem returnType() {
-        return TypeItem.UNBOUNDED;
+        return type;
     }
 
     @Override

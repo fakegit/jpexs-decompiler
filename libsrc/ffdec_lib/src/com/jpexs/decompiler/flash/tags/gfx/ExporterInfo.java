@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,18 +12,24 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.gfx;
 
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.decompiler.flash.tags.TagInfo;
+import com.jpexs.decompiler.flash.tags.gfx.enums.ExportFlagConstants;
+import com.jpexs.decompiler.flash.tags.gfx.enums.FileFormatType;
 import com.jpexs.helpers.ByteArrayRange;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * ExporterInfo tag - exporter info.
  *
  * @author JPEXS
  */
@@ -41,27 +47,17 @@ public class ExporterInfo extends Tag {
 
     public int bitmapFormat;
 
-    public byte[] prefix;
+    public String prefix;
 
     public String swfName;
 
     public List<Long> codeOffsets;
 
-    public static final int BITMAP_FORMAT_TGA = 1;
-
-    public static final int BITMAP_FORMAT_DDS = 2;
-
-    public static final int FLAG_CONTAINS_GLYPH_TEXTURES = 1;
-
-    public static final int FLAG_GLYPHS_STRIPPED_FROM_DEFINEFONT = 2;
-
-    public static final int FLAG_GRADIENT_IMAGES_EXPORTED = 4;
-
     /**
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -70,8 +66,7 @@ public class ExporterInfo extends Tag {
             sos.writeUI32(flags);
         }
         sos.writeUI16(bitmapFormat);
-        sos.writeUI8(prefix.length);
-        sos.write(prefix);
+        sos.writeNetString(prefix);
         sos.writeNetString(swfName);
         if (codeOffsets != null) {
             sos.writeUI16(codeOffsets.size());
@@ -84,13 +79,19 @@ public class ExporterInfo extends Tag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public ExporterInfo(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
         readData(sis, data, 0, false, false, false);
+    }
+
+    public ExporterInfo(SWF swf) {
+        super(swf, ID, NAME, null);
+        prefix = "";
+        swfName = "";
     }
 
     @Override
@@ -100,16 +101,43 @@ public class ExporterInfo extends Tag {
             flags = sis.readUI32("flags");
         }
         bitmapFormat = sis.readUI16("bitmapFormat");
-        int prefixLen = sis.readUI8("prefixLen");
-        prefix = sis.readBytesEx(prefixLen, "prefix");
+        prefix = sis.readNetString("prefix");
         swfName = sis.readNetString("swfName");
-        if (sis.available() > 0) // (version >= 0x401) //?
-        {
+        if (sis.available() > 0) { // (version >= 0x401) //?        
             codeOffsets = new ArrayList<>();
             int numCodeOffsets = sis.readUI16("numCodeOffsets");
             for (int i = 0; i < numCodeOffsets; i++) {
                 codeOffsets.add(sis.readUI32("codeOffset"));
             }
         }
+    }
+
+    @Override
+    public void getTagInfo(TagInfo tagInfo) {
+        super.getTagInfo(tagInfo);
+
+        tagInfo.addInfo("general", "version", version);
+        tagInfo.addInfo("general", "flags", "0x" + Long.toHexString(flags));
+        String bitmapFormatStr = "0x" + Integer.toHexString(bitmapFormat);
+        String fileFormatStr = FileFormatType.fileFormatToString(bitmapFormat);
+        if (fileFormatStr != null) {
+            bitmapFormatStr = fileFormatStr + " (" + bitmapFormat + ")";
+        }
+        tagInfo.addInfo("general", "bitmapFormat", bitmapFormatStr);
+        tagInfo.addInfo("general", "prefix", prefix);
+        tagInfo.addInfo("general", "swfName", swfName);
+
+        if (codeOffsets != null) {
+            List<String> codeOffsetsStr = new ArrayList<>();
+            for (long codeOffset : codeOffsets) {
+                codeOffsetsStr.add("" + codeOffset);
+            }
+
+            tagInfo.addInfo("general", "codeOffsets", String.join(", ", codeOffsetsStr));
+        }
+    }
+
+    public boolean hasFlagShapesStrippedFromDefineFont() {
+        return (flags & ExportFlagConstants.EXF_GLYPHS_STRIPPED) == ExportFlagConstants.EXF_GLYPHS_STRIPPED;
     }
 }

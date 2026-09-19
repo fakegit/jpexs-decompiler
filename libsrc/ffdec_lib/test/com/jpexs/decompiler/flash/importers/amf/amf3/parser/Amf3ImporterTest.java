@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.importers.amf.amf3.parser;
 
 import com.jpexs.decompiler.flash.amf.amf3.Amf3InputStream;
@@ -20,8 +21,8 @@ import com.jpexs.decompiler.flash.amf.amf3.ListMap;
 import com.jpexs.decompiler.flash.amf.amf3.NoSerializerExistsException;
 import com.jpexs.decompiler.flash.amf.amf3.ObjectTypeSerializeHandler;
 import com.jpexs.decompiler.flash.exporters.amf.amf3.Amf3Exporter;
+import com.jpexs.decompiler.flash.importers.amf.AmfParseException;
 import com.jpexs.decompiler.flash.importers.amf.amf3.Amf3Importer;
-import com.jpexs.decompiler.flash.importers.amf.amf3.Amf3ParseException;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.MemoryInputStream;
 import java.io.File;
@@ -72,7 +73,7 @@ public class Amf3ImporterTest {
     }
 
     @Test(dataProvider = "files")
-    public void testRecompile(String fileName) throws IOException, NoSerializerExistsException, Amf3ParseException {
+    public void testRecompile(String fileName) throws IOException, NoSerializerExistsException, AmfParseException {
 
         String originalFile = "testdata/amf3/generated/" + fileName;
 

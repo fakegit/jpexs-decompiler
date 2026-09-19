@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,12 +17,8 @@
 package com.jpexs.decompiler.flash.abc.types.traits;
 
 import com.jpexs.decompiler.flash.abc.ABC;
-import com.jpexs.decompiler.flash.abc.avm2.model.FindPropertyAVM2Item;
-import com.jpexs.decompiler.flash.abc.avm2.model.FullMultinameAVM2Item;
-import com.jpexs.decompiler.flash.abc.avm2.model.GetLexAVM2Item;
-import com.jpexs.decompiler.flash.abc.avm2.model.GetPropertyAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.parser.script.AbcIndexing;
 import com.jpexs.decompiler.flash.abc.types.ConvertData;
-import com.jpexs.decompiler.flash.abc.types.Multiname;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.exporters.script.Dependency;
@@ -30,7 +26,8 @@ import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.NulWriter;
 import com.jpexs.decompiler.flash.search.MethodId;
 import com.jpexs.decompiler.graph.DottedChain;
-import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.ScopeStack;
+import com.jpexs.helpers.Reference;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,32 +41,67 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Represents a list of traits in ABC file.
  *
  * @author JPEXS
  */
 public class Traits implements Cloneable, Serializable {
 
+    /**
+     * List of traits
+     */
     public List<Trait> traits;
 
+    /**
+     * Constructs a new Traits object.
+     */
     public Traits() {
         traits = new ArrayList<>();
     }
 
+    /**
+     * Constructs a new Traits object with the specified initial capacity.
+     *
+     * @param initialCapacity Initial capacity
+     */
     public Traits(int initialCapacity) {
         traits = new ArrayList<>(initialCapacity);
     }
 
+    /**
+     * Deletes traits.
+     *
+     * @param abc ABC file
+     * @param d Delete flag
+     */
     public void delete(ABC abc, boolean d) {
         for (Trait t : traits) {
             t.delete(abc, d);
         }
     }
 
+    /**
+     * Adds a trait to the list.
+     *
+     * @param t Trait to add
+     * @return Index of the added trait
+     */
     public int addTrait(Trait t) {
         traits.add(t);
         return traits.size() - 1;
     }
 
+    /**
+     * Removes traps - deobfuscation.
+     *
+     * @param scriptIndex Script index
+     * @param classIndex Class index
+     * @param isStatic Is static
+     * @param abc ABC file
+     * @param path Path
+     * @return Number of removed traps
+     * @throws InterruptedException On interrupt
+     */
     public int removeTraps(int scriptIndex, int classIndex, boolean isStatic, ABC abc, String path) throws InterruptedException {
         int ret = 0;
         for (Trait t : traits) {
@@ -78,6 +110,11 @@ public class Traits implements Cloneable, Serializable {
         return ret;
     }
 
+    /**
+     * To string.
+     *
+     * @return String representation
+     */
     @Override
     public String toString() {
         String s = "";
@@ -90,6 +127,13 @@ public class Traits implements Cloneable, Serializable {
         return s;
     }
 
+    /**
+     * To string.
+     *
+     * @param abc ABC file
+     * @param fullyQualifiedNames Fully qualified names
+     * @return String representation
+     */
     public String toString(ABC abc, List<DottedChain> fullyQualifiedNames) {
         String s = "";
         for (int t = 0; t < traits.size(); t++) {
@@ -101,37 +145,124 @@ public class Traits implements Cloneable, Serializable {
         return s;
     }
 
+    /**
+     * Conversion task.
+     */
     private class TraitConvertTask implements Callable<Void> {
 
+        /**
+         * Trait
+         */
         Trait trait;
 
+        /**
+         * Make packages flag
+         */
         boolean makePackages;
 
+        /**
+         * Path
+         */
         String path;
 
+        /**
+         * ABC file
+         */
         ABC abc;
 
+        /**
+         * Is static flag
+         */
         boolean isStatic;
 
+        /**
+         * Export mode
+         */
         ScriptExportMode exportMode;
 
+        /**
+         * Script index
+         */
         int scriptIndex;
 
+        /**
+         * Class index
+         */
         int classIndex;
 
+        /**
+         * Writer
+         */
         NulWriter writer;
 
+        /**
+         * Fully qualified names
+         */
         List<DottedChain> fullyQualifiedNames;
 
+        /**
+         * Trait index
+         */
         int traitIndex;
 
+        /**
+         * Parallel flag
+         */
         boolean parallel;
 
+        /**
+         * Parent trait
+         */
         Trait parent;
 
+        /**
+         * Convert data
+         */
         ConvertData convertData;
+        
+        /**
+         * Used deobfuscations
+         */
+        private final Set<String> usedDeobfuscations;
+        
+        /**
+         * SWF version
+         */
+        private final int swfVersion;
 
-        public TraitConvertTask(Trait trait, Trait parent, ConvertData convertData, boolean makePackages, String path, ABC abc, boolean isStatic, ScriptExportMode exportMode, int scriptIndex, int classIndex, NulWriter writer, List<DottedChain> fullyQualifiedNames, int traitIndex, boolean parallel) {
+        /**
+         * ABC indexing
+         */
+        AbcIndexing abcIndex;
+
+        /**
+         * Scope stack
+         */
+        ScopeStack scopeStack;
+
+        /**
+         * Constructs a new TraitConvertTask object.
+         *
+         * @param usedDeobfuscations Used deobfuscations
+         * @param swfVersion SWF version
+         * @param abcIndex ABC indexing
+         * @param trait Trait
+         * @param parent Parent trait
+         * @param convertData Convert data
+         * @param makePackages Make packages flag
+         * @param path Path
+         * @param abc ABC file
+         * @param isStatic Is static flag
+         * @param exportMode Export mode
+         * @param scriptIndex Script index
+         * @param classIndex Class index
+         * @param writer Writer
+         * @param fullyQualifiedNames Fully qualified names
+         * @param traitIndex Trait index
+         * @param parallel Parallel flag
+         * @param scopeStack Scope stack
+         */
+        public TraitConvertTask(Set<String> usedDeobfuscations, int swfVersion, AbcIndexing abcIndex, Trait trait, Trait parent, ConvertData convertData, boolean makePackages, String path, ABC abc, boolean isStatic, ScriptExportMode exportMode, int scriptIndex, int classIndex, NulWriter writer, List<DottedChain> fullyQualifiedNames, int traitIndex, boolean parallel, ScopeStack scopeStack) {
             this.trait = trait;
             this.parent = parent;
             this.convertData = convertData;
@@ -146,62 +277,57 @@ public class Traits implements Cloneable, Serializable {
             this.fullyQualifiedNames = fullyQualifiedNames;
             this.traitIndex = traitIndex;
             this.parallel = parallel;
+            this.usedDeobfuscations = usedDeobfuscations;
+            this.swfVersion = swfVersion;
+            this.abcIndex = abcIndex;
+            this.scopeStack = scopeStack;
         }
 
+        /**
+         * Calls the task.
+         *
+         * @return Null
+         * @throws InterruptedException On interrupt
+         */
         @Override
         public Void call() throws InterruptedException {
             if (makePackages) {
-                trait.convertPackaged(parent, convertData, path, abc, isStatic, exportMode, scriptIndex, classIndex, writer, fullyQualifiedNames, parallel);
+                trait.convertPackaged(usedDeobfuscations, swfVersion, abcIndex, parent, convertData, path, abc, isStatic, exportMode, scriptIndex, classIndex, writer, fullyQualifiedNames, parallel, scopeStack);
             } else {
-                trait.convert(parent, convertData, path, abc, isStatic, exportMode, scriptIndex, classIndex, writer, fullyQualifiedNames, parallel);
+                trait.convert(usedDeobfuscations, swfVersion, abcIndex, parent, convertData, path, abc, isStatic, exportMode, scriptIndex, classIndex, writer, fullyQualifiedNames, parallel, scopeStack);
             }
             return null;
         }
     }
 
-    public GraphTextWriter toString(Class[] traitTypes, Trait parent, ConvertData convertData, String path, ABC abc, boolean isStatic, ScriptExportMode exportMode, boolean makePackages, int scriptIndex, int classIndex, GraphTextWriter writer, List<DottedChain> fullyQualifiedNames, boolean parallel, List<Integer> ignoredTraitNames) throws InterruptedException {
-
-        List<Trait> ordered = new ArrayList<>(traits);
-        loopi:
-        for (int i = 0; i < ordered.size(); i++) {
-            for (int j = i + 1; j < ordered.size(); j++) {
-                if (i == j) {
-                    continue;
-                }
-                Trait o1 = ordered.get(i);
-                Trait o2 = ordered.get(j);
-                Multiname m2 = abc.constants.getMultiname(o2.name_index);
-                if (!convertData.assignedValues.containsKey(o1)) {
-                    continue;
-                }
-                GraphTargetItem v1 = convertData.assignedValues.get(o1).value;
-
-
-                Set<GraphTargetItem> subitems1 = v1.getAllSubItemsRecursively();
-                subitems1.add(v1);
-                for (GraphTargetItem si : subitems1) {
-                    if (si instanceof GetPropertyAVM2Item) {
-                        GetPropertyAVM2Item getProp = (GetPropertyAVM2Item) si;
-                        Multiname sm1 = abc.constants.getMultiname(((FullMultinameAVM2Item) getProp.propertyName).multinameIndex);
-                        if (getProp.object instanceof FindPropertyAVM2Item && sm1.equals(m2)) {
-                            ordered.add(j + 1, o1);
-                            ordered.remove(i);
-                            i--;
-                            continue loopi;
-                        }
-                    }
-                    if (si instanceof GetLexAVM2Item) {
-                        GetLexAVM2Item lex = (GetLexAVM2Item) si;
-                        if (lex.propertyName.equals(m2)) {
-                            ordered.add(j + 1, o1);
-                            ordered.remove(i);
-                            i--;
-                            continue loopi;
-                        }
-                    }
-                }
-            }
-        }
+    /**
+     * To string.
+     *
+     * @param usedDeobfuscations Used deobfuscations
+     * @param swfVersion SWF version
+     * @param packageName Package name
+     * @param first Whether to add newline
+     * @param abcIndex ABC indexing
+     * @param traitTypes Trait types
+     * @param parent Parent trait
+     * @param convertData Convert data
+     * @param path Path
+     * @param abc ABC file
+     * @param isStatic Is static flag
+     * @param exportMode Export mode
+     * @param makePackages Make packages flag
+     * @param scriptIndex Script index
+     * @param classIndex Class index
+     * @param writer Writer
+     * @param fullyQualifiedNames Fully qualified names
+     * @param parallel Parallel flag
+     * @param ignoredTraitNames Ignored trait names
+     * @param insideInterface Inside interface flag
+     * @return Writer
+     * @throws InterruptedException On interrupt
+     */
+    public GraphTextWriter toString(Set<String> usedDeobfuscations, int swfVersion, DottedChain packageName, Reference<Boolean> first, AbcIndexing abcIndex, Class[] traitTypes, Trait parent, ConvertData convertData, String path, ABC abc, boolean isStatic, ScriptExportMode exportMode, boolean makePackages, int scriptIndex, int classIndex, GraphTextWriter writer, List<DottedChain> fullyQualifiedNames, boolean parallel, List<String> ignoredTraitNames, boolean insideInterface) throws InterruptedException {
+        List<Trait> ordered = traits;
 
         for (Trait trait : ordered) {
             int t = traits.indexOf(trait);
@@ -220,34 +346,55 @@ public class Traits implements Cloneable, Serializable {
             if (!trait.isVisible(isStatic, abc)) {
                 continue;
             }
-            if (ignoredTraitNames.contains(trait.name_index)) {
+            if (ignoredTraitNames.contains(trait.getName(abc).getName(usedDeobfuscations, abc, abc.constants, new ArrayList<>(), false, false))) {
                 continue;
             }
-            writer.newLine();
-            int h = abc.getGlobalTraitId(TraitType.METHOD /*non-initializer*/, isStatic, classIndex, t);
-            if (trait instanceof TraitClass) {
-                writer.startClass(((TraitClass) trait).class_info);
-            } else {
-                writer.startTrait(h);
+
+            if ((trait instanceof TraitSlotConst) && convertData.assignedValues.containsKey((TraitSlotConst) trait) && isStatic) {
+                continue;
             }
+
+            if (!first.getVal()) {
+                writer.newLine();
+            }
+            first.setVal(false);
+            int h = abc.getGlobalTraitId(TraitType.METHOD, isStatic, classIndex, t);
+            writer.startTrait(h);
             if (makePackages) {
-                trait.toStringPackaged(parent, convertData, path, abc, isStatic, exportMode, scriptIndex, classIndex, writer, fullyQualifiedNames, parallel);
+                trait.toStringPackaged(usedDeobfuscations, swfVersion, abcIndex, parent, convertData, path, abc, isStatic, exportMode, scriptIndex, classIndex, writer, fullyQualifiedNames, parallel, insideInterface);
             } else {
-                trait.toString(parent, convertData, path, abc, isStatic, exportMode, scriptIndex, classIndex, writer, fullyQualifiedNames, parallel);
+                trait.toString(usedDeobfuscations, swfVersion, abcIndex, packageName, parent, convertData, path, abc, isStatic, exportMode, scriptIndex, classIndex, writer, fullyQualifiedNames, parallel, insideInterface);
             }
-            if (trait instanceof TraitClass) {
-                writer.endClass();
-            } else {
-                writer.endTrait();
-            }
+            writer.endTrait();
         }
         return writer;
     }
 
-    public void convert(Trait parent, ConvertData convertData, String path, ABC abc, boolean isStatic, ScriptExportMode exportMode, boolean makePackages, int scriptIndex, int classIndex, NulWriter writer, List<DottedChain> fullyQualifiedNames, boolean parallel) throws InterruptedException {
+    /**
+     * Converts traits.
+     *
+     * @param usedDeobfuscations Used deobfuscations
+     * @param swfVersion SWF version
+     * @param abcIndex ABC indexing
+     * @param parent Parent trait
+     * @param convertData Convert data
+     * @param path Path
+     * @param abc ABC file
+     * @param isStatic Is static flag
+     * @param exportMode Export mode
+     * @param makePackages Make packages flag
+     * @param scriptIndex Script index
+     * @param classIndex Class index
+     * @param writer Writer
+     * @param fullyQualifiedNames Fully qualified names
+     * @param parallel Parallel flag
+     * @param scopeStack Scope stack
+     * @throws InterruptedException On interrupt
+     */
+    public void convert(Set<String> usedDeobfuscations, int swfVersion, AbcIndexing abcIndex, Trait parent, ConvertData convertData, String path, ABC abc, boolean isStatic, ScriptExportMode exportMode, boolean makePackages, int scriptIndex, int classIndex, NulWriter writer, List<DottedChain> fullyQualifiedNames, boolean parallel, ScopeStack scopeStack) throws InterruptedException {
         if (!parallel || traits.size() < 2) {
             for (int t = 0; t < traits.size(); t++) {
-                TraitConvertTask task = new TraitConvertTask(traits.get(t), parent, convertData, makePackages, path, abc, isStatic, exportMode, scriptIndex, classIndex, writer, fullyQualifiedNames, t, parallel);
+                TraitConvertTask task = new TraitConvertTask(usedDeobfuscations, swfVersion, abcIndex, traits.get(t), parent, convertData, makePackages, path, abc, isStatic, exportMode, scriptIndex, classIndex, writer, fullyQualifiedNames, t, parallel, scopeStack);
                 task.call();
             }
         } else {
@@ -257,7 +404,7 @@ public class Traits implements Cloneable, Serializable {
             futureResults = new ArrayList<>();
             for (int t = 0; t < traits.size(); t++) {
                 // each convert task needs a separate NulWriter, because they are executed parallel
-                TraitConvertTask task = new TraitConvertTask(traits.get(t), parent, convertData, makePackages, path, abc, isStatic, exportMode, scriptIndex, classIndex, new NulWriter(), fullyQualifiedNames, t, parallel);
+                TraitConvertTask task = new TraitConvertTask(usedDeobfuscations, swfVersion, abcIndex, traits.get(t), parent, convertData, makePackages, path, abc, isStatic, exportMode, scriptIndex, classIndex, new NulWriter(), fullyQualifiedNames, t, parallel, scopeStack);
                 Future<Void> future = executor.submit(task);
                 futureResults.add(future);
             }
@@ -276,6 +423,11 @@ public class Traits implements Cloneable, Serializable {
         }
     }
 
+    /**
+     * Clones the traits.
+     *
+     * @return Cloned traits
+     */
     @Override
     public Traits clone() {
         try {
@@ -294,12 +446,36 @@ public class Traits implements Cloneable, Serializable {
         }
     }
 
-    public void getDependencies(int scriptIndex, int classIndex, boolean isStatic, String customNs, ABC abc, List<Dependency> dependencies, List<String> uses, DottedChain ignorePackage, List<DottedChain> fullyQualifiedNames) throws InterruptedException {
+    /**
+     * Gets dependencies.
+     *
+     * @param usedDeobfuscations Used deobfuscations
+     * @param abcIndex ABC indexing
+     * @param scriptIndex Script index
+     * @param classIndex Class index
+     * @param isStatic Is static flag
+     * @param customNs Custom namespace
+     * @param abc ABC file
+     * @param dependencies Dependencies
+     * @param ignorePackage Ignore package
+     * @param fullyQualifiedNames Fully qualified names
+     * @param uses Uses
+     * @throws InterruptedException On interrupt
+     */
+    public void getDependencies(Set<String> usedDeobfuscations, AbcIndexing abcIndex, int scriptIndex, int classIndex, boolean isStatic, String customNs, ABC abc, List<Dependency> dependencies, DottedChain ignorePackage, List<DottedChain> fullyQualifiedNames, List<String> uses, Reference<Integer> numberContextRef) throws InterruptedException {
         for (Trait t : traits) {
-            t.getDependencies(scriptIndex, classIndex, isStatic, customNs, abc, dependencies, uses, ignorePackage, fullyQualifiedNames);
+            t.getDependencies(usedDeobfuscations, abcIndex, scriptIndex, classIndex, isStatic, customNs, abc, dependencies, ignorePackage, fullyQualifiedNames, uses, numberContextRef);
         }
     }
 
+    /**
+     * Gets method infos.
+     *
+     * @param abc ABC file
+     * @param isStatic Is static flag
+     * @param classIndex Class index
+     * @param methodInfos Method infos
+     */
     public void getMethodInfos(ABC abc, boolean isStatic, int classIndex, List<MethodId> methodInfos) {
         for (int t = 0; t < traits.size(); t++) {
             Trait trait = traits.get(t);

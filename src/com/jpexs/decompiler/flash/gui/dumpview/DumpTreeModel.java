@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,7 +18,8 @@ package com.jpexs.decompiler.flash.gui.dumpview;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.dumpview.DumpInfo;
-import com.jpexs.decompiler.flash.treeitems.SWFList;
+import com.jpexs.decompiler.flash.treeitems.Openable;
+import com.jpexs.decompiler.flash.treeitems.OpenableList;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.event.TreeModelEvent;
@@ -27,7 +28,6 @@ import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 
 /**
- *
  * @author JPEXS
  */
 public final class DumpTreeModel implements TreeModel {
@@ -36,20 +36,23 @@ public final class DumpTreeModel implements TreeModel {
 
     private final List<TreeModelListener> listeners = new ArrayList<>();
 
-    private final List<SWFList> swfs;
+    private final List<OpenableList> openables;
 
-    public DumpTreeModel(List<SWFList> swfs) {
-        this.swfs = swfs;
+    public DumpTreeModel(List<OpenableList> openables) {
+        this.openables = openables;
         root = new DumpInfo("root", "", null, 0, 0);
         updateSwfs();
     }
 
     public void updateSwfs() {
         root.getChildInfos().clear();
-        for (SWFList swfList : swfs) {
-            for (SWF swf : swfList) {
-                swf.dumpInfo.name = swf.getFileTitle();
-                root.getChildInfos().add(swf.dumpInfo);
+        for (OpenableList openableList : openables) {
+            for (Openable openable : openableList) {
+                if (openable instanceof SWF) {
+                    SWF swf = (SWF) openable;
+                    swf.dumpInfo.name = swf.getFileTitle();
+                    root.getChildInfos().add(swf.dumpInfo);
+                }
             }
         }
 

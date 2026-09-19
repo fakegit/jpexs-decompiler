@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,14 +12,15 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
+import java.util.Enumeration;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.zip.ZipFile;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 import org.xml.sax.Attributes;
@@ -27,28 +28,37 @@ import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
 /**
+ * SWC file.
  *
  * @author JPEXS
  */
-public class SWC extends ZippedSWFBundle {
+public class SWC extends ZippedBundle {   
 
-    public SWC(InputStream is) throws IOException {
-        super(is);
-    }
-
+    /**
+     * Constructs SWC from file.
+     *
+     * @param filename File
+     * @throws IOException On I/O error
+     */
     public SWC(File filename) throws IOException {
         super(filename);
     }
 
+    /**
+     * Initializes SWC bundle.
+     *
+     * @param filename File
+     * @throws IOException On I/O error
+     */
     @Override
-    protected void initBundle(InputStream is, File filename) throws IOException {
-        super.initBundle(is, filename);
+    protected void initBundle(File filename) throws IOException {
+        super.initBundle(filename);
         keySet.clear();
-        this.is.reset();
-        ZipInputStream zip = new ZipInputStream(this.is);
-        ZipEntry entry;
+        ZipFile zipFile = new ZipFile(filename);
+        Enumeration<? extends ZipEntry> entries = zipFile.entries();
 
-        while ((entry = zip.getNextEntry()) != null) {
+        while (entries.hasMoreElements()) {
+            ZipEntry entry = entries.nextElement();
             if (entry.getName().equals("catalog.xml")) {
                 try {
                     SAXParserFactory factory = SAXParserFactory.newInstance();
@@ -66,15 +76,21 @@ public class SWC extends ZippedSWFBundle {
                         }
 
                     };
-                    saxParser.parse(zip, handler);
+                    saxParser.parse(zipFile.getInputStream(entry), handler);
                 } catch (Exception ex) {
-
+                    //ignored
                 }
                 return;
             }
         }
+        zipFile.close();
     }
 
+    /**
+     * Returns extension of SWC file.
+     *
+     * @return Extension
+     */
     @Override
     public String getExtension() {
         return "swc";

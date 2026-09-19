@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,9 +17,10 @@
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
+import com.jpexs.decompiler.flash.action.swf1.ActionGotoFrame;
+import com.jpexs.decompiler.flash.action.swf1.ActionPlay;
 import com.jpexs.decompiler.flash.action.swf3.ActionGoToLabel;
-import com.jpexs.decompiler.flash.action.swf3.ActionGotoFrame;
-import com.jpexs.decompiler.flash.action.swf3.ActionPlay;
 import com.jpexs.decompiler.flash.action.swf4.ActionGotoFrame2;
 import com.jpexs.decompiler.flash.action.swf4.ActionPush;
 import com.jpexs.decompiler.flash.ecma.Undefined;
@@ -35,17 +36,30 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Goto frame, v2.
  *
  * @author JPEXS
  */
 public class GotoFrame2ActionItem extends ActionItem {
 
+    /**
+     * Frame
+     */
     public GraphTargetItem frame;
 
+    /**
+     * Scene bias flag
+     */
     public boolean sceneBiasFlag;
 
+    /**
+     * Play flag
+     */
     public boolean playFlag;
 
+    /**
+     * Scene bias
+     */
     public int sceneBias;
 
     @Override
@@ -53,6 +67,16 @@ public class GotoFrame2ActionItem extends ActionItem {
         visitor.visit(frame);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param frame Frame
+     * @param sceneBiasFlag Scene bias flag
+     * @param playFlag Play flag
+     * @param sceneBias Scene bias
+     */
     public GotoFrame2ActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem frame, boolean sceneBiasFlag, boolean playFlag, int sceneBias) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.frame = frame;
@@ -68,7 +92,7 @@ public class GotoFrame2ActionItem extends ActionItem {
             prefix = "gotoAndPlay";
         }
         writer.append(prefix);
-        writer.spaceBeforeCallParenthesies(1);
+        writer.spaceBeforeCallParenthesis(1);
         writer.append("(");
         if (sceneBiasFlag) {
             writer.append(sceneBias + ", ");
@@ -86,22 +110,24 @@ public class GotoFrame2ActionItem extends ActionItem {
     }
 
     @Override
-    public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        return toSource(localData, generator, true);
-    }
-
-    @Override
     public List<GraphSourceItem> toSourceIgnoreReturnValue(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         return toSource(localData, generator, false);
     }
 
+    @Override
+    public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+        return toSource(localData, generator, true);
+    }
+
     private List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator, boolean needsReturn) throws CompilationException {
+        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
         if (!sceneBiasFlag && (frame instanceof DirectValueActionItem) && (((DirectValueActionItem) frame).isString())) {
-            return toSourceMerge(localData, generator, new ActionGoToLabel(((DirectValueActionItem) frame).getAsString()), playFlag ? new ActionPlay() : null, needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}) : null);
+            return toSourceMerge(localData, generator, new ActionGoToLabel(((DirectValueActionItem) frame).getAsString(), charset), playFlag ? new ActionPlay() : null, needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}, charset) : null);
         } else if (!sceneBiasFlag && (frame instanceof DirectValueActionItem) && (((DirectValueActionItem) frame).value instanceof Long)) {
-            return toSourceMerge(localData, generator, new ActionGotoFrame((int) ((long) (Long) ((DirectValueActionItem) frame).value) - 1), playFlag ? new ActionPlay() : null, needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}) : null);
+            return toSourceMerge(localData, generator, new ActionGotoFrame((int) ((long) (Long) ((DirectValueActionItem) frame).value) - 1, charset), playFlag ? new ActionPlay() : null, needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}, charset) : null);
         } else {
-            return toSourceMerge(localData, generator, frame, new ActionGotoFrame2(playFlag, sceneBiasFlag, sceneBias), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}) : null);
+            return toSourceMerge(localData, generator, frame, new ActionGotoFrame2(playFlag, sceneBiasFlag, sceneBias, charset), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}, charset) : null);
         }
     }
 

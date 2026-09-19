@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,15 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.morphshape;
 
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.types.ColorTransform;
 import com.jpexs.decompiler.flash.types.FILLSTYLE;
 import com.jpexs.decompiler.flash.types.FOCALGRADIENT;
+import com.jpexs.decompiler.flash.types.ILINESTYLE;
 import com.jpexs.decompiler.flash.types.LINESTYLE;
 import com.jpexs.decompiler.flash.types.LINESTYLE2;
 import com.jpexs.decompiler.flash.types.RGB;
@@ -38,56 +40,109 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ * Base class for morph shape exporters.
  *
  * @author JPEXS, Claus Wahlers
  */
 public abstract class MorphShapeExporterBase implements IMorphShapeExporter {
 
+    /**
+     * Shape
+     */
     protected final SHAPE shape;
 
+    /**
+     * Shape end
+     */
     protected final SHAPE shapeEnd;
 
+    /**
+     * Fill styles
+     */
     protected List<FILLSTYLE> _fillStyles;
 
-    protected List<LINESTYLE> _lineStyles;
+    /**
+     * Line styles
+     */
+    protected List<ILINESTYLE> _lineStyles;
 
+    /**
+     * Fill styles end
+     */
     protected List<FILLSTYLE> _fillStylesEnd;
 
-    protected List<LINESTYLE> _lineStylesEnd;
+    /**
+     * Line styles end
+     */
+    protected List<ILINESTYLE> _lineStylesEnd;
 
+    /**
+     * Fill edge maps
+     */
     protected List<Map<Integer, List<IMorphEdge>>> _fillEdgeMaps;
 
+    /**
+     * Line edge maps
+     */
     protected List<Map<Integer, List<IMorphEdge>>> _lineEdgeMaps;
 
     private boolean edgeMapsCreated;
 
+    /**
+     * Color transform
+     */
     protected ColorTransform colorTransform;
 
-    public MorphShapeExporterBase(SHAPE shape, SHAPE endShape, ColorTransform colorTransform) {
+    /**
+     * Morph shape number (1 = DefineMorphShape, 2 = DefineMorphShape2)
+     */
+    protected int morphShapeNum;
+
+    /**
+     * Constructor.
+     *
+     * @param morphShapeNum Morph shape number (1 = DefineMorphShape, 2 = DefineMorphShape2)
+     * @param shape Shape
+     * @param endShape Shape end
+     * @param colorTransform Color transform
+     */
+    public MorphShapeExporterBase(int morphShapeNum, SHAPE shape, SHAPE endShape, ColorTransform colorTransform) {
         this.shape = shape;
         this.shapeEnd = endShape;
         this.colorTransform = colorTransform;
+        this.morphShapeNum = morphShapeNum;
         _fillStyles = new ArrayList<>();
         _lineStyles = new ArrayList<>();
         if (shape instanceof SHAPEWITHSTYLE) {
             SHAPEWITHSTYLE shapeWithStyle = (SHAPEWITHSTYLE) shape;
             _fillStyles.addAll(Arrays.asList(shapeWithStyle.fillStyles.fillStyles));
-            _lineStyles.addAll(Arrays.asList(shapeWithStyle.lineStyles.lineStyles));
+            if (morphShapeNum == 2) {
+                _lineStyles.addAll(Arrays.asList(shapeWithStyle.lineStyles.lineStyles2));
+            } else {
+                _lineStyles.addAll(Arrays.asList(shapeWithStyle.lineStyles.lineStyles));
+            }
         }
         _fillStylesEnd = new ArrayList<>();
         _lineStylesEnd = new ArrayList<>();
         if (endShape instanceof SHAPEWITHSTYLE) {
             SHAPEWITHSTYLE shapeWithStyle = (SHAPEWITHSTYLE) endShape;
             _fillStylesEnd.addAll(Arrays.asList(shapeWithStyle.fillStyles.fillStyles));
-            _lineStylesEnd.addAll(Arrays.asList(shapeWithStyle.lineStyles.lineStyles));
+            if (morphShapeNum == 2) {
+                _lineStylesEnd.addAll(Arrays.asList(shapeWithStyle.lineStyles.lineStyles2));
+            } else {
+                _lineStylesEnd.addAll(Arrays.asList(shapeWithStyle.lineStyles.lineStyles));
+            }
         }
     }
 
+    /**
+     * Exports the morph shape.
+     */
     public void export() {
         // Create edge maps
         _fillEdgeMaps = new ArrayList<>();
         _lineEdgeMaps = new ArrayList<>();
-        createEdgeMaps(_fillStyles, _lineStyles, _fillStylesEnd, _lineStylesEnd, _fillEdgeMaps, _lineEdgeMaps);
+        createEdgeMaps(morphShapeNum, _fillStyles, _lineStyles, _fillStylesEnd, _lineStylesEnd, _fillEdgeMaps, _lineEdgeMaps);
 
         // Let the doc handler know that a shape export starts
         beginShape();
@@ -102,8 +157,8 @@ public abstract class MorphShapeExporterBase implements IMorphShapeExporter {
         endShape();
     }
 
-    protected void createEdgeMaps(List<FILLSTYLE> fillStyles, List<LINESTYLE> lineStyles,
-            List<FILLSTYLE> fillStylesEnd, List<LINESTYLE> lineStylesEnd,
+    protected void createEdgeMaps(int morphShapeNum, List<FILLSTYLE> fillStyles, List<ILINESTYLE> lineStyles,
+            List<FILLSTYLE> fillStylesEnd, List<ILINESTYLE> lineStylesEnd,
             List<Map<Integer, List<IMorphEdge>>> fillEdgeMaps, List<Map<Integer, List<IMorphEdge>>> lineEdgeMaps) {
         if (!edgeMapsCreated) {
             int xPos = 0;
@@ -142,9 +197,17 @@ public abstract class MorphShapeExporterBase implements IMorphShapeExporter {
                         fillStyleIdxOffset = fillStyles.size();
                         lineStyleIdxOffset = lineStyles.size();
                         appendFillStyles(fillStyles, styleChangeRecord.fillStyles.fillStyles);
-                        appendLineStyles(lineStyles, styleChangeRecord.lineStyles.lineStyles);
+                        if (morphShapeNum == 2) {
+                            appendLineStyles(lineStyles, styleChangeRecord.lineStyles.lineStyles2);
+                        } else {
+                            appendLineStyles(lineStyles, styleChangeRecord.lineStyles.lineStyles);
+                        }
                         appendFillStyles(fillStylesEnd, styleChangeRecord.fillStyles.fillStyles);
-                        appendLineStyles(lineStylesEnd, styleChangeRecord.lineStyles.lineStyles);
+                        if (morphShapeNum == 2) {
+                            appendLineStyles(lineStylesEnd, styleChangeRecord.lineStyles.lineStyles2);
+                        } else {
+                            appendLineStyles(lineStylesEnd, styleChangeRecord.lineStyles.lineStyles);
+                        }
                     }
                     // Check if all styles are reset to 0.
                     // This (probably) means that a new group starts with the next record
@@ -374,7 +437,10 @@ public abstract class MorphShapeExporterBase implements IMorphShapeExporter {
         List<IMorphEdge> path = createPathFromEdgeMap(_lineEdgeMaps.get(groupIndex));
         int posX = Integer.MAX_VALUE;
         int posY = Integer.MAX_VALUE;
+        int lastMoveToX = posX;
+        int lastMoveToY = posY;
         int lineStyleIdx = Integer.MAX_VALUE;
+        boolean autoClose = true;
         if (path.size() > 0) {
             beginLines();
             for (int i = 0; i < path.size(); i++) {
@@ -383,12 +449,13 @@ public abstract class MorphShapeExporterBase implements IMorphShapeExporter {
                     lineStyleIdx = e.getLineStyleIdx();
                     posX = Integer.MAX_VALUE;
                     posY = Integer.MAX_VALUE;
-                    LINESTYLE lineStyle = null;
-                    LINESTYLE lineStyleEnd = null;
+                    ILINESTYLE lineStyle = null;
+                    ILINESTYLE lineStyleEnd = null;
                     try {
                         lineStyle = _lineStyles.get(lineStyleIdx - 1);
                         lineStyleEnd = _lineStylesEnd.get(lineStyleIdx - 1);
                     } catch (Exception ex) {
+                        //ignored
                     }
                     if (lineStyle != null) {
                         String scaleMode = "NORMAL";
@@ -398,8 +465,13 @@ public abstract class MorphShapeExporterBase implements IMorphShapeExporter {
                         int joinStyle = LINESTYLE2.ROUND_JOIN;
                         float miterLimitFactor = 3f;
                         boolean hasFillFlag = false;
+                        autoClose = true;
                         if (lineStyle instanceof LINESTYLE2) {
                             LINESTYLE2 lineStyle2 = (LINESTYLE2) lineStyle;
+
+                            if (lineStyle2.noClose) {
+                                autoClose = false;
+                            }
                             if (lineStyle2.noHScaleFlag && lineStyle2.noVScaleFlag) {
                                 scaleMode = "NONE";
                             } else if (lineStyle2.noHScaleFlag) {
@@ -415,16 +487,18 @@ public abstract class MorphShapeExporterBase implements IMorphShapeExporter {
                             hasFillFlag = lineStyle2.hasFillFlag;
                         }
                         lineStyle(
-                                lineStyle.width,
-                                lineStyleEnd.width,
-                                colorTransform == null ? lineStyle.color : colorTransform.apply(lineStyle.color),
-                                colorTransform == null ? lineStyleEnd.color : colorTransform.apply(lineStyleEnd.color),
+                                lineStyle.getWidth(),
+                                lineStyleEnd.getWidth(),
+                                colorTransform == null ? lineStyle.getColor() : colorTransform.apply(lineStyle.getColor()),
+                                colorTransform == null ? lineStyleEnd.getColor() : colorTransform.apply(lineStyleEnd.getColor()),
                                 pixelHintingFlag,
                                 scaleMode,
                                 startCapStyle,
                                 endCapStyle,
                                 joinStyle,
-                                miterLimitFactor);
+                                miterLimitFactor,
+                                !autoClose
+                        );
 
                         if (hasFillFlag) {
                             LINESTYLE2 lineStyle2 = (LINESTYLE2) lineStyle;
@@ -450,15 +524,30 @@ public abstract class MorphShapeExporterBase implements IMorphShapeExporter {
                                             (fillStyleEnd.gradient instanceof FOCALGRADIENT) ? ((FOCALGRADIENT) fillStyleEnd.gradient).focalPoint : 0
                                     );
                                     break;
+                                case FILLSTYLE.CLIPPED_BITMAP:
+                                case FILLSTYLE.REPEATING_BITMAP:
+                                case FILLSTYLE.NON_SMOOTHED_CLIPPED_BITMAP:
+                                case FILLSTYLE.NON_SMOOTHED_REPEATING_BITMAP:
+                                    Matrix bmatrix = new Matrix(fillStyle.bitmapMatrix);
+                                    Matrix bmatrixEnd = new Matrix(fillStyleEnd.bitmapMatrix);
+                                    lineBitmapStyle(fillStyle.bitmapId,
+                                            bmatrix,
+                                            bmatrixEnd,
+                                            (fillStyle.fillStyleType == FILLSTYLE.REPEATING_BITMAP || fillStyle.fillStyleType == FILLSTYLE.NON_SMOOTHED_REPEATING_BITMAP),
+                                            (fillStyle.fillStyleType == FILLSTYLE.REPEATING_BITMAP || fillStyle.fillStyleType == FILLSTYLE.CLIPPED_BITMAP),
+                                            colorTransform);
+                                    break;
                             }
                         }
                     } else {
                         // We should never get here
-                        lineStyle(1, 1, new RGB(Color.black), new RGB(Color.BLACK), false, "NORMAL", 0, 0, 0, 3);
+                        lineStyle(1, 1, new RGB(Color.black), new RGB(Color.BLACK), false, "NORMAL", 0, 0, 0, 3, false);
                     }
                 }
                 if (posX != e.getFromX() || posY != e.getFromY()) {
                     moveTo(e.getFromX(), e.getFromY(), e.getFromEndX(), e.getFromEndY());
+                    lastMoveToX = e.getFromX();
+                    lastMoveToY = e.getFromY();
                 }
                 if (e instanceof CurvedMorphEdge) {
                     CurvedMorphEdge c = (CurvedMorphEdge) e;
@@ -469,7 +558,7 @@ public abstract class MorphShapeExporterBase implements IMorphShapeExporter {
                 posX = e.getToX();
                 posY = e.getToY();
             }
-            endLines();
+            endLines(autoClose && lastMoveToX == posX && lastMoveToY == posY);
         }
     }
 
@@ -567,7 +656,11 @@ public abstract class MorphShapeExporterBase implements IMorphShapeExporter {
         v1.addAll(Arrays.asList(v2));
     }
 
-    protected void appendLineStyles(List<LINESTYLE> v1, LINESTYLE[] v2) {
+    protected void appendLineStyles(List<ILINESTYLE> v1, LINESTYLE[] v2) {
+        v1.addAll(Arrays.asList(v2));
+    }
+
+    protected void appendLineStyles(List<ILINESTYLE> v1, LINESTYLE2[] v2) {
         v1.addAll(Arrays.asList(v2));
     }
 

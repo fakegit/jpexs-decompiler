@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -42,11 +42,15 @@ import java.util.HashMap;
 import java.util.List;
 
 /**
+ * construct instruction - Construct a new object.
  *
  * @author JPEXS
  */
 public class ConstructIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public ConstructIns() {
         super(0x42, "construct", new int[]{AVM2Code.DAT_ARG_COUNT}, true);
     }
@@ -76,17 +80,29 @@ public class ConstructIns extends InstructionDefinition {
     }
 
     public static boolean walkXML(GraphTargetItem item, List<GraphTargetItem> list) {
-        boolean ret = true;
-        if (item instanceof StringAVM2Item) {
-            list.add(item);
-        } else if (item instanceof AddAVM2Item) {
-            ret = ret && walkXML(((AddAVM2Item) item).leftSide, list);
-            ret = ret && walkXML(((AddAVM2Item) item).rightSide, list);
+        boolean ret = walkXMLSub(item, list);
+        if (list.size() == 1 && (list.get(0) instanceof StringAVM2Item)) {
+            return true;
+        }
+        return ret;
+    }
+
+    public static boolean walkXMLSub(GraphTargetItem item, List<GraphTargetItem> list) {
+        boolean ret = false;
+        if (item instanceof AddAVM2Item) {
+            if (walkXMLSub(((AddAVM2Item) item).leftSide, list)) {
+                ret = true;
+            }
+            if (walkXMLSub(((AddAVM2Item) item).rightSide, list)) {
+                ret = true;
+            }
         } else if ((item instanceof EscapeXElemAVM2Item) || (item instanceof EscapeXAttrAVM2Item)) {
+            ret = true;
             list.add(item);
         } else {
-            return false;
+            list.add(item);
         }
+
         return ret;
     }
 
@@ -113,7 +129,7 @@ public class ConstructIns extends InstructionDefinition {
         }
         if (obj instanceof GetLexAVM2Item) {
             GetLexAVM2Item glt = (GetLexAVM2Item) obj;
-            isXML = glt.propertyName.getName(localData.getConstants(), localData.fullyQualifiedNames, true, true).equals("XML");
+            isXML = glt.propertyName.getName(localData.usedDeobfuscations, localData.abc, localData.getConstants(), localData.fullyQualifiedNames, true, true).equals("XML");
         }
 
         if (isXML) {
@@ -141,7 +157,7 @@ public class ConstructIns extends InstructionDefinition {
         }
         if (obj instanceof GetLexAVM2Item) {
             GetLexAVM2Item glt = (GetLexAVM2Item) obj;
-            isRegExp = glt.propertyName.getName(localData.getConstants(), localData.fullyQualifiedNames, true, true).equals("RegExp");
+            isRegExp = glt.propertyName.getName(localData.usedDeobfuscations, localData.abc, localData.getConstants(), localData.fullyQualifiedNames, true, true).equals("RegExp");
         }
 
         if (isRegExp && (args.size() >= 1) && (args.get(0) instanceof StringAVM2Item) && (args.size() == 1 || (args.size() == 2 && args.get(1) instanceof StringAVM2Item))) {

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -22,8 +23,12 @@ import com.jpexs.decompiler.flash.types.SOUNDINFO;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.helpers.ByteArrayRange;
 import java.io.IOException;
+import java.util.Map;
+import java.util.Set;
 
 /**
+ * StartSound2 tag - starts a sound playing. Extends functionality of StartSound
+ * tag.
  *
  * @author JPEXS
  */
@@ -41,7 +46,7 @@ public class StartSound2Tag extends Tag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public StartSound2Tag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -52,9 +57,9 @@ public class StartSound2Tag extends Tag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public StartSound2Tag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -71,11 +76,24 @@ public class StartSound2Tag extends Tag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
         sos.writeString(soundClassName);
         sos.writeSOUNDINFO(soundInfo);
     }
+
+    @Override
+    public Map<String, String> getNameProperties() {
+        Map<String, String> ret = super.getNameProperties();
+        ret.put("cls", "" + soundClassName);
+        return ret;
+    }
+
+    @Override
+    public void getNeededCharacters(Set<Integer> needed, Set<String> neededClasses, SWF swf) {
+        int characterId = swf.getCharacterId(swf.getCharacterByClass(soundClassName));
+        needed.add(characterId);
+    }        
 }

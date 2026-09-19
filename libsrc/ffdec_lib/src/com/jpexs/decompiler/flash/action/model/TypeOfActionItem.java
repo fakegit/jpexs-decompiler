@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,6 +25,7 @@ import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SimpleValue;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.List;
@@ -32,11 +33,18 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Get type of value.
  *
  * @author JPEXS
  */
 public class TypeOfActionItem extends ActionItem {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     */
     public TypeOfActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value) {
         super(instruction, lineStartIns, PRECEDENCE_UNARY, value);
     }
@@ -44,7 +52,7 @@ public class TypeOfActionItem extends ActionItem {
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("typeof ");
-        writer.spaceBeforeCallParenthesies(1);
+        writer.spaceBeforeCallParenthesis(1);
         if (value.getPrecedence() > getPrecedence()) {
             writer.append("(");
         }
@@ -68,6 +76,11 @@ public class TypeOfActionItem extends ActionItem {
         return getResult(value.getResult());
     }
 
+    /**
+     * Gets result.
+     * @param obj Object
+     * @return Result
+     */
     public static String getResult(Object obj) {
         Object res = obj;
         EcmaType type = EcmaScript.type(res);
@@ -94,7 +107,9 @@ public class TypeOfActionItem extends ActionItem {
         if (dependencies.contains(value)) {
             return false;
         }
-        dependencies.add(value);
+        if (!((value instanceof SimpleValue) && ((SimpleValue) value).isSimpleValue())) {
+            dependencies.add(value);
+        }
         return value.isCompileTime(dependencies);
     }
 

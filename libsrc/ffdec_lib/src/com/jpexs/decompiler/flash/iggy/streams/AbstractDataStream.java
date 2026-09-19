@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,15 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.iggy.streams;
 
 import java.io.EOFException;
 import java.io.IOException;
 
 /**
+ * Abstract data stream.
  *
  * @author JPEXS
  */
@@ -34,6 +36,12 @@ public abstract class AbstractDataStream implements DataStreamInterface {
 
     @Override
     public abstract long position();
+
+    /**
+     * Constructs new AbstractDataStream
+     */
+    public AbstractDataStream() {
+    }
 
     @Override
     public long readUI64() throws IOException {
@@ -113,15 +121,6 @@ public abstract class AbstractDataStream implements DataStreamInterface {
     }
 
     @Override
-    public int readUI8() throws IOException {
-        try {
-            return read() & 0xff;
-        } catch (EOFException ex) {
-            return -1;
-        }
-    }
-
-    @Override
     public boolean writeUI8(int val) throws IOException {
         write(val);
         return true;
@@ -178,6 +177,15 @@ public abstract class AbstractDataStream implements DataStreamInterface {
     }
 
     @Override
+    public int readUI8() throws IOException {
+        try {
+            return read() & 0xff;
+        } catch (EOFException ex) {
+            return -1;
+        }
+    }
+
+    @Override
     public int readUI8(long addr) throws IOException {
         long curPos = position();
         seek(addr, SeekMode.SET);
@@ -214,16 +222,22 @@ public abstract class AbstractDataStream implements DataStreamInterface {
         switch (pad8) {
             case 1:
                 write(0);
+            //fallthrough
             case 2:
                 write(0);
+            //fallthrough
             case 3:
                 write(0);
+            //fallthrough
             case 4:
                 write(0);
+            //fallthrough
             case 5:
                 write(0);
+            //fallthrough
             case 6:
                 write(0);
+            //fallthrough
             case 7:
                 write(0);
         }

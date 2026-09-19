@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2016-2021 JPEXS
+ *  Copyright (C) 2016-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,7 +31,6 @@ import java.util.HashSet;
 import java.util.List;
 
 /**
- *
  * @author Jindra
  */
 public class GraphPanelSimple extends AbstractGraphPanel {

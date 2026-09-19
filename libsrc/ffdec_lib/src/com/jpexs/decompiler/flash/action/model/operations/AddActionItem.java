@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,6 +18,8 @@ package com.jpexs.decompiler.flash.action.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.Action;
+import com.jpexs.decompiler.flash.action.ActionGraphTargetDialect;
+import com.jpexs.decompiler.flash.action.model.CompoundableBinaryOpAs12;
 import com.jpexs.decompiler.flash.action.swf4.ActionAdd;
 import com.jpexs.decompiler.flash.action.swf5.ActionAdd2;
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
@@ -29,21 +31,33 @@ import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.BinaryOpItem;
-import com.jpexs.decompiler.graph.model.CompoundableBinaryOp;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Add.
  *
  * @author JPEXS
  */
-public class AddActionItem extends BinaryOpItem implements CompoundableBinaryOp {
+public class AddActionItem extends BinaryOpItem implements CompoundableBinaryOpAs12 {
 
+    /**
+     * Version 2.
+     */
     boolean version2;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param leftSide Left side
+     * @param rightSide Right side
+     * @param version2 Version 2
+     */
     public AddActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem leftSide, GraphTargetItem rightSide, boolean version2) {
-        super(instruction, lineStartIns, PRECEDENCE_ADDITIVE, leftSide, rightSide, "+", "", "");
+        super(ActionGraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_ADDITIVE, leftSide, rightSide, "+", "", "");
         this.version2 = version2;
     }
 
@@ -73,6 +87,14 @@ public class AddActionItem extends BinaryOpItem implements CompoundableBinaryOp 
         return getResult(rightSide.getResult(), leftSide.getResult(), version2);
     }
 
+    /**
+     * Gets result.
+     *
+     * @param rightResult Right result
+     * @param leftResult Left result
+     * @param version2 Version 2
+     * @return Result
+     */
     public static Object getResult(Object rightResult, Object leftResult, boolean version2) {
         if (version2) {
             if (EcmaScript.type(leftResult) == EcmaType.STRING || EcmaScript.type(rightResult) == EcmaType.STRING) {

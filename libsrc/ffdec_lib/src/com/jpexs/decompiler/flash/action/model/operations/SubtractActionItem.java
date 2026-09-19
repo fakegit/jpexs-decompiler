@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,6 +17,8 @@
 package com.jpexs.decompiler.flash.action.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.ActionGraphTargetDialect;
+import com.jpexs.decompiler.flash.action.model.CompoundableBinaryOpAs12;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
 import com.jpexs.decompiler.flash.action.swf4.ActionSubtract;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
@@ -26,19 +28,27 @@ import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.BinaryOpItem;
-import com.jpexs.decompiler.graph.model.CompoundableBinaryOp;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Subtract.
  *
  * @author JPEXS
  */
-public class SubtractActionItem extends BinaryOpItem implements CompoundableBinaryOp {
+public class SubtractActionItem extends BinaryOpItem implements CompoundableBinaryOpAs12 {
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param leftSide Left side
+     * @param rightSide Right side
+     */
     public SubtractActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem leftSide, GraphTargetItem rightSide) {
-        super(instruction, lineStartIns, PRECEDENCE_ADDITIVE, leftSide, rightSide, "-", "Number", "Number");
+        super(ActionGraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_ADDITIVE, leftSide, rightSide, "-", "Number", "Number");
     }
 
     @Override
@@ -46,6 +56,13 @@ public class SubtractActionItem extends BinaryOpItem implements CompoundableBina
         return getResult(rightSide.getResultAsNumber(), leftSide.getResultAsNumber());
     }
 
+    /**
+     * Gets result.
+     *
+     * @param rightResult Right result
+     * @param leftResult Left result
+     * @return Result
+     */
     public static Double getResult(Double rightResult, Double leftResult) {
         return leftResult - rightResult;
     }
@@ -63,10 +80,10 @@ public class SubtractActionItem extends BinaryOpItem implements CompoundableBina
             int rightPrecedence = rightSide.getPrecedence();
             if (rightPrecedence >= precedence && rightPrecedence != GraphTargetItem.NOPRECEDENCE) {
                 writer.append("(");
-                rightSide.toString(writer, localData, coerceRight);
+                rightSide.toString(writer, localData, coerceRight, false);
                 writer.append(")");
             } else {
-                rightSide.toString(writer, localData, coerceRight);
+                rightSide.toString(writer, localData, coerceRight, false);
             }
             return writer;
         } else if (rightSide.getPrecedence() >= precedence) { // >=  add or subtract too

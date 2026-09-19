@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,11 +29,18 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * To number conversion.
  *
  * @author JPEXS
  */
 public class ToNumberActionItem extends ActionItem {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     */
     public ToNumberActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY, value);
     }
@@ -41,7 +48,7 @@ public class ToNumberActionItem extends ActionItem {
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("Number");
-        writer.spaceBeforeCallParenthesies(1);
+        writer.spaceBeforeCallParenthesis(1);
         writer.append("(");
         value.toString(writer, localData);
         return writer.append(")");
@@ -59,6 +66,11 @@ public class ToNumberActionItem extends ActionItem {
         return getResult(value.getResultAsNumber());
     }
 
+    /**
+     * Gets result.
+     * @param num Number
+     * @return Result
+     */
     public static Double getResult(Double num) {
         return num;
     }

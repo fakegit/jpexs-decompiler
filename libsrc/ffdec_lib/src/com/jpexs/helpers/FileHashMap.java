@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.helpers;
 
 import com.jpexs.decompiler.flash.helpers.Freed;
@@ -34,10 +35,11 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * File hash map.
  *
+ * @param <K> Key type
+ * @param <V> Value type
  * @author JPEXS
- * @param <K>
- * @param <V>
  */
 public class FileHashMap<K, V> extends AbstractMap<K, V> implements Freed {
 

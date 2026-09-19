@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,16 +29,14 @@ import com.jpexs.decompiler.flash.action.swf4.ActionJump;
 import com.jpexs.decompiler.flash.action.swf4.ActionPush;
 import com.jpexs.decompiler.flash.action.swf5.ActionConstantPool;
 import com.jpexs.decompiler.flash.configuration.Configuration;
-import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.helpers.SWFDecompilerPlugin;
+import com.jpexs.decompiler.flash.tags.base.ASMSource;
 import com.jpexs.decompiler.graph.GraphSourceItemContainer;
 import com.jpexs.helpers.CancellableWorker;
-import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.stat.Statistics;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -52,37 +50,47 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Class for reading data from SWF file
+ * Class for reading Action data from SWF file.
  *
  * @author JPEXS
  */
 public class ActionListReader {
 
+    /**
+     * Logger
+     */
     private static final Logger logger = Logger.getLogger(ActionListReader.class.getName());
+
+    /**
+     * Constructor.
+     */
+    public ActionListReader() {
+    }
 
     /**
      * Reads list of actions from the stream. Reading ends with
      * ActionEndFlag(=0) or end of the stream.
      *
-     * @param listeners
-     * @param sis
-     * @param version
-     * @param ip
-     * @param endIp
-     * @param path
-     * @param deobfuscationMode
+     * @param asm ASM source
+     * @param listeners List of listeners
+     * @param sis SWF input stream
+     * @param version SWF version
+     * @param ip Start IP
+     * @param endIp End IP
+     * @param path Path
+     * @param deobfuscationMode Deobfuscation mode
      * @return List of actions
-     * @throws IOException
-     * @throws java.lang.InterruptedException
-     * @throws java.util.concurrent.TimeoutException
+     * @throws IOException On I/O error
+     * @throws InterruptedException On interrupt
+     * @throws TimeoutException On timeout
      */
-    public static ActionList readActionListTimeout(final List<DisassemblyListener> listeners, final SWFInputStream sis, final int version, final int ip, final int endIp, final String path, final int deobfuscationMode) throws IOException, InterruptedException, TimeoutException {
+    public static ActionList readActionListTimeout(ASMSource asm, final List<DisassemblyListener> listeners, final SWFInputStream sis, final int version, final int ip, final int endIp, final String path, final int deobfuscationMode) throws IOException, InterruptedException, TimeoutException {
         try {
-            ActionList actions = CancellableWorker.call(new Callable<ActionList>() {
+            ActionList actions = CancellableWorker.call("script.readActionList", new Callable<ActionList>() {
 
                 @Override
                 public ActionList call() throws IOException, InterruptedException {
-                    return readActionList(listeners, sis, version, ip, endIp, path, deobfuscationMode);
+                    return readActionList(asm, listeners, sis, version, ip, endIp, path, deobfuscationMode);
                 }
             }, Configuration.decompilationTimeoutSingleMethod.get(), TimeUnit.SECONDS);
 
@@ -97,35 +105,37 @@ public class ActionListReader {
                 logger.log(Level.SEVERE, null, ex);
             }
         }
-        return new ActionList();
+        return new ActionList(sis.getCharset(), version);
     }
 
     /**
      * Reads list of actions from the stream. Reading ends with
      * ActionEndFlag(=0) or end of the stream.
      *
-     * @param listeners
-     * @param sis
-     * @param version
-     * @param ip
-     * @param endIp
-     * @param path
-     * @param deobfuscationMode
+     * @param asm ASM source
+     * @param listeners List of listeners
+     * @param sis SWF input stream
+     * @param version SWF version
+     * @param ip Start IP
+     * @param endIp End IP
+     * @param path Path
+     * @param deobfuscationMode Deobfuscation mode
      * @return List of actions
-     * @throws IOException
-     * @throws java.lang.InterruptedException
+     * @throws IOException On I/O error
+     * @throws InterruptedException On interrupt
      */
-    public static ActionList readActionList(List<DisassemblyListener> listeners, SWFInputStream sis, int version, int ip, int endIp, String path, int deobfuscationMode) throws IOException, InterruptedException {
+    public static ActionList readActionList(ASMSource asm, List<DisassemblyListener> listeners, SWFInputStream sis, int version, int ip, int endIp, String path, int deobfuscationMode) throws IOException, InterruptedException {
         // Map of the actions. Use TreeMap to sort the keys in ascending order
-        // actionMap and nextOffsets should contain exaclty the same keys
+        // actionMap and nextOffsets should contain exactly the same keys
         Map<Long, Action> actionMap = new TreeMap<>();
         Map<Long, Long> nextOffsets = new HashMap<>();
         Action entryAction = readActionListAtPos(listeners, null,
                 sis, actionMap, nextOffsets,
-                ip, 0, endIp, path, false, new ArrayList<>());
+                ip, 0, endIp, path, false, new ArrayList<>(),
+                sis.getCharset());
 
         if (actionMap.isEmpty()) {
-            return new ActionList();
+            return new ActionList(sis.getCharset(), version);
         }
 
         List<Long> addresses = new ArrayList<>(actionMap.keySet());
@@ -141,11 +151,11 @@ public class ActionListReader {
             nextOffsets.put(endAddress, endAddress + 1);
         }
 
-        ActionList actions = fixActionList(new ActionList(actionMap.values()), nextOffsets);
+        ActionList actions = fixActionList(new ActionList(actionMap.values(), sis.getCharset()), nextOffsets);
 
-        // jump to the entry action when it is diffrent from the first action in the map
+        // jump to the entry action when it is different from the first action in the map
         if (entryAction != actions.get(0)) {
-            ActionJump jump = new ActionDeobfuscateJump(0);
+            ActionJump jump = new ActionDeobfuscateJump(0, sis.getCharset());
             actions.addAction(0, jump);
             jump.setJumpOffset((int) (entryAction.getAddress() - jump.getTotalActionLength()));
         }
@@ -173,24 +183,29 @@ public class ActionListReader {
             System.err.println("loc" + Helper.formatAddress(a.getAddress()) + " (" + p + "): " + a.getASMSource(actions, new HashSet<Long>(), ScriptExportMode.PCODE));
             p++;
         }*/
-
-        //TODO: This cleaner needs to be executed only before actual decompilation, not when disassembly only
         try {
-            new ActionDefineFunctionPushRegistersCleaner().actionListParsed(actions, sis.getSwf());
+            new ActionDefineFunctionPushRegistersCleaner().actionListParsed(actions, null);
         } catch (ThreadDeath | InterruptedException ex) {
-            throw ex;
+            //ignored
         } catch (Throwable ex) {
-            logger.log(Level.SEVERE, "Cleaning push registers in ActionDefineFunction failed: " + path, ex);
-        }
-
+            Logger.getLogger(ActionGraphSource.class.getName()).log(Level.SEVERE, "Cleaning push registers in ActionDefineFunction failed: " + path, ex);
+        }          
+        
         return actions;
     }
 
+    /**
+     * Fixes action list.
+     *
+     * @param actions Action list
+     * @param nextOffsets Next offsets
+     * @return Fixed action list
+     */
     public static ActionList fixActionList(ActionList actions, Map<Long, Long> nextOffsets) {
         Map<Action, List<Action>> containerLastActions = new HashMap<>();
         getContainerLastActions(actions, containerLastActions);
 
-        ActionList ret = new ActionList();
+        ActionList ret = new ActionList(actions.getCharset(), actions.getVersion());
         ret.fileData = actions.fileData;
 
         if (nextOffsets != null) {
@@ -203,7 +218,7 @@ public class ActionListReader {
                     long nextAddress = nextOffsets.get(action.getAddress());
                     if (actions.get(index).getAddress() != nextAddress) {
                         if (!action.isExit() && !(action instanceof ActionJump)) {
-                            ActionJump jump = new ActionDeobfuscateJump(0);
+                            ActionJump jump = new ActionDeobfuscateJump(0, actions.getCharset());
                             jump.setAddress(action.getAddress());
                             int size = jump.getTotalActionLength();
                             jump.setJumpOffset((int) (nextAddress - action.getAddress() - size));
@@ -222,27 +237,46 @@ public class ActionListReader {
         getJumps(ret, jumps);
 
         updateActionLengths(ret);
-        updateAddresses(ret, 0);
+        updateAddresses(ret, 0, actions.getCharset());
         long endAddress = ret.get(ret.size() - 1).getAddress();
 
-        updateJumps(ret, jumps, containerLastActions, endAddress);
+        updateJumps(ret, jumps, containerLastActions, endAddress, actions.getCharset());
         updateActionStores(ret, jumps);
         updateContainerSizes(ret, containerLastActions);
 
         return ret;
     }
 
+    /**
+     * Gets original actions.
+     *
+     * @param sis SWF input stream
+     * @param startIp Start IP
+     * @param endIp End IP
+     * @return List of actions
+     * @throws IOException On I/O error
+     * @throws InterruptedException On interrupt
+     */
     public static List<Action> getOriginalActions(SWFInputStream sis, int startIp, int endIp) throws IOException, InterruptedException {
         // Map of the actions. Use TreeMap to sort the keys in ascending order
         Map<Long, Action> actionMap = new TreeMap<>();
         Map<Long, Long> nextOffsets = new HashMap<>();
         readActionListAtPos(new ArrayList<>(), null,
                 sis, actionMap, nextOffsets,
-                startIp, startIp, endIp + 1, "", false, new ArrayList<>());
+                startIp, startIp, endIp + 1, "", false, new ArrayList<>(),
+                sis.getCharset());
 
         return new ArrayList<>(actionMap.values());
     }
 
+    /**
+     * Gets near address.
+     *
+     * @param actions Action list
+     * @param address Address
+     * @param next Next
+     * @return Near address
+     */
     private static long getNearAddress(ActionList actions, long address, boolean next) {
         int min = 0;
         int max = actions.size() - 1;
@@ -264,6 +298,12 @@ public class ActionListReader {
                 : (max >= 0 ? actions.get(max).getAddress() : -1);
     }
 
+    /**
+     * Converts list of actions to map of address to action.
+     *
+     * @param actions List of actions
+     * @return Map of address to action
+     */
     private static Map<Long, Action> actionListToMap(List<Action> actions) {
         Map<Long, Action> map = new HashMap<>(actions.size());
         for (Action a : actions) {
@@ -277,6 +317,12 @@ public class ActionListReader {
         return map;
     }
 
+    /**
+     * Gets jumps.
+     *
+     * @param actions List of actions
+     * @param jumps Jumps - map of jumpAction to targetAction
+     */
     private static void getJumps(List<Action> actions, Map<Action, Action> jumps) {
         Map<Long, Action> actionMap = actionListToMap(actions);
         for (Action a : actions) {
@@ -306,6 +352,13 @@ public class ActionListReader {
         }
     }
 
+    /**
+     * Gets container last actions.
+     *
+     * @param actions List of actions
+     * @param action Action
+     * @return List of last actions
+     */
     public static List<Action> getContainerLastActions(ActionList actions, Action action) {
         GraphSourceItemContainer container = (GraphSourceItemContainer) action;
         List<Long> sizes = container.getContainerSizes();
@@ -323,6 +376,12 @@ public class ActionListReader {
         return lasts;
     }
 
+    /**
+     * Gets container last actions.
+     *
+     * @param actions List of actions
+     * @param lastActions Last actions
+     */
     private static void getContainerLastActions(ActionList actions, Map<Action, List<Action>> lastActions) {
         for (Action a : actions) {
             if (a instanceof GraphSourceItemContainer) {
@@ -331,26 +390,45 @@ public class ActionListReader {
         }
     }
 
-    private static long updateAddresses(List<Action> actions, long address) {
+    /**
+     * Updates addresses.
+     *
+     * @param actions List of actions
+     * @param address Address
+     * @param charset Charset
+     * @return End address
+     */
+    private static long updateAddresses(List<Action> actions, long address, String charset) {
         for (int i = 0; i < actions.size(); i++) {
             Action a = actions.get(i);
             a.setAddress(address);
             int length = a.getTotalActionLength();
             if ((i != actions.size() - 1) && (a instanceof ActionEnd)) {
                 // placeholder for jump action
-                length = new ActionDeobfuscateJump(0).getTotalActionLength();
+                length = new ActionDeobfuscateJump(0, charset).getTotalActionLength();
             }
             address += length;
         }
         return address;
     }
 
+    /**
+     * Updates action lengths.
+     *
+     * @param actions List of actions
+     */
     private static void updateActionLengths(List<Action> actions) {
         for (int i = 0; i < actions.size(); i++) {
             actions.get(i).updateLength();
         }
     }
 
+    /**
+     * Updates action stores.
+     *
+     * @param actions List of actions
+     * @param jumps Jumps - map of jumpAction to targetAction
+     */
     private static void updateActionStores(List<Action> actions, Map<Action, Action> jumps) {
         Map<Long, Action> actionMap = actionListToMap(actions);
         for (int i = 0; i < actions.size(); i++) {
@@ -373,6 +451,12 @@ public class ActionListReader {
         }
     }
 
+    /**
+     * Updates container sizes.
+     *
+     * @param actions List of actions
+     * @param containerLastActions Container last actions
+     */
     private static void updateContainerSizes(List<Action> actions, Map<Action, List<Action>> containerLastActions) {
         for (int i = 0; i < actions.size(); i++) {
             Action a = actions.get(i);
@@ -390,6 +474,13 @@ public class ActionListReader {
         }
     }
 
+    /**
+     * Replaces jump targets.
+     *
+     * @param jumps Jumps - map of jumpAction to targetAction
+     * @param oldTarget Old target
+     * @param newTarget New target
+     */
     private static void replaceJumpTargets(Map<Action, Action> jumps, Action oldTarget, Action newTarget) {
         for (Action a : jumps.keySet()) {
             if (jumps.get(a) == oldTarget) {
@@ -398,6 +489,13 @@ public class ActionListReader {
         }
     }
 
+    /**
+     * Replaces container last actions.
+     *
+     * @param containerLastActions Container last actions
+     * @param oldTarget Old target
+     * @param newTarget New target
+     */
     private static void replaceContainerLastActions(Map<Action, List<Action>> containerLastActions, Action oldTarget, Action newTarget) {
         for (Action a : containerLastActions.keySet()) {
             List<Action> targets = containerLastActions.get(a);
@@ -409,7 +507,16 @@ public class ActionListReader {
         }
     }
 
-    private static void updateJumps(List<Action> actions, Map<Action, Action> jumps, Map<Action, List<Action>> containerLastActions, long endAddress) {
+    /**
+     * Updates jumps.
+     *
+     * @param actions List of actions
+     * @param jumps Jumps - map of jumpAction to targetAction
+     * @param containerLastActions Container last actions
+     * @param endAddress End address
+     * @param charset Charset
+     */
+    private static void updateJumps(List<Action> actions, Map<Action, Action> jumps, Map<Action, List<Action>> containerLastActions, long endAddress, String charset) {
         if (actions.isEmpty()) {
             return;
         }
@@ -417,7 +524,7 @@ public class ActionListReader {
         for (int i = 0; i < actions.size(); i++) {
             Action a = actions.get(i);
             if ((i != actions.size() - 1) && (a instanceof ActionEnd)) {
-                ActionJump aJump = new ActionDeobfuscateJump(0);
+                ActionJump aJump = new ActionDeobfuscateJump(0, charset);
                 aJump.setJumpOffset((int) (endAddress - a.getAddress() - aJump.getTotalActionLength()));
                 aJump.setAddress(a.getAddress());
                 replaceJumpTargets(jumps, a, aJump);
@@ -451,12 +558,12 @@ public class ActionListReader {
     /**
      * Removes an action from the action list, and updates all references This
      * method will keep the inner actions of the container when you remove the
-     * container
+     * container.
      *
-     * @param actions
-     * @param index
-     * @param removeWhenLast
-     * @return
+     * @param actions List of actions
+     * @param index Index
+     * @param removeWhenLast Remove when last
+     * @return True if action was removed, false otherwise
      */
     public static boolean removeAction(ActionList actions, int index, boolean removeWhenLast) {
 
@@ -504,8 +611,8 @@ public class ActionListReader {
         actions.remove(index);
 
         updateActionLengths(actions);
-        updateAddresses(actions, startIp);
-        updateJumps(actions, jumps, containerLastActions, endAddress);
+        updateAddresses(actions, startIp, actions.getCharset());
+        updateJumps(actions, jumps, containerLastActions, endAddress, actions.getCharset());
         updateActionStores(actions, jumps);
         updateContainerSizes(actions, containerLastActions);
 
@@ -515,12 +622,12 @@ public class ActionListReader {
     /**
      * Removes multiple actions from the action list, and updates all references
      * This method will keep the inner actions of the container when you remove
-     * the container
+     * the container.
      *
-     * @param actions
-     * @param actionsToRemove
-     * @param removeWhenLast
-     * @return
+     * @param actions List of actions
+     * @param actionsToRemove Actions to remove
+     * @param removeWhenLast Remove when last
+     * @return True if actions were removed, false otherwise
      */
     public static boolean removeActions(ActionList actions, List<Action> actionsToRemove, boolean removeWhenLast) {
 
@@ -567,8 +674,8 @@ public class ActionListReader {
         }
 
         updateActionLengths(actions);
-        updateAddresses(actions, startIp);
-        updateJumps(actions, jumps, containerLastActions, endAddress);
+        updateAddresses(actions, startIp, actions.getCharset());
+        updateJumps(actions, jumps, containerLastActions, endAddress, actions.getCharset());
         updateActionStores(actions, jumps);
         updateContainerSizes(actions, containerLastActions);
 
@@ -577,14 +684,14 @@ public class ActionListReader {
 
     /**
      * Adds an action to the action list to the specified location, and updates
-     * all references
+     * all references.
      *
-     * @param actions
-     * @param index
-     * @param action
-     * @param addToContainer
-     * @param replaceJump
-     * @return
+     * @param actions List of actions
+     * @param index Index
+     * @param action Action
+     * @param addToContainer Add to container
+     * @param replaceJump Replace jump
+     * @return True if action was added, false otherwise
      */
     public static boolean addAction(ActionList actions, int index, Action action,
             boolean addToContainer, boolean replaceJump) {
@@ -636,8 +743,8 @@ public class ActionListReader {
         actions.add(index, action);
 
         updateActionLengths(actions);
-        updateAddresses(actions, startIp);
-        updateJumps(actions, jumps, containerLastActions, endAddress);
+        updateAddresses(actions, startIp, actions.getCharset());
+        updateJumps(actions, jumps, containerLastActions, endAddress, actions.getCharset());
         updateActionStores(actions, jumps);
         updateContainerSizes(actions, containerLastActions);
 
@@ -646,12 +753,12 @@ public class ActionListReader {
 
     /**
      * Adds an action to the action list to the specified location, and updates
-     * all references
+     * all references.
      *
-     * @param actions
-     * @param index
-     * @param newActions
-     * @return
+     * @param actions List of actions
+     * @param index Index
+     * @param newActions New actions
+     * @return True if actions were added, false otherwise
      */
     public static boolean addActions(ActionList actions, int index, List<Action> newActions) {
 
@@ -681,17 +788,35 @@ public class ActionListReader {
         actions.addAll(index, newActions);
 
         updateActionLengths(actions);
-        updateAddresses(actions, startIp);
-        updateJumps(actions, jumps, containerLastActions, endAddress);
+        updateAddresses(actions, startIp, actions.getCharset());
+        updateJumps(actions, jumps, containerLastActions, endAddress, actions.getCharset());
         updateActionStores(actions, jumps);
         updateContainerSizes(actions, containerLastActions);
 
         return true;
     }
 
+    /**
+     * Reads action list at the specified position.
+     *
+     * @param listeners List of listeners
+     * @param cpool Constant pool
+     * @param sis SWF input stream
+     * @param actions Actions
+     * @param nextOffsets Next offsets
+     * @param ip IP
+     * @param startIp Start IP
+     * @param endIp End IP
+     * @param path Path
+     * @param indeterminate Indeterminate
+     * @param visitedContainers Visited containers
+     * @param charset Charset
+     * @return Action
+     * @throws IOException On I/O error
+     */
     private static Action readActionListAtPos(List<DisassemblyListener> listeners, ConstantPool cpool,
             SWFInputStream sis, Map<Long, Action> actions, Map<Long, Long> nextOffsets,
-            long ip, long startIp, long endIp, String path, boolean indeterminate, List<Long> visitedContainers) throws IOException {
+            long ip, long startIp, long endIp, String path, boolean indeterminate, List<Long> visitedContainers, String charset) throws IOException {
 
         Action entryAction = null;
 
@@ -721,7 +846,7 @@ public class ActionListReader {
 
                 // unknown action, replace with jump
                 if (a instanceof ActionUnknown && a.getActionCode() >= 0x80) {
-                    ActionJump aJump = new ActionDeobfuscateJump(0);
+                    ActionJump aJump = new ActionDeobfuscateJump(0, charset);
                     int jumpLength = aJump.getTotalActionLength();
                     aJump.setAddress(a.getAddress());
                     //FIXME! This offset can be larger than SI16 value!
@@ -777,7 +902,8 @@ public class ActionListReader {
                             long endIp2 = ip + actionLengthWithHeader + size;
                             readActionListAtPos(listeners, cpool,
                                     sis, actions, nextOffsets,
-                                    ip2, startIp, endIp2, newPath, indeterminate, visitedContainers);
+                                    ip2, startIp, endIp2, newPath, indeterminate, visitedContainers,
+                                    charset);
                             actionLengthWithHeader += size;
                         }
                     }
@@ -793,6 +919,13 @@ public class ActionListReader {
         return entryAction;
     }
 
+    /**
+     * Fixes constant pools.
+     *
+     * @param listeners List of listeners
+     * @param actions Actions
+     * @return True if constant pools were fixed, false otherwise
+     */
     public static boolean fixConstantPools(List<DisassemblyListener> listeners, ActionList actions) {
         Action lastAction = actions.get(actions.size() - 1);
         int endIp = (int) lastAction.getAddress();
@@ -814,6 +947,22 @@ public class ActionListReader {
         return false;
     }
 
+    /**
+     * Fixes constant pools.
+     *
+     * @param listeners List of listeners
+     * @param cpool Constant pool
+     * @param actions Actions
+     * @param actionMap Action map
+     * @param ip IP
+     * @param startIp Start IP
+     * @param endIp End IP
+     * @param path Path
+     * @param indeterminate Indeterminate
+     * @param visitedContainers Visited containers
+     * @return True if constant pools were fixed, false otherwise
+     * @throws IOException On I/O error
+     */
     private static boolean fixConstantPools(List<DisassemblyListener> listeners, ConstantPool cpool,
             List<Action> actions, Map<Integer, Action> actionMap,
             int ip, int startIp, int endIp, String path, boolean indeterminate, List<Integer> visitedContainers) throws IOException {

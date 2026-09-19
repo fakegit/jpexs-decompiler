@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,21 +12,37 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.timeline;
 
+import java.awt.Shape;
+
 /**
+ * SVG clipping region
  *
  * @author JPEXS
  */
 public class SvgClip {
 
-    public String shape;
-
+    /**
+     * Depth.
+     */
     public int depth;
+    
+    /**
+     * Shape
+     */
+    public Shape shape;
 
-    public SvgClip(String shape, int depth) {
-        this.shape = shape;
+    /**
+     * Constructs SvgClip.
+     *
+     * @param depth Depth
+     * @param shape Shape
+     */
+    public SvgClip(int depth, Shape shape) {
         this.depth = depth;
+        this.shape = shape;
     }
 }

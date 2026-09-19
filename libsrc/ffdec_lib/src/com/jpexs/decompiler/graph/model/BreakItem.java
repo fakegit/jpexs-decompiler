@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -20,36 +21,67 @@ import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.NulWriter;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import java.util.List;
 
 /**
+ * Break statement.
  *
  * @author JPEXS
  */
 public class BreakItem extends GraphTargetItem {
 
+    /**
+     * Loop id
+     */
     public long loopId;
 
+    /**
+     * Label required
+     */
     private boolean labelRequired;
 
-    public BreakItem(GraphSourceItem src, GraphSourceItem lineStartIns, long loopId) {
-        super(src, lineStartIns, NOPRECEDENCE);
+    /**
+     * Is placed at end of the script (or function)
+     */
+    public boolean isScriptEnd = false;
+
+    /**
+     * Constructor.
+     *
+     * @param dialect Dialect
+     * @param src Source item
+     * @param lineStartIns Line start instruction
+     * @param loopId Loop id
+     */
+    public BreakItem(GraphTargetDialect dialect, GraphSourceItem src, GraphSourceItem lineStartIns, long loopId) {
+        super(dialect, src, lineStartIns, NOPRECEDENCE);
         this.loopId = loopId;
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) {
-        writer.append("break");
         if (writer instanceof NulWriter) {
             NulWriter nulWriter = (NulWriter) writer;
             labelRequired = loopId != nulWriter.getLoop();
             if (labelRequired) {
+                if (!dialect.doesAllowMultilevelBreaks() && isScriptEnd) {
+                    writer.append("return");
+                    return writer;
+                }
                 nulWriter.setLoopUsed(loopId);
             }
         }
+        if (labelRequired) {
+            if (!dialect.doesAllowMultilevelBreaks() && isScriptEnd) {
+                writer.append("return");
+                return writer;
+            }
+        }
+        writer.append("break");
         if (labelRequired) {
             writer.append(" loop").append(loopId);
         }

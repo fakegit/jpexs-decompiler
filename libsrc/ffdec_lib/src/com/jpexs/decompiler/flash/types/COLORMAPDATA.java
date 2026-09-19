@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,17 +12,32 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types;
 
 import java.io.Serializable;
 
 /**
+ * Color map data.
+ *
  * @author JPEXS
  */
 public class COLORMAPDATA implements Serializable {
 
+    /**
+     * Color table RGB
+     */
     public int[] colorTableRGB;
 
+    /**
+     * Color map pixel data
+     */
     public byte[] colorMapPixelData;
+
+    /**
+     * Constructor.
+     */
+    public COLORMAPDATA() {
+    }
 }

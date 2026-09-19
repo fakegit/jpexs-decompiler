@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -32,17 +32,35 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * With statement.
  *
  * @author JPEXS
  */
 public class WithAVM2Item extends AVM2Item {
 
+    /**
+     * Scope
+     */
     public GraphTargetItem scope;
 
+    /**
+     * Items
+     */
     public List<GraphTargetItem> items;
 
+    /**
+     * Subvariables
+     */
     public List<AssignableAVM2Item> subvariables = new ArrayList<>();
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param scope Scope
+     * @param items Items
+     */
     public WithAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem scope, List<GraphTargetItem> items) {
         super(instruction, lineStartIns, NOPRECEDENCE);
         this.scope = scope;
@@ -55,6 +73,13 @@ public class WithAVM2Item extends AVM2Item {
         visitor.visitAll(items);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param scope Scope
+     */
     public WithAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem scope) {
         super(instruction, lineStartIns, NOPRECEDENCE);
         this.scope = scope;

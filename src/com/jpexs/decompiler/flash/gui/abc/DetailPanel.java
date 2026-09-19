@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,13 +16,16 @@
  */
 package com.jpexs.decompiler.flash.gui.abc;
 
+import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.types.Multiname;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.AppStrings;
 import com.jpexs.decompiler.flash.gui.DebuggerHandler;
+import com.jpexs.decompiler.flash.gui.DebuggerSession;
 import com.jpexs.decompiler.flash.gui.HeaderLabel;
 import com.jpexs.decompiler.flash.gui.Main;
+import com.jpexs.decompiler.flash.gui.MainPanel;
 import com.jpexs.decompiler.flash.gui.TagEditorPanel;
 import com.jpexs.decompiler.flash.gui.View;
 import com.jpexs.decompiler.flash.gui.ViewMessages;
@@ -33,6 +36,7 @@ import java.awt.FlowLayout;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -43,7 +47,6 @@ import javax.swing.SwingConstants;
 import javax.swing.border.BevelBorder;
 
 /**
- *
  * @author JPEXS
  */
 public class DetailPanel extends JPanel implements TagEditorPanel {
@@ -54,11 +57,15 @@ public class DetailPanel extends JPanel implements TagEditorPanel {
 
     public SlotConstTraitDetailPanel slotConstTraitPanel;
 
+    public ClassTraitDetailPanel classTraitPanel;
+
     public static final String METHOD_GETTER_SETTER_TRAIT_CARD = "abc.detail.methodtrait";
 
     public static final String UNSUPPORTED_TRAIT_CARD = "abc.detail.unsupported";
 
     public static final String SLOT_CONST_TRAIT_CARD = "abc.detail.slotconsttrait";
+
+    public static final String CLASS_TRAIT_CARD = "abc.detail.classtrait";
 
     private final JPanel innerPanel;
 
@@ -86,8 +93,11 @@ public class DetailPanel extends JPanel implements TagEditorPanel {
 
     private final DebuggerHandler.ConnectionListener conListener;
 
-    public DetailPanel(ABCPanel abcPanel) {
+    private MainPanel mainPanel;
+
+    public DetailPanel(ABCPanel abcPanel, MainPanel mainPanel) {
         this.abcPanel = abcPanel;
+        this.mainPanel = mainPanel;
         innerPanel = new JPanel();
         CardLayout layout = new CardLayout();
         innerPanel.setLayout(layout);
@@ -102,6 +112,9 @@ public class DetailPanel extends JPanel implements TagEditorPanel {
 
         slotConstTraitPanel = new SlotConstTraitDetailPanel(abcPanel.decompiledTextArea);
         cardMap.put(SLOT_CONST_TRAIT_CARD, slotConstTraitPanel);
+
+        classTraitPanel = new ClassTraitDetailPanel(abcPanel.decompiledTextArea);
+        cardMap.put(CLASS_TRAIT_CARD, classTraitPanel);
 
         for (String key : cardMap.keySet()) {
             innerPanel.add(cardMap.get(key), key);
@@ -119,8 +132,10 @@ public class DetailPanel extends JPanel implements TagEditorPanel {
         saveButton.addActionListener(this::saveButtonActionPerformed);
         editButton.addActionListener(this::editButtonActionPerformed);
         cancelButton.addActionListener(this::cancelButtonActionPerformed);
+
         saveButton.setVisible(false);
         cancelButton.setVisible(false);
+
         buttonsPanel.setBorder(new BevelBorder(BevelBorder.RAISED));
         buttonsPanel.add(editButton);
         buttonsPanel.add(saveButton);
@@ -132,7 +147,7 @@ public class DetailPanel extends JPanel implements TagEditorPanel {
 
         conListener = new DebuggerHandler.ConnectionListener() {
             @Override
-            public void connected() {
+            public void connected(DebuggerSession session) {
                 synchronized (DetailPanel.this) {
                     debugRunning = true;
                     if (buttonsPanel != null) {
@@ -142,7 +157,10 @@ public class DetailPanel extends JPanel implements TagEditorPanel {
             }
 
             @Override
-            public void disconnected() {
+            public void disconnected(DebuggerSession session) {
+                if (Main.getDebugHandler().isAnySessionConnected()) {
+                    return;
+                }
                 synchronized (DetailPanel.this) {
                     debugRunning = false;
 
@@ -168,6 +186,7 @@ public class DetailPanel extends JPanel implements TagEditorPanel {
         topPanel.add(traitInfoPanel, BorderLayout.CENTER);
         methodTraitPanel.methodCodePanel.getSourceTextArea().addTextChangedListener(this::editorTextChanged);
         slotConstTraitPanel.slotConstEditor.addTextChangedListener(this::editorTextChanged);
+        classTraitPanel.classEditor.addTextChangedListener(this::editorTextChanged);
         add(topPanel, BorderLayout.NORTH);
     }
 
@@ -187,14 +206,16 @@ public class DetailPanel extends JPanel implements TagEditorPanel {
     public void setEditMode(boolean val) {
         slotConstTraitPanel.setEditMode(val);
         methodTraitPanel.setEditMode(val);
+        classTraitPanel.setEditMode(val);
         saveButton.setVisible(val);
         saveButton.setEnabled(false);
         editButton.setVisible(!val);
         cancelButton.setVisible(val);
         selectedLabel.setIcon(val ? View.getIcon("editing16") : null);
+        abcPanel.setDecompiledEditEnabled(!val);
     }
 
-    public void showCard(final String name, final Trait trait, int traitIndex) {
+    public void showCard(final String name, final Trait trait, int traitIndex, ABC abc) {
         View.execInEventDispatch(() -> {
             CardLayout layout = (CardLayout) innerPanel.getLayout();
             layout.show(innerPanel, name);
@@ -286,8 +307,8 @@ public class DetailPanel extends JPanel implements TagEditorPanel {
             if (trait == null) {
                 traitNameLabel.setText("-");
             } else if (abcPanel != null) {
-                Multiname traitName = trait.getName(abcPanel.abc);
-                String traitNameStr = traitName == null ? "" : traitName.getName(abcPanel.abc.constants, null, false, true);
+                Multiname traitName = trait.getName(abc);
+                String traitNameStr = traitName == null ? "" : traitName.getName(new LinkedHashSet<>(), abc, abc.constants, null, false, true);
                 traitNameLabel.setText(traitNameStr);
             }
         });
@@ -297,29 +318,40 @@ public class DetailPanel extends JPanel implements TagEditorPanel {
     private void editButtonActionPerformed(ActionEvent evt) {
         setEditMode(true);
         methodTraitPanel.methodCodePanel.focusEditor();
+        mainPanel.setEditingStatus();
     }
 
     private void cancelButtonActionPerformed(ActionEvent evt) {
         setEditMode(false);
         abcPanel.decompiledTextArea.resetEditing();
+        mainPanel.clearEditingStatus();
     }
 
-    private void saveButtonActionPerformed(ActionEvent evt) {
+    private void save(boolean refreshTree) {
         if (cardMap.get(selectedCard) instanceof TraitDetail) {
             if (((TraitDetail) cardMap.get(selectedCard)).save()) {
+
                 DecompiledEditorPane decompiledTextArea = abcPanel.decompiledTextArea;
+                if (!refreshTree) {
+                    decompiledTextArea.reloadClass();
+                    setEditMode(false);
+                    return;
+                }
                 int lastTrait = decompiledTextArea.lastTraitIndex;
+                int lastClassIndex = decompiledTextArea.getClassIndex();
 
                 Runnable reloadComplete = new Runnable() {
                     @Override
                     public void run() {
                         decompiledTextArea.removeScriptListener(this);
+                        decompiledTextArea.setClassIndex(lastClassIndex); //reload resets caret to first class
                         if (lastTrait == GraphTextWriter.TRAIT_UNKNOWN) {
                             decompiledTextArea.gotoLastMethod();
                         } else {
                             decompiledTextArea.gotoTrait(lastTrait);
                         }
                         setEditMode(false);
+                        mainPanel.clearEditingStatus();
                         ViewMessages.showMessageDialog(DetailPanel.this, AppStrings.translate("message.trait.saved"), AppStrings.translate("dialog.message.title"), JOptionPane.INFORMATION_MESSAGE, Configuration.showTraitSavedMessage);
                     }
                 };
@@ -330,9 +362,16 @@ public class DetailPanel extends JPanel implements TagEditorPanel {
         }
     }
 
+    private void saveButtonActionPerformed(ActionEvent evt) {
+        save(true);
+    }
+
     @Override
     public boolean tryAutoSave() {
-        // todo: implement
+        if (saveButton.isVisible() && saveButton.isEnabled() && Configuration.autoSaveTagModifications.get()) {
+            save(false);
+            return !(saveButton.isVisible() && saveButton.isEnabled());
+        }
         return false;
     }
 

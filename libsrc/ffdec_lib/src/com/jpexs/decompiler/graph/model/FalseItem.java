@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,6 +20,7 @@ import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SimpleValue;
 import com.jpexs.decompiler.graph.SourceGenerator;
@@ -28,13 +29,21 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * False value.
  *
  * @author JPEXS
  */
 public class FalseItem extends GraphTargetItem implements LogicalOpItem, SimpleValue {
 
-    public FalseItem(GraphSourceItem src, GraphSourceItem lineStartIns) {
-        super(src, lineStartIns, PRECEDENCE_PRIMARY);
+    /**
+     * Constructor.
+     * 
+     * @param dialect Dialect
+     * @param src Source
+     * @param lineStartIns Line start instruction
+     */
+    public FalseItem(GraphTargetDialect dialect, GraphSourceItem src, GraphSourceItem lineStartIns) {
+        super(dialect, src, lineStartIns, PRECEDENCE_PRIMARY);
     }
 
     @Override
@@ -59,7 +68,7 @@ public class FalseItem extends GraphTargetItem implements LogicalOpItem, SimpleV
 
     @Override
     public GraphTargetItem invert(GraphSourceItem neqSrc) {
-        return new TrueItem(getSrc(), getLineStartItem());
+        return new TrueItem(dialect, getSrc(), getLineStartItem());
     }
 
     @Override

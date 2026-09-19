@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,6 +18,7 @@ package com.jpexs.decompiler.flash.action.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.Action;
+import com.jpexs.decompiler.flash.action.ActionGraphTargetDialect;
 import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.swf4.ActionLess;
 import com.jpexs.decompiler.flash.action.swf4.ActionNot;
@@ -35,15 +36,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Greater or equal.
  *
  * @author JPEXS
  */
 public class GeActionItem extends BinaryOpItem implements LogicalOpItem, Inverted {
 
+    /**
+     * Version 2 flag
+     */
     boolean version2;
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param leftSide Left side
+     * @param rightSide Right side
+     * @param version2 Version 2 flag
+     */
     public GeActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem leftSide, GraphTargetItem rightSide, boolean version2) {
-        super(instruction, lineStartIns, PRECEDENCE_RELATIONAL, leftSide, rightSide, ">=", "", "");
+        super(ActionGraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_RELATIONAL, leftSide, rightSide, ">=", "", "");
         this.version2 = version2;
     }
 

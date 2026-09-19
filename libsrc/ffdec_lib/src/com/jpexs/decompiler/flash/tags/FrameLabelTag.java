@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -21,9 +22,12 @@ import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.types.annotations.Conditional;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.helpers.ByteArrayRange;
+import com.jpexs.helpers.Helper;
 import java.io.IOException;
+import java.util.Map;
 
 /**
+ * FrameLabel tag - defines a label for a frame.
  *
  * @author JPEXS
  */
@@ -42,7 +46,7 @@ public class FrameLabelTag extends Tag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public FrameLabelTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -68,7 +72,7 @@ public class FrameLabelTag extends Tag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -85,4 +89,14 @@ public class FrameLabelTag extends Tag {
     public boolean isNamedAnchor() {
         return namedAnchor;
     }
+
+    @Override
+    public Map<String, String> getNameProperties() {
+        Map<String, String> ret = super.getNameProperties();
+        if (!name.isEmpty()) {
+            ret.put("name", "\"" + Helper.escapePCodeString(name) + "\"");
+        }
+        return ret;
+    }
+
 }

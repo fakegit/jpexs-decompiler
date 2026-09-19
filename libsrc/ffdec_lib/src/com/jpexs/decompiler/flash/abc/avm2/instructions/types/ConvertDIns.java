@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.types;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -28,13 +29,18 @@ import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateStack;
 import com.jpexs.decompiler.graph.TypeItem;
 import java.util.List;
+import java.util.Set;
 
 /**
+ * convert_d instruction - Convert to number.
  *
  * @author JPEXS
  */
 public class ConvertDIns extends InstructionDefinition implements CoerceOrConvertTypeIns {
 
+    /**
+     * Constructor
+     */
     public ConvertDIns() {
         super(0x75, "convert_d", new int[]{}, true);
     }
@@ -48,7 +54,7 @@ public class ConvertDIns extends InstructionDefinition implements CoerceOrConver
 
     @Override
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
-        stack.push(new ConvertAVM2Item(ins, localData.lineStartInstruction, stack.pop(), getTargetType(localData.getConstants(), ins)));
+        stack.push(new ConvertAVM2Item(ins, localData.lineStartInstruction, stack.pop(), getTargetType(localData.usedDeobfuscations, localData.abc, localData.getConstants(), ins)));
     }
 
     @Override
@@ -62,7 +68,7 @@ public class ConvertDIns extends InstructionDefinition implements CoerceOrConver
     }
 
     @Override
-    public GraphTargetItem getTargetType(AVM2ConstantPool constants, AVM2Instruction ins) {
+    public GraphTargetItem getTargetType(Set<String> usedDeobfuscations, ABC abc, AVM2ConstantPool constants, AVM2Instruction ins) {
         return new TypeItem(DottedChain.NUMBER);
     }
 }

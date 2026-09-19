@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,26 +25,52 @@ import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
-import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.List;
 import java.util.Set;
 
 /**
+ * Local register.
  *
  * @author JPEXS
  */
 public class LocalRegAVM2Item extends AVM2Item {
 
+    /**
+     * Register index
+     */
     public final int regIndex;
 
+    /***
+     * Computed value
+     */
     public GraphTargetItem computedValue;
 
+    /**
+     * Type
+     */
+    public GraphTargetItem type;
+
+    /**
+     * Computed result
+     */
     private final Object computedResult;
 
+    /**
+     * Is compile time
+     */
     private boolean isCT = false;
 
-    public LocalRegAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, int regIndex, GraphTargetItem computedValue) {
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param regIndex Register index
+     * @param computedValue Computed value
+     * @param type Type
+     */
+    public LocalRegAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, int regIndex, GraphTargetItem computedValue, GraphTargetItem type) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.regIndex = regIndex;
         if (computedValue == null) {
@@ -56,6 +82,7 @@ public class LocalRegAVM2Item extends AVM2Item {
             computedResult = null;
         }
         this.computedValue = computedValue;
+        this.type = type;
     }
 
     @Override
@@ -64,7 +91,7 @@ public class LocalRegAVM2Item extends AVM2Item {
             return computedValue.toString(writer, localData);
         }
 
-        String localName = localRegName(localData.localRegNames, regIndex);
+        String localName = localRegName(localData.abc.getSwf(), localData.localRegNames, regIndex, localData.usedDeobfuscations);
         getSrcData().localName = localName;
         return writer.append(localName);
     }
@@ -131,7 +158,7 @@ public class LocalRegAVM2Item extends AVM2Item {
 
     @Override
     public GraphTargetItem returnType() {
-        return TypeItem.UNBOUNDED;
+        return type;
     }
 
     @Override

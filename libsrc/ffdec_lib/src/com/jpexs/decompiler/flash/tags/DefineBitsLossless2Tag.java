@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -43,6 +44,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * DefineBitsLossless2 tag - Contains a lossless compressed image with opacity.
  *
  * @author JPEXS
  */
@@ -86,7 +88,7 @@ public class DefineBitsLossless2Tag extends ImageTag implements AloneTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineBitsLossless2Tag(SWF swf) {
         this(swf, null, swf.getNextCharacterId());
@@ -124,7 +126,7 @@ public class DefineBitsLossless2Tag extends ImageTag implements AloneTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -143,10 +145,10 @@ public class DefineBitsLossless2Tag extends ImageTag implements AloneTag {
             ALPHABITMAPDATA bitmapData = new ALPHABITMAPDATA();
             bitmapData.bitmapPixelData = new int[]{0xff000000};
             ByteArrayOutputStream bitmapDataOS = new ByteArrayOutputStream();
-            SWFOutputStream sos = new SWFOutputStream(bitmapDataOS, getVersion());
+            SWFOutputStream sos = new SWFOutputStream(bitmapDataOS, getVersion(), getCharset());
             sos.writeALPHABITMAPDATA(bitmapData, FORMAT_32BIT_ARGB, 1, 1);
             ByteArrayOutputStream zlibOS = new ByteArrayOutputStream();
-            SWFOutputStream sos2 = new SWFOutputStream(zlibOS, getVersion());
+            SWFOutputStream sos2 = new SWFOutputStream(zlibOS, getVersion(), getCharset());
             sos2.writeBytesZlib(bitmapDataOS.toByteArray());
             return zlibOS.toByteArray();
         } catch (IOException ex) {
@@ -179,10 +181,10 @@ public class DefineBitsLossless2Tag extends ImageTag implements AloneTag {
 
         int format = FORMAT_32BIT_ARGB;
         ByteArrayOutputStream bitmapDataOS = new ByteArrayOutputStream();
-        SWFOutputStream sos = new SWFOutputStream(bitmapDataOS, getVersion());
+        SWFOutputStream sos = new SWFOutputStream(bitmapDataOS, getVersion(), getCharset());
         sos.writeALPHABITMAPDATA(bitmapData, format, width, height);
         ByteArrayOutputStream zlibOS = new ByteArrayOutputStream();
-        SWFOutputStream sos2 = new SWFOutputStream(zlibOS, getVersion());
+        SWFOutputStream sos2 = new SWFOutputStream(zlibOS, getVersion(), getCharset());
         sos2.writeBytesZlib(bitmapDataOS.toByteArray());
         zlibBitmapData = new ByteArrayRange(zlibOS.toByteArray());
         bitmapFormat = format;
@@ -217,6 +219,7 @@ public class DefineBitsLossless2Tag extends ImageTag implements AloneTag {
                 bitmapData = sis.readALPHABITMAPDATA(bitmapFormat, bitmapWidth, bitmapHeight, "bitmapData");
             }
         } catch (IOException ex) {
+            //ignored
         }
         decompressed = true;
     }

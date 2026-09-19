@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.jumps;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -30,11 +31,15 @@ import java.util.HashMap;
 import java.util.List;
 
 /**
+ * iffalse instruction - if value is false, jump.
  *
  * @author JPEXS
  */
 public class IfFalseIns extends InstructionDefinition implements IfTypeIns {
 
+    /**
+     * Constructor
+     */
     public IfFalseIns() {
         super(0x12, "iffalse", new int[]{AVM2Code.DAT_OFFSET}, false);
     }

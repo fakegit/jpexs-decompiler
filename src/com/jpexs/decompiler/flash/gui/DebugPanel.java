@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,13 +16,17 @@
  */
 package com.jpexs.decompiler.flash.gui;
 
+import com.jpexs.debugger.flash.DebuggerCommands;
 import com.jpexs.debugger.flash.Variable;
-import com.jpexs.debugger.flash.messages.in.InBreakAtExt;
 import com.jpexs.debugger.flash.messages.in.InConstantPool;
 import com.jpexs.debugger.flash.messages.in.InFrame;
+import com.jpexs.debugger.flash.messages.in.InGetVariable;
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.configuration.ConfigurationItemChangeListener;
 import com.jpexs.decompiler.flash.gui.DebuggerHandler.BreakListener;
 import com.jpexs.decompiler.flash.gui.abc.ABCPanel;
+import com.jpexs.helpers.Helper;
 import de.hameister.treetable.MyTreeTable;
 import de.hameister.treetable.MyTreeTableModel;
 import java.awt.BorderLayout;
@@ -32,9 +36,18 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.JButton;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
@@ -44,6 +57,7 @@ import javax.swing.JPopupMenu;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
+import javax.swing.JToggleButton;
 import javax.swing.JTree;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -53,26 +67,25 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.tree.TreePath;
 
 /**
- *
  * @author JPEXS
  */
 public class DebugPanel extends JPanel {
 
     private MyTreeTable debugRegistersTable;
 
-    private MyTreeTable debugLocalsTable; //JTable debugLocalsTable;
+    private MyTreeTable debugLocalsTable;
+
+    private MyTreeTable debugWatchesTable;
 
     private MyTreeTable debugScopeTable;
-
-    private JTable callStackTable;
-
-    private JTable stackTable;
 
     private JTable constantPoolTable;
 
     private JTabbedPane varTabs;
 
-    private BreakListener listener;
+    private BreakListener breakListener;
+
+    private DebuggerHandler.FrameChangeListener frameChangeListener;
 
     private JTextArea traceLogTextarea;
 
@@ -84,9 +97,15 @@ public class DebugPanel extends JPanel {
 
     public ABCPanel.VariablesTableModel localsTable;
 
+    private WeakReference<DebuggerSession> currentSessionRef = null;
+    
+    private JToggleButton sortToggleButton;
+
+    private boolean as3;
+
     public static enum SelectedTab {
 
-        LOG, STACK, SCOPECHAIN, LOCALS, REGISTERS, CALLSTACK, CONSTANTPOOL
+        LOG, STACK, SCOPECHAIN, LOCALS, WATCHES, REGISTERS, CALLSTACK, CONSTANTPOOL
     }
 
     public synchronized boolean isLoading() {
@@ -95,6 +114,7 @@ public class DebugPanel extends JPanel {
 
     public synchronized void setLoading(boolean loading) {
         this.loading = loading;
+        //varTabs.setVisible(!loading);
     }
 
     private SelectedTab selectedTab = null;
@@ -134,10 +154,30 @@ public class DebugPanel extends JPanel {
 
     }
 
-    public DebugPanel() {
+    private void logAdd(DebuggerSession session, String message) {
+        boolean wasEmpty = logLength == 0;
+        String add = message + "\r\n";
+        logLength += add.length();
+        traceLogTextarea.append(add);
+        try {
+            traceLogTextarea.setCaretPosition(logLength);
+        } catch (IllegalArgumentException iex) {
+            //ignore
+        }
+        if (wasEmpty) {
+            refresh();
+        }
+    }
+
+    public DebugPanel(boolean as3) {
         super(new BorderLayout());
-        debugRegistersTable = new MyTreeTable(new ABCPanel.VariablesTableModel(debugRegistersTable, new ArrayList<>(), new ArrayList<>()), false);
-        debugLocalsTable = new MyTreeTable(new ABCPanel.VariablesTableModel(debugLocalsTable, new ArrayList<>(), new ArrayList<>()), false);
+        this.as3 = as3;
+        
+        sortToggleButton = new JToggleButton(View.getIcon("sort16"));
+        
+        debugRegistersTable = new MyTreeTable(new ABCPanel.VariablesTableModel(null, as3, debugRegistersTable, new ArrayList<>(), new ArrayList<>(), false), false);
+        debugLocalsTable = new MyTreeTable(new ABCPanel.VariablesTableModel(null, as3, debugLocalsTable, new ArrayList<>(), new ArrayList<>(), false), false);
+        debugWatchesTable = new MyTreeTable(new ABCPanel.VariablesTableModel(null, as3, debugWatchesTable, new ArrayList<>(), new ArrayList<>(), false), false);
 
         MouseAdapter watchHandler = new MouseAdapter() {
 
@@ -156,69 +196,237 @@ public class DebugPanel extends JPanel {
             }
 
             private void dopop(MouseEvent e) {
-                if (debugLocalsTable.getSelectedRow() == -1) {
+
+                if (currentSessionRef == null) {
                     return;
                 }
-                Object node = debugLocalsTable.getTree().getPathForRow(debugLocalsTable.getSelectedRow()).getLastPathComponent();
+                DebuggerSession session = currentSessionRef.get();
+                if (session == null) {
+                    return;
+                }
+
+                MyTreeTable src = (MyTreeTable) e.getSource();
+
+                if (src.getSelectedRow() == -1) {
+                    return;
+                }
+                Object node = src.getTree().getPathForRow(src.getSelectedRow()).getLastPathComponent();
                 Variable v;
                 ABCPanel.VariableNode vn;
                 if (node instanceof ABCPanel.VariableNode) {
                     vn = ((ABCPanel.VariableNode) node);
-                    v = vn.var;
+                    v = vn.varInsideGetter != null ? vn.varInsideGetter : vn.var;
                 } else {
                     return;
                 }
 
                 JPopupMenu pm = new JPopupMenu();
-                //TODO!!
-                /*if (v.typeName != null && v.typeName.startsWith("flash.utils::ByteArray")) {
-                    JMenu exportMenu = new JMenu("Export %name%".replace("%name%", v.name));
-                    JMenuItem exportByteArray = new JMenuItem("Export bytearray");
-                    exportByteArray.addActionListener((ActionEvent e1) -> {
-                        Main.dumpBytes(v);
+                boolean isByteArray = false;
+                for (Variable t : vn.traits) {
+                    if ("flash.utils::ByteArray".equals(t.name)) {
+                        isByteArray = true;
+                        break;
+                    }
+                }
+                if (isByteArray) {
+                    JMenu exportMenu = new JMenu(AppStrings.translate("debug.export").replace("%name%", v.name));
+                    JMenuItem exportByteArrayMenuItem = new JMenuItem(AppStrings.translate("debug.export.bytearray"));
+                    exportByteArrayMenuItem.addActionListener((ActionEvent e1) -> {
+                        JFileChooser fc = new JFileChooser();
+                        fc.setCurrentDirectory(new File(Configuration.lastExportDir.get()));
+                        if (fc.showSaveDialog(Main.getDefaultMessagesComponent()) == JFileChooser.APPROVE_OPTION) {
+                            File file = Helper.fixDialogFile(fc.getSelectedFile());
+
+                            //Variant with direct calling readByte - SLOW
+                            /*
+                            try (FileOutputStream fos = new FileOutputStream(file)) {
+                                Main.debugExportByteArray(v, fos);
+                                fos.write(data);
+                                Configuration.lastExportDir.set(file.getParentFile().getAbsolutePath());
+                            } catch (IOException ex) {
+                                Logger.getLogger(DebugPanel.class.getName()).log(Level.SEVERE, null, ex); 
+                                ViewMessages.showMessageDialog(Main.getDefaultMessagesComponent(), AppStrings.translate("error.file.save") + ": " + ex.getLocalizedMessage(), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                            }
+                             */
+                            //Asynchronous variant
+                            /*DebuggerTools.initDebugger().addMessageListener(new DebugAdapter() {                                
+
+                                @Override
+                                public void onDumpByteArray(String clientId, byte[] data) {
+                                    try (FileOutputStream fos = new FileOutputStream(file)) {
+                                        fos.write(data);
+                                        Configuration.lastExportDir.set(file.getParentFile().getAbsolutePath());
+                                    } catch (IOException ex) {
+                                        Logger.getLogger(DebugPanel.class.getName()).log(Level.SEVERE, null, ex); 
+                                        ViewMessages.showMessageDialog(Main.getDefaultMessagesComponent(), AppStrings.translate("error.file.save") + ": " + ex.getLocalizedMessage(), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                                    }
+                                    DebuggerTools.initDebugger().removeMessageListener(this);
+                                }                                                 
+                            });    
+                            Variable debugConnectionClass = Main.getDebugHandler().getVariable(0, Main.currentDebuggerPackage + "::DebugConnection", false, false).parent;
+                            try {
+                                Main.getDebugHandler().callMethod(debugConnectionClass, "writeMsg", Arrays.asList(v, (Double) (double) Debugger.MSG_DUMP_BYTEARRAY));
+                            } catch (DebuggerHandler.ActionScriptException ex) {
+                                Logger.getLogger(DebugPanel.class.getName()).log(Level.SEVERE, "Error exporting ByteArray", ex);
+                            }*/
+                            //Variant using comma separated bytes, pretty fast
+                            try {
+                                InGetVariable igv = session.getVariable(0, Main.currentDebuggerPackage + "::DebugConnection", false, false);
+                                if (igv == null) {
+                                    return;
+                                }
+                                Variable debugConnectionClass = igv.parent;
+                                String dataStr = (String) session.callMethod(debugConnectionClass, "readCommaSeparatedFromByteArray", Arrays.asList(v)).variables.get(0).value;
+                                String[] parts = dataStr.split(",");
+                                byte[] data = new byte[parts.length];
+                                for (int i = 0; i < parts.length; i++) {
+                                    data[i] = (byte) Integer.parseInt(parts[i]);
+                                }
+
+                                try (FileOutputStream fos = new FileOutputStream(file)) {
+                                    fos.write(data);
+                                    Configuration.lastExportDir.set(file.getParentFile().getAbsolutePath());
+                                } catch (IOException ex) {
+                                    Logger.getLogger(DebugPanel.class.getName()).log(Level.SEVERE, null, ex);
+                                    ViewMessages.showMessageDialog(Main.getDefaultMessagesComponent(), AppStrings.translate("error.file.save") + ": " + ex.getLocalizedMessage(), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                                }
+                            } catch (DebuggerHandler.ActionScriptException ex) {
+                                Logger.getLogger(DebugPanel.class.getName()).log(Level.SEVERE, "Error exporting ByteArray", ex);
+                            }
+                        }
                     });
 
-                    exportMenu.add(exportByteArray);
+                    exportMenu.add(exportByteArrayMenuItem);
                     pm.add(exportMenu);
-                }*/
+
+                    JMenu importMenu = new JMenu(AppStrings.translate("debug.import").replace("%name%", v.name));
+                    JMenuItem importByteArrayMenuItem = new JMenuItem(AppStrings.translate("debug.import.bytearray"));
+                    importByteArrayMenuItem.addActionListener((ActionEvent e1) -> {
+                        JFileChooser fc = new JFileChooser();
+                        fc.setCurrentDirectory(new File(Configuration.lastOpenDir.get()));
+                        if (fc.showOpenDialog(Main.getDefaultMessagesComponent()) == JFileChooser.APPROVE_OPTION) {
+                            File file = Helper.fixDialogFile(fc.getSelectedFile());
+                            Configuration.lastOpenDir.set(file.getParentFile().getAbsolutePath());
+
+                            //Variant with asynchronous connection
+                            /*DebuggerTools.initDebugger().addMessageListener(new DebugAdapter() {  
+                                @Override
+                                public byte[] onRequestBytes(String clientId) {
+                                    byte[] data = null;
+                                    try {
+                                        data = Helper.readFileEx(file.getAbsolutePath());
+                                    } catch (IOException ex) {
+                                        Logger.getLogger(DebugPanel.class.getName()).log(Level.SEVERE, null, ex); 
+                                        ViewMessages.showMessageDialog(Main.getDefaultMessagesComponent(), AppStrings.translate("error.file.save") + ": " + ex.getLocalizedMessage(), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);                                                               
+                                    }
+                                    DebuggerTools.initDebugger().removeMessageListener(this);
+                                    return data;
+                                }
+                            });
+                            Variable debugConnectionClass = Main.getDebugHandler().getVariable(0, Main.currentDebuggerPackage + "::DebugConnection", false, false).parent;
+                            try {
+                                Main.getDebugHandler().callMethod(debugConnectionClass, "writeMsg", Arrays.asList(v, (Double) (double) Debugger.MSG_REQUEST_BYTEARRAY));
+                            } catch (DebuggerHandler.ActionScriptException ex) {
+                                Logger.getLogger(DebugPanel.class.getName()).log(Level.SEVERE, "Error exporting ByteArray", ex);
+                            }*/
+                            //Variant with direct writeByte calls - SLOW
+                            /*try (FileInputStream fis = new FileInputStream(file)) {
+                                Main.debugImportByteArray(v, fis);
+                            } catch (IOException ex) {
+                                Logger.getLogger(DebugPanel.class.getName()).log(Level.SEVERE, null, ex); 
+                                ViewMessages.showMessageDialog(Main.getDefaultMessagesComponent(), AppStrings.translate("error.file.save") + ": " + ex.getLocalizedMessage(), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);                                                               
+                            }*/
+                            //Variant with using comma separated bytes, pretty fast
+                            try {
+                                byte[] data = Helper.readFileEx(file.getAbsolutePath());
+                                String splitter = "";
+                                StringBuilder sb = new StringBuilder();
+                                for (int i = 0; i < data.length; i++) {
+                                    sb.append(splitter);
+                                    sb.append(data[i] & 0xff);
+                                    splitter = ",";
+                                }
+                                String dataStr = sb.toString();
+                                Variable debugConnectionClass = session.getVariable(0, Main.currentDebuggerPackage + "::DebugConnection", false, false).parent;
+                                try {
+                                    session.callMethod(debugConnectionClass, "writeCommaSeparatedToByteArray", Arrays.asList(dataStr, v));
+                                } catch (DebuggerHandler.ActionScriptException ex) {
+                                    Logger.getLogger(DebugPanel.class.getName()).log(Level.SEVERE, "Error exporting ByteArray", ex);
+                                }
+                            } catch (IOException ex) {
+                                Logger.getLogger(DebugPanel.class.getName()).log(Level.SEVERE, null, ex);
+                                ViewMessages.showMessageDialog(Main.getDefaultMessagesComponent(), AppStrings.translate("error.file.save") + ": " + ex.getLocalizedMessage(), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                            }
+                        }
+                    });
+
+                    importMenu.add(importByteArrayMenuItem);
+                    pm.add(importMenu);
+                }
                 long watchParentId = vn.parentObjectId;
 
                 JMenu addWatchMenu = new JMenu(AppStrings.translate("debug.watch.add").replace("%name%", v.name));
                 JMenuItem watchReadMenuItem = new JMenuItem(AppStrings.translate("debug.watch.add.read"));
                 watchReadMenuItem.addActionListener((ActionEvent e1) -> {
-                    if (!Main.addWatch(v, watchParentId, true, false)) {
+                    if (!Main.addWatch(session, v, watchParentId, true, false)) {
                         ViewMessages.showMessageDialog(DebugPanel.this, AppStrings.translate("error.debug.watch.add"), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                        return;
                     }
+                    refresh();
                 });
                 JMenuItem watchWriteMenuItem = new JMenuItem(AppStrings.translate("debug.watch.add.write"));
                 watchWriteMenuItem.addActionListener((ActionEvent e1) -> {
-                    if (!Main.addWatch(v, watchParentId, false, true)) {
+                    if (!Main.addWatch(session, v, watchParentId, false, true)) {
                         ViewMessages.showMessageDialog(DebugPanel.this, AppStrings.translate("error.debug.watch.add"), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                        return;
                     }
+                    refresh();
                 });
                 JMenuItem watchReadWriteMenuItem = new JMenuItem(AppStrings.translate("debug.watch.add.readwrite"));
                 watchReadWriteMenuItem.addActionListener((ActionEvent e1) -> {
-                    if (!Main.addWatch(v, watchParentId, true, true)) {
+                    if (!Main.addWatch(session, v, watchParentId, true, true)) {
                         ViewMessages.showMessageDialog(DebugPanel.this, AppStrings.translate("error.debug.watch.add"), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                        return;
                     }
+                    refresh();
                 });
 
                 addWatchMenu.add(watchReadMenuItem);
                 addWatchMenu.add(watchWriteMenuItem);
                 addWatchMenu.add(watchReadWriteMenuItem);
                 pm.add(addWatchMenu);
+
+                JMenuItem removeWatchMenuItem = new JMenuItem(AppStrings.translate("debug.watch.remove"));
+                removeWatchMenuItem.addActionListener((ActionEvent e1) -> {
+                    if (!Main.removeWatch(session, v, watchParentId)) {
+                        ViewMessages.showMessageDialog(DebugPanel.this, AppStrings.translate("error.debug.watch.remove"), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                    refresh();
+                });
+                if (session.getWatch(v.name, watchParentId) != null) {
+                    pm.add(removeWatchMenuItem);
+                }
                 pm.show(e.getComponent(), e.getX(), e.getY());
             }
         };
 
         debugLocalsTable.addMouseListener(watchHandler);
+        debugWatchesTable.addMouseListener(watchHandler);
 
         //debugScopeTable.addMouseListener(watchHandler);                           
-        debugScopeTable = new MyTreeTable(new ABCPanel.VariablesTableModel(debugScopeTable, new ArrayList<>(), new ArrayList<>()), false);
+        debugScopeTable = new MyTreeTable(new ABCPanel.VariablesTableModel(null, as3, debugScopeTable, new ArrayList<>(), new ArrayList<>(), false), false);
 
-        callStackTable = new JTable();
-        stackTable = new JTable();
-        constantPoolTable = new JTable();
+        constantPoolTable = new JTable(new DefaultTableModel(new Object[2][0], new Object[]{
+            AppStrings.translate("constantpool.header.id"),
+            AppStrings.translate("constantpool.header.value")
+        }) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+
+        });
         traceLogTextarea = new JTextArea();
         traceLogTextarea.setEditable(false);
         traceLogTextarea.setOpaque(false);
@@ -230,62 +438,95 @@ public class DebugPanel extends JPanel {
         Main.getDebugHandler().addTraceListener(new DebuggerHandler.TraceListener() {
 
             @Override
-            public void trace(String... val) {
+            public void trace(DebuggerSession session, String... val) {
                 for (String s : val) {
-                    String add = "trace: " + s + "\r\n";
-                    boolean wasEmpty = logLength == 0;
-                    logLength += add.length();
-                    traceLogTextarea.append(add);
-                    try {
-                        traceLogTextarea.setCaretPosition(logLength);
-                    } catch (IllegalArgumentException iex) {
-                        //ignore
-                    }
-                    if (wasEmpty) {
-                        refresh();
-                    }
+                    logAdd(session, "trace: " + s);
                 }
+            }
+        });
+
+        Main.getDebugHandler().addErrorListener(new DebuggerHandler.ErrorListener() {
+            @Override
+            public void errorException(DebuggerSession session, String message, Variable thrownVar) {
+                logAdd(session, "unhandled exception: " + message);
+                selectedTab = tabTypes.get(tabTypes.size() - 1);
+                refresh();
             }
         });
 
         Main.getDebugHandler().addConnectionListener(new DebuggerHandler.ConnectionListener() {
 
             @Override
-            public void connected() {
+            public void connected(DebuggerSession session) {
             }
 
             @Override
-            public void disconnected() {
+            public void disconnected(DebuggerSession session) {
                 refresh();
             }
         });
 
-        Main.getDebugHandler().addBreakListener(listener = new DebuggerHandler.BreakListener() {
-
+        Main.getDebugHandler().addSelectionListener(new DebuggerHandler.SessionSelectionListener() {
             @Override
-            public void doContinue() {
-                View.execInEventDispatch(new Runnable() {
-
-                    @Override
-                    public void run() {
-                        refresh();
-                    }
-
-                });
-            }
-
-            @Override
-            public void breakAt(String scriptName, int line, int classIndex, int traitIndex, int methodIndex) {
-                View.execInEventDispatch(new Runnable() {
-
-                    @Override
-                    public void run() {
-                        refresh();
-                    }
-                });
-
+            public void sessionSelected(DebuggerSession newSession, int oldSessionId) {
+                refresh();
             }
         });
+
+        Main.getDebugHandler().addFrameChangeListener(frameChangeListener = new DebuggerHandler.FrameChangeListener() {
+            @Override
+            public void frameChanged(DebuggerSession session) {
+                /*DebuggerSession currentSession = Main.getCurrentDebugSession();
+                if (session != currentSession) {
+                    return;
+                } */
+
+                refresh();
+            }
+        });
+
+        Main.getDebugHandler().addBreakListener(breakListener = new DebuggerHandler.BreakListener() {
+
+            @Override
+            public void doContinue(DebuggerSession session) {
+                refresh();
+            }
+
+            @Override
+            public void breakAt(DebuggerSession session, String scriptName, int line, int classIndex, int traitIndex, int methodIndex) {
+                /*View.execInEventDispatch(new Runnable() {
+                    @Override
+                    public void run() {
+                        refresh(Main.getCurrentDebugSession());
+                    }
+                });*/
+                //reacts to frameChanged instead                
+            }
+        });
+        
+        sortToggleButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                refresh();
+            }            
+        });
+        sortToggleButton.setToolTipText(AppStrings.translate("sort.alphabetically"));
+        sortToggleButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                Configuration.sortDebugVariablesAlphabetically.set(sortToggleButton.isSelected());
+            }            
+        });
+        Configuration.sortDebugVariablesAlphabetically.addListener(new ConfigurationItemChangeListener<Boolean>() {
+            @Override
+            public void configurationItemChanged(Boolean newValue) {
+                sortToggleButton.setSelected(newValue);
+                refresh();
+            }            
+        });
+        JPanel bottomButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        bottomButtonsPanel.add(sortToggleButton);
+        
 
         varTabs = new JTabbedPane();
         varTabs.addChangeListener(new ChangeListener() {
@@ -300,6 +541,11 @@ public class DebugPanel extends JPanel {
                         int si = varTabs.getSelectedIndex();
                         if (si > -1 && si < tabTypes.size()) {
                             selectedTab = tabTypes.get(si);
+                            
+                            bottomButtonsPanel.setVisible(
+                                    selectedTab == SelectedTab.LOCALS
+                                    || selectedTab == SelectedTab.WATCHES
+                            );
                         }
                     }
                 }
@@ -308,6 +554,10 @@ public class DebugPanel extends JPanel {
 
         add(new HeaderLabel(AppStrings.translate("debugpanel.header")), BorderLayout.NORTH);
         add(varTabs, BorderLayout.CENTER);
+        
+        
+        
+        add(bottomButtonsPanel, BorderLayout.SOUTH);                
     }
 
     /*    private void getVariableList() {
@@ -337,230 +587,275 @@ public class DebugPanel extends JPanel {
         }
         return v.getMembers(this);
     }*/
-    public void refresh() {
+    private final Object refreshLock = new Object();
 
-        View.execInEventDispatch(new Runnable() {
+    public void refresh() {
+        DebuggerSession session = Main.getCurrentDebugSession();
+
+        if (session != null) {
+            SWF swf = session.getCurrentSwf();
+            if (swf != null) {
+                if (swf.isAS3() != as3) {
+                    return;
+                }
+            }
+        }
+
+        currentSessionRef = session == null ? null : new WeakReference<>(session);
+        Runnable r = new Runnable() {
 
             @Override
             public void run() {
-                setLoading(true);
-                synchronized (DebugPanel.this) {
+                synchronized (refreshLock) {
+                    try {
+                        setLoading(true);
 
-                    SelectedTab oldSel = selectedTab;
-                    localsTable = null;
-                    InFrame f = Main.getDebugHandler().getFrame();
-                    if (f != null) {
+                        boolean sort = sortToggleButton.isSelected();
+                        
+                        int sessionId = -1;
 
-                        List<Long> regVarIds = new ArrayList<>();
-                        for (int i = 0; i < f.registers.size(); i++) {
-                            regVarIds.add(0L);
-                        }
-                        safeSetTreeModel(debugRegistersTable, new ABCPanel.VariablesTableModel(debugRegistersTable, f.registers, regVarIds));
-                        List<Variable> locals = new ArrayList<>();
-                        locals.addAll(f.arguments);
-                        locals.addAll(f.variables);
-
-                        List<Long> localIds = new ArrayList<>();
-                        localIds.addAll(f.argumentFrameIds);
-                        localIds.addAll(f.frameIds);
-
-                        localsTable = new ABCPanel.VariablesTableModel(debugLocalsTable, locals, localIds);
-                        safeSetTreeModel(debugLocalsTable, localsTable);
-                        safeSetTreeModel(debugScopeTable, new ABCPanel.VariablesTableModel(debugScopeTable, f.scopeChain, f.scopeChainFrameIds));
-
-                        /*TableModelListener refreshListener = new TableModelListener() {
-                         @Override
-                         public void tableChanged(TableModelEvent e) {
-                         Main.getDebugHandler().refreshFrame();
-                         refresh();
-                         }
-                         };*/
-                        TreeModelListener refreshListener = new TreeModelListener() {
-                            @Override
-                            public void treeNodesChanged(TreeModelEvent e) {
-                                Main.getDebugHandler().refreshFrame();
-                                refresh();
-                            }
-
-                            @Override
-                            public void treeNodesInserted(TreeModelEvent e) {
-                                Main.getDebugHandler().refreshFrame();
-                                refresh();
-                            }
-
-                            @Override
-                            public void treeNodesRemoved(TreeModelEvent e) {
-                                Main.getDebugHandler().refreshFrame();
-                                refresh();
-                            }
-
-                            @Override
-                            public void treeStructureChanged(TreeModelEvent e) {
-                                Main.getDebugHandler().refreshFrame();
-                                refresh();
-                            }
-                        };
-                        debugLocalsTable.getTreeTableModel().addTreeModelListener(refreshListener);
-                        debugScopeTable.getTreeTableModel().addTreeModelListener(refreshListener);
-                    } else {
-                        debugRegistersTable.setTreeModel(new ABCPanel.VariablesTableModel(debugRegistersTable, new ArrayList<>(), new ArrayList<>()));
-                        debugLocalsTable.setTreeModel(new ABCPanel.VariablesTableModel(debugLocalsTable, new ArrayList<>(), new ArrayList<>()));
-                        debugScopeTable.setTreeModel(new ABCPanel.VariablesTableModel(debugScopeTable, new ArrayList<>(), new ArrayList<>()));
-                    }
-                    InBreakAtExt info = Main.getDebugHandler().getBreakInfo();
-                    if (info != null) {
-                        //InBreakReason reason = Main.getDebugHandler().getBreakReason();
-                        List<String> callStackFiles = new ArrayList<>();
-                        List<Integer> callStackLines = new ArrayList<>();
-
-                        callStackFiles.add(Main.getDebugHandler().moduleToString(info.file));
-                        callStackLines.add(info.line);
-
-                        for (int i = 0; i < info.files.size(); i++) {
-                            callStackFiles.add(Main.getDebugHandler().moduleToString(info.files.get(i)));
-                            callStackLines.add(info.lines.get(i));
-                        }
-                        Object[][] data = new Object[callStackFiles.size()][2];
-                        for (int i = 0; i < callStackFiles.size(); i++) {
-                            data[i][0] = callStackFiles.get(i);
-                            data[i][1] = callStackLines.get(i);
+                        if (session != null) {
+                            sessionId = session.getId();
+                            ABCPanel.VariableNode.stopLoading(sessionId); //stop any previous loading                            
                         }
 
-                        DefaultTableModel tm = new DefaultTableModel(data, new Object[]{
-                            AppStrings.translate("callStack.header.file"),
-                            AppStrings.translate("callStack.header.line")
-                        }) {
-                            @Override
-                            public boolean isCellEditable(int row, int column) {
-                                return false;
+                        Logger.getLogger(DebugPanel.class.getName()).log(Level.FINE, "session{0}: Refreshing debug panel", new Object[]{sessionId});
+
+                        localsTable = null;
+                        InFrame f = session == null ? null : session.getFrame();
+
+                        ABCPanel.VariablesTableModel registersTableModel = new ABCPanel.VariablesTableModel(session, as3, debugRegistersTable, new ArrayList<>(), new ArrayList<>(), sort);
+                        ABCPanel.VariablesTableModel localsTableModel = new ABCPanel.VariablesTableModel(session, as3, debugLocalsTable, new ArrayList<>(), new ArrayList<>(), sort);
+                        ABCPanel.VariablesTableModel scopeTableModel = new ABCPanel.VariablesTableModel(session, as3, debugScopeTable, new ArrayList<>(), new ArrayList<>(), sort);
+                        ABCPanel.VariablesTableModel watchesTableModel = new ABCPanel.VariablesTableModel(session, as3, debugWatchesTable, new ArrayList<>(), new ArrayList<>(), sort);
+                        ABCPanel.VariablesTableModel fRegistersTableModel;
+                        ABCPanel.VariablesTableModel fLocalsTableModel;
+                        ABCPanel.VariablesTableModel fScopeTableModel;
+                        ABCPanel.VariablesTableModel fWatchesTableModel;
+                        Object[][] fCpoolData;
+
+                        if (f != null) {
+
+                            Logger.getLogger(DebugPanel.class.getName()).log(Level.FINE, "session{0}: Debug panel - has frame", new Object[]{sessionId});
+
+                            List<Variable> locals = new ArrayList<>();
+
+                            Map<String, Long> placedObjects = session.getPlacedObjects();
+                            for (String poName : placedObjects.keySet()) {
+                                String realName = poName;
+                                if ("/".equals(realName)) {
+                                    realName = "_root";
+                                } else if (realName.startsWith("/")) {
+                                    continue;
+                                }
+                                Logger.getLogger(DebugPanel.class.getName()).log(Level.FINE, "session{0}: Getting placedObject {1}", new Object[]{sessionId, realName});
+                                InGetVariable igv = session.getVariable(0, realName, false, false);
+                                if (igv != null) {
+                                    Variable placedVar = igv.parent;
+                                    if (placedVar != null) {
+                                        locals.add(placedVar);
+                                    }
+                                } else {
+                                    Logger.getLogger(DebugPanel.class.getName()).log(Level.FINE, "session{0}: Cannot get placedObject {1}", new Object[]{sessionId, realName});
+                                }
                             }
 
-                        };
-                        callStackTable.setModel(tm);
+                            locals.addAll(f.arguments);
+                            locals.addAll(f.variables);
+                            
+                            localsTable = new ABCPanel.VariablesTableModel(session, as3, debugLocalsTable, locals, null, sort);
 
-                        Object[][] data2 = new Object[info.stacks.size()][1];
-                        for (int i = 0; i < info.stacks.size(); i++) {
-                            data2[i][0] = info.stacks.get(i);
+                            List<Variable> watchedVars = new ArrayList<>();
+                            List<Long> watchedParentIds = new ArrayList<>();
+                            for (DebuggerCommands.Watch w : session.getWatches().values()) {
+                                InGetVariable igv = session.getVariable(w.varId, w.varName, false, true);
+                                if (igv != null) {
+                                    Variable wVar = igv.parent;
+                                    if (wVar != null) {
+                                        watchedVars.add(wVar);
+                                        watchedParentIds.add(w.varId);
+                                    }
+                                }
+                            }
+
+                            TreeModelListener refreshListener = new TreeModelListener() {
+                                @Override
+                                public void treeNodesChanged(TreeModelEvent e) {
+                                    synchronized (DebugPanel.this) {
+                                        if (loading) {
+                                            return;
+                                        }
+                                    }
+                                    session.refreshFrame();
+                                }
+
+                                @Override
+                                public void treeNodesInserted(TreeModelEvent e) {                                    
+                                }
+
+                                @Override
+                                public void treeNodesRemoved(TreeModelEvent e) {
+                                    
+                                }
+
+                                @Override
+                                public void treeStructureChanged(TreeModelEvent e) {
+                                    
+                                }
+                            };
+
+                            registersTableModel = new ABCPanel.VariablesTableModel(session, as3, debugRegistersTable, f.registers, null, sort);
+                            localsTableModel = localsTable;
+                            scopeTableModel = new ABCPanel.VariablesTableModel(session, as3, debugScopeTable, f.scopeChain, null, sort);
+                            watchesTableModel = new ABCPanel.VariablesTableModel(session, as3, debugWatchesTable, watchedVars, watchedParentIds, sort);
+
+                            localsTableModel.addTreeModelListener(refreshListener);
+                            scopeTableModel.addTreeModelListener(refreshListener);
+                            watchesTableModel.addTreeModelListener(refreshListener);
                         }
-                        stackTable.setModel(new DefaultTableModel(data2, new Object[]{AppStrings.translate("stack.header.item")}) {
-                            @Override
-                            public boolean isCellEditable(int row, int column) {
-                                return false;
+                        InConstantPool cpool = session == null ? null : session.getConstantPool();
+                        Object[][] cpoolData = new Object[0][2];
+                        if (cpool != null) {
+                            cpoolData = new Object[cpool.vars.size()][2];
+                            for (int i = 0; i < cpool.vars.size(); i++) {
+                                cpoolData[i][0] = cpool.ids.get(i);
+                                cpoolData[i][1] = cpool.vars.get(i).value;
                             }
+                        }
 
+                        fRegistersTableModel = registersTableModel;
+                        fLocalsTableModel = localsTableModel;
+                        fScopeTableModel = scopeTableModel;
+                        fWatchesTableModel = watchesTableModel;
+                        fCpoolData = cpoolData;
+
+                        View.execInEventDispatch(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    if (f != null) {
+                                        safeSetTreeModel(debugRegistersTable, fRegistersTableModel);
+                                        safeSetTreeModel(debugLocalsTable, fLocalsTableModel);
+                                        safeSetTreeModel(debugScopeTable, fScopeTableModel);
+                                        safeSetTreeModel(debugWatchesTable, fWatchesTableModel);
+                                    } else {
+                                        debugRegistersTable.setTreeModel(fRegistersTableModel);
+                                        debugLocalsTable.setTreeModel(fLocalsTableModel);
+                                        debugScopeTable.setTreeModel(fScopeTableModel);
+                                        debugWatchesTable.setTreeModel(fWatchesTableModel);
+                                    }
+
+                                    constantPoolTable.setModel(new DefaultTableModel(fCpoolData, new Object[]{
+                                        AppStrings.translate("constantpool.header.id"),
+                                        AppStrings.translate("constantpool.header.value")
+                                    }) {
+                                        @Override
+                                        public boolean isCellEditable(int row, int column) {
+                                            return false;
+                                        }
+
+                                    });
+
+                                    varTabs.removeAll();
+                                    tabTypes.clear();
+                                    JPanel pa;
+                                    if (debugRegistersTable.getRowCount() > 0) {
+                                        tabTypes.add(SelectedTab.REGISTERS);
+                                        pa = new JPanel(new BorderLayout());
+                                        pa.add(new FasterScrollPane(debugRegistersTable), BorderLayout.CENTER);
+                                        varTabs.addTab(AppStrings.translate("variables.header.registers"), pa);
+                                    }
+                                    if (debugLocalsTable.getRowCount() > 0) {
+                                        tabTypes.add(SelectedTab.LOCALS);
+
+                                        pa = new JPanel(new BorderLayout());
+                                        pa.add(new FasterScrollPane(debugLocalsTable), BorderLayout.CENTER);
+                                        varTabs.addTab(AppStrings.translate("variables.header.locals"), pa);
+                                    }
+
+                                    if (debugWatchesTable.getRowCount() > 0) {
+                                        tabTypes.add(SelectedTab.WATCHES);
+
+                                        pa = new JPanel(new BorderLayout());
+                                        pa.add(new FasterScrollPane(debugWatchesTable), BorderLayout.CENTER);
+                                        varTabs.addTab(AppStrings.translate("variables.header.watches"), pa);
+                                    }
+
+                                    if (debugScopeTable.getRowCount() > 0) {
+                                        tabTypes.add(SelectedTab.SCOPECHAIN);
+
+                                        pa = new JPanel(new BorderLayout());
+                                        pa.add(new FasterScrollPane(debugScopeTable), BorderLayout.CENTER);
+                                        varTabs.addTab(AppStrings.translate("variables.header.scopeChain"), pa);
+                                    }
+
+                                    if (constantPoolTable.getRowCount() > 0) {
+                                        tabTypes.add(SelectedTab.CONSTANTPOOL);
+
+                                        pa = new JPanel(new BorderLayout());
+                                        pa.add(new FasterScrollPane(constantPoolTable), BorderLayout.CENTER);
+                                        varTabs.addTab(AppStrings.translate("constantpool.header"), pa);
+                                    }
+
+                                    if (logLength > 0) {
+                                        tabTypes.add(SelectedTab.LOG);
+
+                                        pa = new JPanel(new BorderLayout());
+                                        pa.add(new FasterScrollPane(traceLogTextarea), BorderLayout.CENTER);
+                                        JButton clearButton = new JButton(AppStrings.translate("debuglog.button.clear"));
+                                        clearButton.addActionListener(new ActionListener() {
+
+                                            @Override
+                                            public void actionPerformed(ActionEvent e) {
+                                                traceLogTextarea.setText("");
+                                                logLength = 0;
+                                                refresh();
+                                            }
+                                        });
+                                        JPanel butPanel = new JPanel(new FlowLayout());
+                                        butPanel.add(clearButton);
+                                        pa.add(butPanel, BorderLayout.SOUTH);
+                                        varTabs.addTab(AppStrings.translate("debuglog.header"), pa);
+                                    }
+                                    boolean newVisible = !tabTypes.isEmpty();
+                                    if (newVisible != isVisible()) {
+                                        setVisible(newVisible);
+                                    }
+
+                                    SelectedTab oldSel = selectedTab;
+
+                                    if (!tabTypes.isEmpty()) {
+                                        if (oldSel != null && !tabTypes.contains(oldSel)) {
+                                            oldSel = null;
+                                        }
+                                    }
+                                    if (oldSel != null) {
+                                        selectedTab = oldSel;
+                                        varTabs.setSelectedIndex(tabTypes.indexOf(selectedTab));
+                                    }
+                                } catch (Throwable t) {
+                                    int sessionId = session == null ? -1 : session.getId();
+                                    Logger.getLogger(DebugPanel.class.getName()).log(Level.FINE, "session" + sessionId + ": Error refeshing debug panel in UI thread", t);
+                                }
+
+                                setLoading(false);
+                                Logger.getLogger(DebugPanel.class.getName()).log(Level.FINE, "session{0}: Refreshed debug panel", new Object[]{session == null ? -1 : session.getId()});
+
+                            }
                         });
-                    } else {
-                        callStackTable.setModel(new DefaultTableModel());
-                        stackTable.setModel(new DefaultTableModel());
+                    } catch (Throwable t) {
+                        int sessionId = session == null ? -1 : session.getId();
+                        Logger.getLogger(DebugPanel.class.getName()).log(Level.FINE, "session" + sessionId + ": Error refreshing debug panel", t);
                     }
-                    InConstantPool cpool = Main.getDebugHandler().getConstantPool();
-                    if (cpool != null) {
-                        Object[][] data2 = new Object[cpool.vars.size()][2];
-                        for (int i = 0; i < cpool.vars.size(); i++) {
-                            data2[i][0] = cpool.ids.get(i);
-                            data2[i][1] = cpool.vars.get(i).value;
-                        }
-                        constantPoolTable.setModel(new DefaultTableModel(data2, new Object[]{
-                            AppStrings.translate("constantpool.header.id"),
-                            AppStrings.translate("constantpool.header.value")
-                        }) {
-                            @Override
-                            public boolean isCellEditable(int row, int column) {
-                                return false;
-                            }
-
-                        });
-                    }
-
-                    varTabs.removeAll();
-                    tabTypes.clear();
-                    JPanel pa;
-                    if (debugRegistersTable.getRowCount() > 0) {
-                        tabTypes.add(SelectedTab.REGISTERS);
-                        pa = new JPanel(new BorderLayout());
-                        pa.add(new FasterScrollPane(debugRegistersTable), BorderLayout.CENTER);
-                        varTabs.addTab(AppStrings.translate("variables.header.registers"), pa);
-                    }
-                    if (debugLocalsTable.getRowCount() > 0) {
-                        tabTypes.add(SelectedTab.LOCALS);
-
-                        pa = new JPanel(new BorderLayout());
-                        pa.add(new FasterScrollPane(debugLocalsTable), BorderLayout.CENTER);
-                        varTabs.addTab(AppStrings.translate("variables.header.locals"), pa);
-                    }
-
-                    if (debugScopeTable.getRowCount() > 0) {
-                        tabTypes.add(SelectedTab.SCOPECHAIN);
-
-                        pa = new JPanel(new BorderLayout());
-                        pa.add(new FasterScrollPane(debugScopeTable), BorderLayout.CENTER);
-                        varTabs.addTab(AppStrings.translate("variables.header.scopeChain"), pa);
-                    }
-
-                    if (constantPoolTable.getRowCount() > 0) {
-                        tabTypes.add(SelectedTab.CONSTANTPOOL);
-
-                        pa = new JPanel(new BorderLayout());
-                        pa.add(new FasterScrollPane(constantPoolTable), BorderLayout.CENTER);
-                        varTabs.addTab(AppStrings.translate("constantpool.header"), pa);
-                    }
-
-                    if (callStackTable.getRowCount() > 0) {
-                        tabTypes.add(SelectedTab.CALLSTACK);
-
-                        pa = new JPanel(new BorderLayout());
-                        pa.add(new FasterScrollPane(callStackTable), BorderLayout.CENTER);
-                        varTabs.addTab(AppStrings.translate("callStack.header"), pa);
-                    }
-                    if (stackTable.getRowCount() > 0) {
-                        tabTypes.add(SelectedTab.STACK);
-
-                        pa = new JPanel(new BorderLayout());
-                        pa.add(new FasterScrollPane(stackTable), BorderLayout.CENTER);
-                        varTabs.addTab(AppStrings.translate("stack.header"), pa);
-                    }
-                    if (logLength > 0) {
-                        tabTypes.add(SelectedTab.LOG);
-
-                        pa = new JPanel(new BorderLayout());
-                        pa.add(new FasterScrollPane(traceLogTextarea), BorderLayout.CENTER);
-                        JButton clearButton = new JButton(AppStrings.translate("debuglog.button.clear"));
-                        clearButton.addActionListener(new ActionListener() {
-
-                            @Override
-                            public void actionPerformed(ActionEvent e) {
-                                traceLogTextarea.setText("");
-                                logLength = 0;
-                                refresh();
-                            }
-                        });
-                        JPanel butPanel = new JPanel(new FlowLayout());
-                        butPanel.add(clearButton);
-                        pa.add(butPanel, BorderLayout.SOUTH);
-                        varTabs.addTab(AppStrings.translate("debuglog.header"), pa);
-                    }
-                    boolean newVisible = !tabTypes.isEmpty();
-                    if (newVisible != isVisible()) {
-                        setVisible(newVisible);
-                    }
-                    if (!tabTypes.isEmpty()) {
-                        if (oldSel != null && !tabTypes.contains(oldSel)) {
-                            oldSel = null;
-                        }
-                    }
-                    if (oldSel != null) {
-                        selectedTab = oldSel;
-                        varTabs.setSelectedIndex(tabTypes.indexOf(selectedTab));
-                    }
-                    setLoading(false);
                 }
-
             }
-        });
+        };
 
+        DebuggerHandler.getPool().submit(r);
     }
 
     public void dispose() {
-        Main.getDebugHandler().removeBreakListener(listener);
+        Main.getDebugHandler().removeBreakListener(breakListener);
+        Main.getDebugHandler().removeFrameChangeListener(frameChangeListener);
     }
 }

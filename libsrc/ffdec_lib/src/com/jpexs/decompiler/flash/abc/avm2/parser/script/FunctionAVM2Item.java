@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.parser.script;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -29,40 +30,105 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ * Function.
  *
  * @author JPEXS
  */
 public class FunctionAVM2Item extends AVM2Item {
-
+    /**
+     * Calculated function name
+     */
     public String calculatedFunctionName;
 
+    /**
+     * Function name
+     */
     public String functionName;
 
+    /**
+     * Parameter names
+     */
     public List<String> paramNames;
 
+    /**
+     * Body
+     */
     public List<GraphTargetItem> body;
 
+    /**
+     * Subvariables
+     */
     public List<AssignableAVM2Item> subvariables;
 
+    /**
+     * Parameter types
+     */
     public List<GraphTargetItem> paramTypes;
 
+    /**
+     * Parameter values
+     */
     public List<GraphTargetItem> paramValues;
 
+    /**
+     * Return type
+     */
     public GraphTargetItem retType;
 
+    /**
+     * Line
+     */
     public int line;
 
+    /**
+     * Has rest
+     */
     public boolean hasRest;
 
+    /**
+     * Needs activation
+     */
     public boolean needsActivation;
 
+    /**
+     * Is interface
+     */
     public boolean isInterface;
 
+    /**
+     * Is native
+     */
+    public boolean isNative;
+
+    /**
+     * Package
+     */
     public NamespaceItem pkg;
 
+    /**
+     * Metadata
+     */
     public List<Map.Entry<String, Map<String, String>>> metadata;
 
-    public FunctionAVM2Item(List<Map.Entry<String, Map<String, String>>> metadata, NamespaceItem pkg, boolean isInterface, boolean needsActivation, boolean hasRest, int line, String functionName, List<GraphTargetItem> paramTypes, List<String> paramNames, List<GraphTargetItem> paramValues, List<GraphTargetItem> body, List<AssignableAVM2Item> subvariables, GraphTargetItem retType) {
+    /**
+     * Constructor.
+     *
+     * @param metadata Metadata
+     * @param pkg Package
+     * @param isInterface Is interface
+     * @param isNative Is native
+     * @param needsActivation Needs activation
+     * @param hasRest Has rest
+     * @param line Line
+     * @param functionName Function name
+     * @param paramTypes Parameter types
+     * @param paramNames Parameter names
+     * @param paramValues Parameter values
+     * @param body Body
+     * @param subvariables Subvariables
+     * @param retType Return type
+     */
+    public FunctionAVM2Item(List<Map.Entry<String, Map<String, String>>> metadata, NamespaceItem pkg, boolean isInterface, boolean isNative, boolean needsActivation, boolean hasRest, int line, String functionName, List<GraphTargetItem> paramTypes, List<String> paramNames, List<GraphTargetItem> paramValues, List<GraphTargetItem> body, List<AssignableAVM2Item> subvariables, GraphTargetItem retType) {
 
         super(null, null, NOPRECEDENCE);
         this.metadata = metadata;
@@ -78,6 +144,7 @@ public class FunctionAVM2Item extends AVM2Item {
         this.line = line;
         this.hasRest = hasRest;
         this.isInterface = isInterface;
+        this.isNative = isNative;
     }
 
     @Override

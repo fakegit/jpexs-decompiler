@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -47,8 +47,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- *
- * WIP
+ * Iggy to SWF convertor. WIP
  *
  * @author JPEXS
  */
@@ -154,7 +153,7 @@ public class IggyToSwfConvertor {
                 SHAPE shp;
                 if (glyph != null) {
                     shp = IggyShapeToSwfConvertor.convertCharToShape(glyph);
-                    fontTag.fontBoundsTable.add(shp.getBounds());
+                    fontTag.fontBoundsTable.add(shp.getBounds(1));
                 } else {
                     shp = new SHAPE();
                     shp.shapeRecords = new ArrayList<>();
@@ -262,7 +261,7 @@ public class IggyToSwfConvertor {
             System.out.print("(2/2) Exporting SWF files to " + args[1] + "...");
             exportAllSwfsToDir(iggyFile, new File(args[1]));
             System.out.println("OK");
-            System.out.println("All finished sucessfully.");
+            System.out.println("All finished successfully.");
             System.exit(0);
         } catch (IOException ex) {
             System.out.println("FAIL");

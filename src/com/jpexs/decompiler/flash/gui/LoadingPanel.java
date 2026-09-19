@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -135,7 +135,7 @@ public class LoadingPanel extends JPanel {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
         AffineTransform t = AffineTransform.getRotateInstance(getRotation(), size / 2.0, size / 2.0);
-        g2.setTransform(t);
+        g2.transform(t);
         g2.drawImage(lastImage, 0, 0, this);
     }
 
@@ -146,6 +146,7 @@ public class LoadingPanel extends JPanel {
                 drawTimer.cancel();
                 drawTimer = null;
             }
+            lastImage = null;
         }
 
         super.setVisible(visible);

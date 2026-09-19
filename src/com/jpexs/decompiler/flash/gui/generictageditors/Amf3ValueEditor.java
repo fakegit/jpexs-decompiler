@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2016-2021 JPEXS
+ *  Copyright (C) 2016-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,8 +23,8 @@ import com.jpexs.decompiler.flash.gui.FasterScrollPane;
 import com.jpexs.decompiler.flash.gui.View;
 import com.jpexs.decompiler.flash.gui.ViewMessages;
 import com.jpexs.decompiler.flash.gui.editor.LineMarkedEditorPane;
+import com.jpexs.decompiler.flash.importers.amf.AmfParseException;
 import com.jpexs.decompiler.flash.importers.amf.amf3.Amf3Importer;
-import com.jpexs.decompiler.flash.importers.amf.amf3.Amf3ParseException;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.ReflectionTools;
 import java.awt.BorderLayout;
@@ -38,6 +38,7 @@ import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.Objects;
 import java.util.Timer;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -47,7 +48,6 @@ import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
 
 /**
- *
  * @author JPEXS
  */
 public class Amf3ValueEditor extends JPanel implements GenericTagEditor, FullSized {
@@ -175,14 +175,19 @@ public class Amf3ValueEditor extends JPanel implements GenericTagEditor, FullSiz
     }
 
     @Override
-    public void save() {
+    public boolean save() {
         try {
-            Object val = getChangedValue();
-            ReflectionTools.setValue(obj, field, index, val);
-            value = (Amf3Value) val;
+            Object oldValue = (Amf3Value) ReflectionTools.getValue(obj, field, index);
+            Object newValue = getChangedValue();
+            if (Objects.equals(oldValue, newValue)) {
+                return false;
+            }
+            ReflectionTools.setValue(obj, field, index, newValue);
+            value = (Amf3Value) newValue;
         } catch (IllegalAccessException ex) {
             //ignore
         }
+        return true;
     }
 
     @Override
@@ -207,10 +212,10 @@ public class Amf3ValueEditor extends JPanel implements GenericTagEditor, FullSiz
             if (!textVal.trim().isEmpty()) {
                 importer.stringToAmf(textVal);
             }
-        } catch (IOException | Amf3ParseException ex) {
+        } catch (IOException | AmfParseException ex) {
 
-            if (ex instanceof Amf3ParseException) {
-                Amf3ParseException ape = (Amf3ParseException) ex;
+            if (ex instanceof AmfParseException) {
+                AmfParseException ape = (AmfParseException) ex;
                 if (ape.line > 0) {
                     editor.gotoLine((int) ape.line);
                 }
@@ -235,7 +240,7 @@ public class Amf3ValueEditor extends JPanel implements GenericTagEditor, FullSiz
         String textVal = editor.getText();
         try {
             return textVal.trim().isEmpty() ? null : new Amf3Value(importer.stringToAmf(textVal));
-        } catch (IOException | Amf3ParseException ex) {
+        } catch (IOException | AmfParseException ex) {
             return value;
         }
     }
@@ -255,4 +260,13 @@ public class Amf3ValueEditor extends JPanel implements GenericTagEditor, FullSiz
         return Helper.escapeHTML(getChangedValue().toString());
     }
 
+    @Override
+    public Object getObject() {
+        return obj;
+    }
+
+    @Override
+    public void setValueNormalizer(ValueNormalizer normalizer) {
+    
+    }        
 }

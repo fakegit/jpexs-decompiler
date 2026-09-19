@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,11 +29,18 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Escape XML attribute.
  *
  * @author JPEXS
  */
 public class EscapeXAttrAVM2Item extends AVM2Item {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param expression Expression
+     */
     public EscapeXAttrAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem expression) {
         super(instruction, lineStartIns, NOPRECEDENCE, expression);
     }

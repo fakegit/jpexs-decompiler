@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,15 +25,30 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Extends.
  *
  * @author JPEXS
  */
 public class ExtendsActionItem extends ActionItem {
 
+    /**
+     * Subclass
+     */
     public GraphTargetItem subclass;
 
+    /**
+     * Super class
+     */
     public GraphTargetItem superclass;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param subclass Subclass
+     * @param superclass Superclass
+     */
     public ExtendsActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem subclass, GraphTargetItem superclass) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.subclass = subclass;

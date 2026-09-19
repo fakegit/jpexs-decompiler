@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,9 +17,11 @@
 package com.jpexs.decompiler.flash.exporters.shape;
 
 import com.jpexs.decompiler.flash.SWF;
+import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.exporters.commonshape.SVGExporter;
 import com.jpexs.decompiler.flash.tags.base.ImageTag;
+import com.jpexs.decompiler.flash.tags.base.ShapeTag;
 import com.jpexs.decompiler.flash.tags.enums.ImageFormat;
 import com.jpexs.decompiler.flash.types.ColorTransform;
 import com.jpexs.decompiler.flash.types.FILLSTYLE;
@@ -32,36 +34,88 @@ import com.jpexs.decompiler.flash.types.SHAPE;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.SerializableImage;
 import java.awt.Color;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import javax.imageio.ImageIO;
 import org.w3c.dom.Element;
 
 /**
+ * SVG shape exporter.
  *
  * @author JPEXS, Claus Wahlers
  */
 public class SVGShapeExporter extends DefaultSVGShapeExporter {
 
+    /**
+     * Path
+     */
     protected Element path;
 
+    /**
+     * Id
+     */
     protected int id;
 
+    /**
+     * Last pattern id
+     */
     protected int lastPatternId;
 
+    /**
+     * Default color
+     */
     private final Color defaultColor;
 
+    /**
+     * SWF
+     */
     private final SWF swf;
 
+    /**
+     * Exporter
+     */
     private final SVGExporter exporter;
+    
+    /**
+     * Display zoom
+     */
+    private final double displayZoom;
+    
+    /**
+     * Thickness scale
+     */
+    private final double thicknessScale;
 
-    public SVGShapeExporter(SWF swf, SHAPE shape, int id, SVGExporter exporter, Color defaultColor, ColorTransform colorTransform, double zoom) {
-        super(swf, shape, colorTransform, zoom);
+    /**
+     * Constructor.
+     * @param windingRule Winding rule
+     * @param shapeNum Shape number
+     * @param swf SWF
+     * @param shape Shape
+     * @param id Id
+     * @param exporter Exporter
+     * @param defaultColor Default color
+     * @param colorTransform Color transform
+     * @param zoom Zoom - shape zoom
+     * @param displayZoom Display zoom - overall SVG zoom
+     * @param strokeTransformation Stroke transformation
+     */
+    public SVGShapeExporter(int windingRule, int shapeNum, SWF swf, SHAPE shape, int id, SVGExporter exporter, Color defaultColor, ColorTransform colorTransform, double zoom, double displayZoom, Matrix strokeTransformation) {
+        super(windingRule, shapeNum, swf, shape, colorTransform, zoom);
         this.swf = swf;
         this.id = id;
         this.defaultColor = defaultColor;
         this.exporter = exporter;
+        this.displayZoom = displayZoom;
+        
+        thicknessScale = Math.sqrt(Math.abs(strokeTransformation.scaleX * strokeTransformation.scaleY - strokeTransformation.rotateSkew0 * strokeTransformation.rotateSkew1));
     }
 
     @Override
     public void beginFill(RGB color) {
+        if (aliasedFill) {
+            return;
+        }
         if (color == null && defaultColor != null) {
             color = new RGB(defaultColor);
         }
@@ -70,7 +124,7 @@ public class SVGShapeExporter extends DefaultSVGShapeExporter {
         if (color != null) {
             path.setAttribute("fill", color.toHexRGB());
         }
-        path.setAttribute("fill-rule", "evenodd");
+        path.setAttribute("fill-rule", windingRule == ShapeTag.WIND_NONZERO ? "nonzero" : "evenodd");
         if (color instanceof RGBA) {
             RGBA colorA = (RGBA) color;
             if (colorA.alpha != 255) {
@@ -81,6 +135,9 @@ public class SVGShapeExporter extends DefaultSVGShapeExporter {
 
     @Override
     public void beginGradientFill(int type, GRADRECORD[] gradientRecords, Matrix matrix, int spreadMethod, int interpolationMethod, float focalPointRatio) {
+        if (aliasedFill) {
+            return;
+        }
         finalizePath();
         Element gradient = (type == FILLSTYLE.LINEAR_GRADIENT)
                 ? exporter.createElement("linearGradient")
@@ -96,25 +153,40 @@ public class SVGShapeExporter extends DefaultSVGShapeExporter {
         gradient.setAttribute("id", gradientId);
         path.setAttribute("stroke", "none");
         path.setAttribute("fill", "url(#" + gradientId + ")");
-        path.setAttribute("fill-rule", "evenodd");
+        path.setAttribute("fill-rule", windingRule == ShapeTag.WIND_NONZERO ? "nonzero" : "evenodd");
         exporter.addToDefs(gradient);
     }
 
-    private String getPattern(int bitmapId, Matrix matrix, ColorTransform colorTransform) {
+    private String getPattern(int bitmapId, Matrix matrix, ColorTransform colorTransform, boolean smoothed) {
         ImageTag image = swf.getImage(bitmapId);
         if (image != null) {
             SerializableImage img = image.getImageCached();
             if (img != null) {
-                if (colorTransform != null) {
-                    colorTransform.apply(img);
-                }
-
                 int width = img.getWidth();
                 int height = img.getHeight();
                 lastPatternId++;
                 String patternId = "PatternID_" + id + "_" + lastPatternId;
                 ImageFormat format = image.getImageFormat();
-                byte[] imageData = Helper.readStream(image.getImageData());
+                byte[] imageData = Helper.readStream(image.getConvertedImageData());
+                
+                if (colorTransform != null) {
+                    //Apply transform and convert it to PNG.
+                    //If we use the same format as input, then we would lose quality for JPEGs.
+                    //This will also make significantly larger files for JPEGs.
+                    //It would be better if we use a SVG filter for colormatrix transform,
+                    //but that will be problematic during importing it back (we cannot properly parse filters)
+                    
+                    img = colorTransform.apply(img);
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    try {
+                        ImageIO.write(img.getBufferedImage(), "PNG", baos);
+                    } catch (IOException iex) {
+                        //ignore
+                    }
+                    imageData = baos.toByteArray();
+                    format = ImageFormat.PNG;
+                }
+                
                 String base64ImgData = Helper.byteArrayToBase64String(imageData);
 
                 Element pattern = exporter.createElement("pattern");
@@ -124,6 +196,8 @@ public class SVGShapeExporter extends DefaultSVGShapeExporter {
                 pattern.setAttribute("width", "" + width);
                 pattern.setAttribute("height", "" + height);
                 pattern.setAttribute("viewBox", "0 0 " + width + " " + height);
+                //Smoothed attribute was used in older FFDec versions - it is now only used for reading, for backwards compatibility
+                //pattern.setAttribute("ffdec:smoothed", smoothed ? "true" : "false");
                 if (matrix != null) {
                     pattern.setAttribute("patternTransform", matrix.getSvgTransformationString(SWF.unitDivisor / zoom, SWF.unitDivisor / zoom));
                 }
@@ -131,6 +205,12 @@ public class SVGShapeExporter extends DefaultSVGShapeExporter {
                 imageElement.setAttribute("width", "" + width);
                 imageElement.setAttribute("height", "" + height);
                 imageElement.setAttribute("xlink:href", "data:image/" + format + ";base64," + base64ImgData);
+                if (smoothed) {
+                    imageElement.setAttribute("style", "image-rendering:optimizeQuality");                    
+                } else {
+                    //https://stackoverflow.com/questions/50184674/stop-auto-image-smoothing-inside-an-svgz                
+                    imageElement.setAttribute("style", "image-rendering:optimizeSpeed; image-rendering:pixelated");
+                }
                 pattern.appendChild(imageElement);
                 exporter.addToGroup(pattern);
                 return patternId;
@@ -141,24 +221,39 @@ public class SVGShapeExporter extends DefaultSVGShapeExporter {
 
     @Override
     public void beginBitmapFill(int bitmapId, Matrix matrix, boolean repeat, boolean smooth, ColorTransform colorTransform) {
+        if (aliasedFill) {
+            return;
+        }
         finalizePath();
-        String patternId = getPattern(bitmapId, matrix, colorTransform);
+        String patternId = getPattern(bitmapId, matrix, colorTransform, smooth);
+        path.setAttribute("ffdec:fill-bitmapId", "" + bitmapId);
+        path.setAttribute("fill-rule", windingRule == ShapeTag.WIND_NONZERO ? "nonzero" : "evenodd");        
         if (patternId != null) {
             path.setAttribute("style", "fill:url(#" + patternId + ")");
             return;
         }
         path.setAttribute("fill", "#ff0000");
     }
-
+    
     @Override
-    public void lineStyle(double thickness, RGB color, boolean pixelHinting, String scaleMode, int startCaps, int endCaps, int joints, float miterLimit) {
+    public void lineStyle(double thickness, RGB color, boolean pixelHinting, String scaleMode, int startCaps, int endCaps, int joints, float miterLimit, boolean noClose) {
         finalizePath();
-        thickness *= zoom / SWF.unitDivisor;
+        
+        if (Configuration.useMinimumStrokeWidth1Px.get()) {
+            //display minimum stroke of 1 pixel, no matter how zoomed it is
+            if (thickness * displayZoom * thicknessScale < 1 * SWF.unitDivisor) {
+                path.setAttribute("ffdec:has-small-stroke", "true");
+                path.setAttribute("ffdec:original-stroke-width", Double.toString(thickness * displayZoom / SWF.unitDivisor));
+                thickness = 1 * SWF.unitDivisor / displayZoom / thicknessScale;
+            }
+        }
+        
+        thickness *= zoom / SWF.unitDivisor;        
         path.setAttribute("fill", "none");
         if (color != null) {
             path.setAttribute("stroke", color.toHexRGB());
         }
-        path.setAttribute("stroke-width", Double.toString(thickness == 0 ? 1 : thickness));
+        path.setAttribute("stroke-width", Double.toString(thickness));
         if (color instanceof RGBA) {
             RGBA colorA = (RGBA) color;
             if (colorA.alpha != 255) {
@@ -190,6 +285,9 @@ public class SVGShapeExporter extends DefaultSVGShapeExporter {
                 }
                 break;
         }
+        if ("NONE".equals(scaleMode)) {
+            path.setAttribute("vector-effect", "non-scaling-stroke");
+        }
     }
 
     @Override
@@ -213,11 +311,13 @@ public class SVGShapeExporter extends DefaultSVGShapeExporter {
 
     @Override
     public void lineBitmapStyle(int bitmapId, Matrix matrix, boolean repeat, boolean smooth, ColorTransform colorTransform) {
-        String patternId = getPattern(bitmapId, matrix, colorTransform);
+        String patternId = getPattern(bitmapId, matrix, colorTransform, smooth);
+        path.setAttribute("ffdec:stroke-bitmapId", "" + bitmapId);
         if (patternId != null) {
             path.setAttribute("stroke", "url(#" + patternId + ")");
             return;
         }
+        path.setAttribute("stroke", "#ff0000");
     }
 
     @Override
@@ -230,6 +330,16 @@ public class SVGShapeExporter extends DefaultSVGShapeExporter {
         super.finalizePath();
     }
 
+    /**
+     * Populates gradient element.
+     * @param gradient Gradient
+     * @param type Type
+     * @param gradientRecords Gradient records
+     * @param matrix Matrix
+     * @param spreadMethod Spread method
+     * @param interpolationMethod Interpolation method
+     * @param focalPointRatio Focal point ratio
+     */
     protected void populateGradientElement(Element gradient, int type, GRADRECORD[] gradientRecords, Matrix matrix, int spreadMethod, int interpolationMethod, float focalPointRatio) {
         gradient.setAttribute("gradientUnits", "userSpaceOnUse");
         if (type == FILLSTYLE.LINEAR_GRADIENT) {

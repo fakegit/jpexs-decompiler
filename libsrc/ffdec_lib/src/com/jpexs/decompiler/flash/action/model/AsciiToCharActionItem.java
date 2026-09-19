@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -30,11 +30,18 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Convert ASCII code to character.
  *
  * @author JPEXS
  */
 public class AsciiToCharActionItem extends ActionItem {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param value ASCII code
+     */
     public AsciiToCharActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY, value);
     }
@@ -42,7 +49,7 @@ public class AsciiToCharActionItem extends ActionItem {
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("chr");
-        writer.spaceBeforeCallParenthesies(1);
+        writer.spaceBeforeCallParenthesis(1);
         writer.append("(");
         value.toString(writer, localData);
         return writer.append(")");
@@ -60,6 +67,11 @@ public class AsciiToCharActionItem extends ActionItem {
         return getResult(value.getResult());
     }
 
+    /**
+     * Get result.
+     * @param ascii ASCII code
+     * @return Result
+     */
     public static String getResult(Object ascii) {
         int res = (char) EcmaScript.toInt32(ascii);
         if (res == 0) {

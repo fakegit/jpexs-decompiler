@@ -5,7 +5,9 @@
     <loadproperties srcfile="build.properties" />
     <property name="jar.filename" value="${prefix.filename}"/>
     <property name="exe.filename" value="${prefix.filename}"/>
-    <property name="exe64.filename" value="${prefix.filename}64"/>                  
+    <property name="exe64.filename" value="${prefix.filename}64"/>
+    <property name="checkstyle_config.path" location="checkstyle.xml"/>
+
         
     <path id="ant.lib.classpath">
         <fileset dir="${ant.lib.dir}" includes="**/*.jar"/>
@@ -20,8 +22,8 @@
     <taskdef name="desktopentry" classname="com.googlecode.ant_deb_task.DesktopEntry" classpathref="ant.lib.classpath" />
     <taskdef name="testng" classname="org.testng.TestNGAntTask" classpathref="ant.lib.classpath"  />
     <taskdef name="nsis" classname="com.danielreese.nsisant.Task" classpathref="ant.lib.classpath" />
-    
-    
+    <taskdef name="checkstyle" classname="com.puppycrawl.tools.checkstyle.ant.CheckstyleAntTask" classpathref="ant.lib.classpath" />
+        
     <property name="dist.lib.dir" value="${dist.dir}/${dist.lib.dirname}"/>    
     <patternset id="compiler.resources">
         <include name="**/?*.properties"/>  
@@ -42,9 +44,7 @@
         <include name="**/?*.swf"/>
         <include name="**/?*.css"/>
     </patternset>
-    
-    
-    
+        
     <target name="-loadversion" depends="-loadversion-prop,-loadversion-private">
         
     </target>
@@ -52,7 +52,6 @@
         <property name="version.major" value="0" />
         <property name="version.minor" value="0" />
         <property name="version.release" value="0" />
-        <property name="version.major" value="0" />
         <property name="version.build" value="0" />
         <!-- <property name="version.revision" value="" /> -->
         <property name="version.debug" value="true" />
@@ -73,16 +72,29 @@
         <echo level="info" message="Loaded Version:${version.major}.${version.minor}.${version.release}.${version.build}"/>
     </target>
     
- 
+    <target name="checkstyle">
+        <checkstyle config="${checkstyle_config.path}" failonviolation="true" maxWarnings="0">
+            <fileset dir="src/com/jpexs" includes="**/*.java">
+                <exclude name="**/FontPreviewDialog.java" />
+                <exclude name="**/*Lexer.java" />
+                <exclude name="**/jna/" />
+            </fileset>
+            <fileset dir="libsrc/ffdec_lib/src/com/jpexs" includes="**/*.java">
+                <exclude name="**/*Lexer.java" />
+                <exclude name="**/jna/" />
+            </fileset>
+        </checkstyle>
+    </target>
 
-    <target name="compile" depends="build_lib,-copy-lib">
+    <target name="compile" depends="build_lib,-copy-lib" unless="no_dist">
         <!--<delete dir="${compile.dir}"/>-->        
         <mkdir dir="${compile.dir}"/>
         <javac srcdir="${src.dir}" destdir="${compile.dir}" includes="**/*.java" target="${target.java}" source="${target.java}" debug="true"
                debuglevel="lines,vars,source" includeantruntime="false" encoding="utf-8">
             <compilerarg line="-Xlint:unchecked -Xlint:deprecation"/> <!-- For Java 8: -Xdiags:verbose -->
             <classpath>
-                <fileset dir="${lib.dir}" includes="**/*.jar"/>
+                <fileset dir="${lib.dir}" includes="**/*-fix.jar"/>
+                <fileset dir="${lib.dir}" includes="**/*.jar" excludes="**/*-fix.jar"/>
             </classpath>
         </javac>
         <copy todir="${compile.dir}">
@@ -103,7 +115,8 @@
         <javac srcdir="${test.dir}" destdir="${compile.test.dir}" includes="**/*.java" target="${target.java}" source="${target.java}" debug="true" includeantruntime="false" encoding="utf-8">                        
             <classpath>
                 <pathelement path="${compile.dir}"/>
-                <fileset dir="${lib.dir}" includes="**/*.jar"/>
+                <fileset dir="${lib.dir}" includes="**/*-fix.jar"/>
+                <fileset dir="${lib.dir}" includes="**/*.jar" excludes="**/*-fix.jar"/>
                 <fileset dir="${test.lib.dir}" includes="**/*.jar"/>
             </classpath>
         </javac>
@@ -139,7 +152,8 @@
                 <classpath>
                     <pathelement path="${compile.test.dir}"/>
                     <pathelement path="${compile.dir}"/>
-                    <fileset dir="${lib.dir}" includes="**/*.jar"/>
+                    <fileset dir="${lib.dir}" includes="**/*-fix.jar"/>
+                    <fileset dir="${lib.dir}" includes="**/*.jar" excludes="**/*-fix.jar"/>
                     <fileset dir="${test.lib.dir}" includes="**/*.jar"/>
                 </classpath>
                 <jvmarg value="-noverify" />
@@ -167,43 +181,36 @@
     
     <condition property="is_windows">
         <os family="windows"/>
-    </condition>
-    
-    
-    
-    
-    
-    <target name="installer" depends="-loadversion,-load-tools,dist">       
-        <property name="exe.file" value="${releases.dir}/${prefix.filename}_${version}${version.suffix}_setup.exe"/>       
-        <nsis script="installer.nsi" path="${nsis.path}" verbosity="2">
-            <define name="APP_NAME" value="${product.name}"/>
-            <define name="APP_VER" value="${version}${version.suffix}"/>
-            <define name="APP_VER_MAJOR" value="${version.major}"/>
-            <define name="APP_VER_MINOR" value="${version.minor}"/>
-            <define name="APP_PUBLISHER" value="${vendor}"/>
-            <define name="APP_URL" value="${product.url}"/>
-            <define name="APP_SETUPFILE" value="${exe.file}" />
-            <define name="JRE_VERSION" value="${target.java}" />
-        </nsis>
-        <echo level="info" message="Setup created in ${exe.file}"/>
-    </target>
+    </condition>                        
     
     <target name="library" depends="-loadversion,release_lib,-copy-lib">
         <mkdir dir="${releases.dir}"/>
-        <copy file="${lib.file}" todir="${releases.dir}" />
+        <copy file="${lib.file}" todir="${releases.dir}" />        
     </target>
     
-    <target name="archive" depends="-loadversion,dist">
+    <target name="archive" depends="-loadversion,archive-dist,archive-no-dist">
+        
+    </target>
+    
+    <target name="archive-dist" depends="-loadversion,dist,archive-no-dist" unless="no_dist">
+    </target>
+    <target name="archive-no-dist" depends="-loadversion">
         <mkdir dir="${releases.dir}"/>
         <property  name="zip.file" value="${releases.dir}/${prefix.filename}_${version}${version.suffix}.zip" />
-        <zip destfile="${zip.file}" basedir="${dist.dir}" excludes="${app.script}">
-            <zipfileset dir="${dist.dir}" includes="${app.script}" fullpath="${app.script}" filemode="755"/>
+        <zip destfile="${zip.file}" basedir="${dist.dir}" excludes="*.sh">
+            <zipfileset dir="${dist.dir}" includes="*.sh" filemode="755"/>
         </zip>
     </target>
     
     
+    <target name="deb" depends="deb-dist,deb-no-dist">
+        
+    </target>
     
-    <target name="deb" depends="-loadversion,dist">
+    <target name="deb-dist" depends="-loadversion,dist" unless="no_dist">
+        
+    </target>
+    <target name="deb-no-dist" depends="-loadversion,dist">
         <mkdir dir="${releases.dir}"/>
         <tempfile property="app.deb.desktop.temp" deleteonexit="true" prefix="desktop"/>
         <desktopentry
@@ -234,7 +241,7 @@
         <delete file="${app.deb.desktop.temp}" />
     </target>         
     
-    <target name="osx-app-installer" depends="osx-app-bundle">
+    <target name="osx-app-installer" depends="osx-app-bundle" unless="is_windows">
         <mkdir dir="${app.installer.dir}/flat/base.pkg"/>
         <mkdir dir="${app.installer.dir}/flat/Resources/en.lproj"/>
         <mkdir dir="${app.installer.dir}/root/Applications"/>
@@ -320,12 +327,17 @@
        </xar>                 
     </target>
     
-    <target name="deb-versioned" depends="-new-version-set,deb">
+    <target name="deb-versioned" depends="new-version-set,deb">
         
     </target>
     
+    <target name="osx-app-bundle" depends="osx-app-bundle-dist,osx-app-bundle-no-dist">
+        
+    </target>
     
-    <target name="osx-app-bundle" depends="-loadversion,dist">
+    <target name="osx-app-bundle-dist" depends="-loadversion,dist,osx-app-bundle-no-dist" unless="no_dist">
+    </target>
+    <target name="osx-app-bundle-no-dist" depends="-loadversion">
         <property name="app.script.temp" value="${app.bundle.dir}/${app.osx.dir}.app/Contents/MacOS/${app.osx.dir}"/>
         <echo file="${app.script.temp}">#!/usr/bin/env bash&#10;$(dirname "$${BASH_SOURCE[0]}")/../Resources/${app.script} "$$&#64;"</echo>
         <property name="app.info.temp" value="${app.bundle.dir}/${app.osx.dir}.app/Contents/Info.plist"/>
@@ -375,163 +387,40 @@
             <zipfileset dir="${app.bundle.dir}" includes="${app.osx.dir}.app/Contents/Resources/${app.script}" filemode="777" />           
         </zip>           
     </target>
-    
-    <target name="-set-gui-type">
-        <property name="exe.type" value="gui" />
-    </target>
-    <target name="-set-console-type">
-        <property name="exe.type" value="console" />
-    </target>
-    <target name="-exe-config" depends="-loadversion"> 
-        <echoxml file="${exe.config}">
-            <launch4jConfig>
-                <dontWrapJar>true</dontWrapJar>
-                <headerType>${exe.type}</headerType>
-                <jar>${jar.filename}.jar</jar>
-                <outfile>${basedir}/${dist.dir}/${exe.filename}.exe</outfile>
-                <errTitle></errTitle>
-                <cmdLine></cmdLine>
-                <chdir></chdir>
-                <priority>normal</priority>
-                <downloadUrl>http://java.com/download</downloadUrl>
-                <supportUrl></supportUrl>
-                <customProcName>false</customProcName>
-                <stayAlive>false</stayAlive>
-                <restartOnCrash>false</restartOnCrash>
-                <manifest></manifest>
-                <icon>${basedir}/${exe.icon}</icon>
-                <jre>
-                    <path></path>
-                    <minVersion>${min.java.version}</minVersion>
-                    <maxVersion></maxVersion>
-                    <jdkPreference>preferJre</jdkPreference>
-                    <runtimeBits>64/32</runtimeBits>
-                    <maxHeapPercent>${max.heap.size.percent}</maxHeapPercent>
-                    <opt>-Djava.net.preferIPv4Stack=true</opt>
-                    <opt>-Djna.nosys=true</opt>
-                    <opt>-Dsun.java2d.uiScale=1.0</opt>
-                </jre>
-                <splash>
-                    <file>graphics/splash2.bmp</file>
-                    <waitForWindow>true</waitForWindow>
-                    <timeout>60</timeout>
-                    <timeoutErr>true</timeoutErr>
-                </splash>
-                <versionInfo>
-                    <fileVersion>${version.number}</fileVersion>
-                    <txtFileVersion>${version}${version.suffix}</txtFileVersion>
-                    <fileDescription>${product.name}</fileDescription>
-                    <copyright>${vendor}</copyright>
-                    <productVersion>${version.number}</productVersion>
-                    <txtProductVersion>${version}${version.suffix}</txtProductVersion>
-                    <productName>${product.name}</productName>
-                    <companyName></companyName>
-                    <internalName>${internal.name}</internalName>
-                    <originalFilename>${exe.filename}.exe</originalFilename>
-                </versionInfo>
-            </launch4jConfig>
-        </echoxml>
-    </target>    
-    <target name="-exe-linux" unless="is_windows" depends="-load-tools,-exe-config">
-        <java jar="${launch4j.path}/launch4j.jar" fork="true">
-            <arg line="${exe.config}" />
-        </java>
-    </target>
-    <target name="-exe-windows" if="is_windows" depends="-load-tools,-exe-config">
-        <java jar="${launch4j.path}/launch4j.jar" fork="true">
-            <arg line="${exe.config}" />
-        </java>
-    </target>   
-    <target name="exe" depends="-set-gui-type,-exe-linux,-exe-windows">
-        
+                    
+    <target name="exe">
+        <!-- depends="-exe-splashscreen,-exe-versioninfo">-->       
     </target>
     
-    
-    <target name="-check-tools">
-        <available file="tools.properties" property="tools.config.exists"/>
-    </target>
-    
-    <target name="-load-tools-ok" if="tools.config.exists">
-        <loadproperties srcfile="tools.properties" />
-    </target>
-    
-    <target name="-load-tools-fail" unless="tools.config.exists">
-        <fail>
-            tools.properties NOT found.
-            Please create file named "tools.properties" and add two lines:
-            nsis.path = Path to Nullsoft Install System
-            launch4j.path = Path to launch4j
-            
-            WARNING: You must use double backslash in paths on Windows System or forward slash
-        </fail>
-    </target>
-    
-    <target name="-load-tools" depends="-check-tools,-load-tools-ok,-load-tools-fail">
-        
-    </target>
-    <target name="exe-console" depends="-set-console-type,-exe-linux,-exe-windows">
+    <target name="release" depends="library,exe,archive,deb,osx-app-archive,osx-app-installer">
 
     </target>
-
-    <target name="release" depends="library,archive,deb,osx-app-archive,installer,osx-app-installer,locales">
+    
+    <target name="-set-no-dist">
+        <property name="no_dist" value="1"/>  
+    </target>
+    
+    <target name="release-no-dist" depends="-set-no-dist,-timestamp,-suffix,library,exe,archive,deb,osx-app-archive,osx-app-installer">
 
     </target>
          
-    <target name="all" depends="clean,build,test,release">    
+    <target name="all" depends="checkstyle,clean,build,test,release">    
         
     </target>                         
         
-    <target name="dist" depends="build,exe">
+    <target name="res">
         <copy todir="${dist.dir}">
             <fileset dir="${resources.dir}" includes="**/*.*"/>
+            <fileset dir="${resources.dir}" includes="ffdec"/>
         </copy>
         <copy todir="${dist.dir}" file="${changelog.file}"/>
         <fixcrlf srcdir="${dist.dir}" includes="**/*.md" eol="crlf" preservelastmodified="true" />        
         <fixcrlf srcdir="${dist.dir}" includes="**/*.txt" eol="crlf" preservelastmodified="true" />
         <fixcrlf srcdir="${dist.dir}" includes="**/*.sh" eol="lf" preservelastmodified="true" />
         <fixcrlf srcdir="${dist.dir}" includes="**/*.bat" eol="crlf" preservelastmodified="true" />
-    </target>
-    
-    <target name="locales" depends="-loadversion">
-        <delete dir="${locales.target.dir}"/>
-        <mkdir dir="${locales.target.dir}/${project.name}"/>
-        <copy todir="${locales.target.dir}/${project.name}">
-            <fileset dir="${locales.dir}" includes="**/*.*"/>
-        </copy>
-        <mkdir dir="${locales.target.dir}/jsyntaxpane/bundle/"/>
-        <copy todir="${locales.target.dir}/jsyntaxpane/bundle/">
-            <fileset dir="libsrc/jsyntaxpane/jsyntaxpane/src/main/resources/jsyntaxpane" includes="**/*.*"/>
-        </copy>
-        <mkdir dir="${locales.target.dir}/jsyntaxpane/defaultsyntaxkit"/>
-        <copy todir="${locales.target.dir}/jsyntaxpane/defaultsyntaxkit">
-            <fileset dir="libsrc/jsyntaxpane/jsyntaxpane/src/main/resources/META-INF/services/jsyntaxpane/defaultsyntaxkit" includes="**/*.*"/>
-        </copy>
-        <mkdir dir="${locales.target.dir}/jsyntaxpane/syntaxkits/flasmsyntaxkit"/>
-        <copy todir="${locales.target.dir}/jsyntaxpane/syntaxkits/flasmsyntaxkit">
-            <fileset dir="libsrc/jsyntaxpane/jsyntaxpane/src/main/resources/META-INF/services/jsyntaxpane/syntaxkits/flasmsyntaxkit" includes="**/config*.properties"/>
-        </copy>
-        <mkdir dir="${locales.target.dir}/jsyntaxpane/syntaxkits/flasm3syntaxkit"/>
-        <copy todir="${locales.target.dir}/jsyntaxpane/syntaxkits/flasm3syntaxkit">
-            <fileset dir="libsrc/jsyntaxpane/jsyntaxpane/src/main/resources/META-INF/services/jsyntaxpane/syntaxkits/flasm3syntaxkit" includes="**/config*.properties"/>
-        </copy>
-        <mkdir dir="${locales.target.dir}/jsyntaxpane/syntaxkits/flasm3methodinfosyntaxkit"/>
-        <copy todir="${locales.target.dir}/jsyntaxpane/syntaxkits/flasm3methodinfosyntaxkit">
-            <fileset dir="libsrc/jsyntaxpane/jsyntaxpane/src/main/resources/META-INF/services/jsyntaxpane/syntaxkits/flasm3methodinfosyntaxkit" includes="**/config*.properties"/>
-        </copy>
-        <mkdir dir="${locales.target.dir}/lib"/>
-        <copy todir="${locales.target.dir}/lib">
-            <fileset dir="${locales.lib.dir}" includes="**/*.*"/>
-        </copy>
-        <mkdir dir="${locales.target.dir}/nsis"/>
-        <copy todir="${locales.target.dir}/nsis">
-            <fileset dir="nsis_locales" includes="**/*.*"/>
-        </copy>                                
-        <echo file="${locales.target.dir}/readme.txt">${project.name} ${version}${version.suffix} localization pack
-            -------------------------------------------------------------------            
-            Please follow instructions on https://github.com/jindrapetrik/jpexs-decompiler
-        </echo>
-        <property name="lang.file" value="${releases.dir}/${prefix.filename}_${version}${version.suffix}_lang.zip" />
-        <zip destfile="${lang.file}" basedir="${locales.target.dir}"/>
+    </target>    
+    <target name="dist" unless="no_dist">
+        <!-- depends="build,exe" -->
     </target>
     
     <target name="-nightly-suffix" if="nightly">        
@@ -552,23 +441,39 @@
     <target name="-timestamp" depends="-loadversion,git-tag">
         <tstamp>
             <format property="BUILTAT" pattern="MM/dd/yyyy hh:mm aa" timezone="CET" locale="en"/>
-            <format property="VERDATE" pattern="yyyyddMM_hhmm" timezone="CET" locale="en"/>
+            <format property="VERDATE" pattern="yyyyMMdd_hhmm" timezone="CET" locale="en"/>
         </tstamp>        
         <echo level="info" message="Version: ${version}"/>
     </target>
     
-    <target name="release_lib" depends="git-tag,-loadversion,-save-version-info,-suffix">
-        <copy file="${version_info}" tofile="${core.lib.version_info}" />        
-        <ant antfile="${core.lib.script}" target="release" inheritAll="false" usenativebasedir="true"/>
-        <property  name="lib.file" value="${lib.releases.dir}/${lib.prefix.filename}_${version}${version.suffix}.zip" />
+    <target name="release_lib" depends="git-tag,-loadversion,-save-version-info,-suffix,release_lib-dist,release_lib-no-dist">
     </target>
     
-    <target name="build_lib" depends="-loadversion,-save-version-info">
+    <target name="release_lib-dist" depends="git-tag,-loadversion,-save-version-info,-suffix" unless="no_dist">
+        <copy file="${version_info}" tofile="${core.lib.version_info}" />        
+        <ant antfile="${core.lib.script}" target="release" inheritAll="false" usenativebasedir="true"/>
+        <property name="lib.file" value="${lib.releases.dir}/${lib.prefix.filename}_${version}${version.suffix}.zip" />        
+    </target>
+    
+    
+    <target name="release_lib-no-dist" depends="git-tag,-loadversion,-save-version-info,-suffix" if="no_dist">
+        <copy file="${version_info}" tofile="${core.lib.version_info}" />
+        <ant antfile="${core.lib.script}" target="release-no-dist" inheritAll="false" usenativebasedir="true"/>
+        <property name="lib.file" value="${lib.releases.dir}/${lib.prefix.filename}_${version}${version.suffix}.zip" />        
+    </target>
+    
+    <target name="release_lib_javadoc" depends="new-version-set,git-tag,-loadversion,-save-version-info,-suffix">
+        <ant antfile="${core.lib.script}" target="release_javadoc" inheritAll="false" usenativebasedir="true"/>
+        <property name="lib.javadoc.file" value="${lib.releases.dir}/${lib.prefix.filename}_${javadoc.release.filename}_${version}${version.suffix}.zip" />
+        <copy file="${lib.javadoc.file}" todir="${releases.dir}" />
+    </target>
+    
+    <target name="build_lib" depends="-loadversion,-save-version-info" unless="no_dist">
         <copy file="${version_info}" tofile="${core.lib.version_info}" />
         <ant antfile="${core.lib.script}" target="build" inheritAll="false" usenativebasedir="true"/>
     </target>
     
-    <target name="-copy-lib">
+    <target name="-copy-lib" unless="no_dist">
         <copy file="${core.lib.path}" todir="${lib.dir}" />    
     </target>
     
@@ -598,7 +503,7 @@
     </target>
     
     <target name="-git-required" depends="-git-check-exists" unless="private">             
-        <fail unless="git.present" message="Git not found. Please install git with commandline support."/>
+        <!-- <fail unless="git.present" message="Git not found. Please install git with commandline support."/> -->
     </target>
             
     <target name="-do-git-tag" if="git.present">
@@ -625,14 +530,14 @@
         
     </target>
     
-    <target name="build" depends="-loadversion,build_lib,-copy-lib,-timestamp,-suffix,compile">        
+    <target name="build" depends="-loadversion,build_lib,-copy-lib,-timestamp,-suffix,compile,res">        
         <mkdir dir="${dist.dir}"/>
         <!-- <delete dir="${dist.lib.dir}"/> -->
         <mkdir dir="${dist.lib.dir}"/>
         <copy todir="${dist.lib.dir}">
             <fileset dir="${lib.dir}" includes="**/*.jar"/>
             <fileset dir="${lib.dir}" includes="**/*.exe"/>
-            <fileset dir="${lib.dir}" includes="**/*.txt"/>            
+            <fileset dir="${lib.dir}" includes="**/*.txt"/>                       
         </copy>
         
         
@@ -653,7 +558,8 @@
         </propertyfile>
         
         <pathconvert pathsep=" " property="manifestClassPath">
-            <fileset dir="${dist.dir}" includes="${dist.lib.dirname}/**/*.*"/>
+            <fileset dir="${dist.dir}" includes="${dist.lib.dirname}/**/*-fix.jar"/>
+            <fileset dir="${dist.dir}" includes="${dist.lib.dirname}/**/*.jar" excludes="${dist.lib.dirname}/**/*-fix.jar"/>
             <chainedmapper>
                 <flattenmapper/>
                 <globmapper from="*" to="${dist.lib.dirname}/*"/>
@@ -664,19 +570,125 @@
             <manifest>
                 <attribute name="Main-Class" value="${main.class}"/>
                 <attribute name="Class-Path" value="${manifestClassPath}"/>
+                <attribute name="Enable-Native-Access" value="ALL-UNNAMED" />
             </manifest>
         </jar>
+        <antcall target="build_cli"></antcall>
+    </target>
+
+    <target name="run-for-screenshots" depends="new-version-set,run">
+        
     </target>
 
     <target name="run" depends="build">
         <java jar="${dist.dir}/${jar.filename}.jar" fork="true">
+            <env key="VLC_VERBOSE" value="-1" />          
             <jvmarg value="-Xmx${max.heap.size.run}m" />
+            <!-- <jvmarg value="-Xss${max.stack.size}m"/> -->
             <jvmarg value="-Djava.net.preferIPv4Stack=true" />
-            <jvmarg value="-Dsun.java2d.uiScale=1.0" />
+            <jvmarg value="-Djava.util.Arrays.useLegacyMergeSort=true" />
             <arg line="${run.params}" />
         </java>
     </target>
+    
+    <target name="-exe-splashscreen-generate" depends="build">
+        <java classname="com.jpexs.build.SplashScreenGenerator" fork="true" failonerror="true">
+            <classpath>
+                <pathelement location="${compile.dir}"/>
+                <pathelement location="${lib.dir}/ffdec_lib.jar"/>
+            </classpath>
+        </java>        
+    </target>
+    <target name="-exe-splashscreen-inject-unix" depends="-exe-splashscreen-generate" unless="is_windows">
+        <copy todir="${reshack.path}" overwrite="true">
+            <file file="build/splash.bmp"/>
+            <file file="${dist.dir}/ffdec.exe"/>
+        </copy>
+        <exec executable="xvfb-run" failonerror="false">
+            <arg value="wine" />
+            <arg value="${reshack.path}ResourceHacker.exe"/>
+            <arg value="-open"/><arg value="${reshack.path}ffdec.exe"/>
+            <arg value="-save"/><arg value="${reshack.path}ffdec.exe"/>
+            <arg value="-action"/><arg value="addoverwrite"/>
+            <arg value="-res"/><arg value="${reshack.path}splash.bmp"/>
+            <arg value="-mask"/><arg value="BITMAP,1"/>
+        </exec>
+        <!--<exec executable="ls" failonerror="false">
+            <arg value="-la"/>
+            <arg value="${reshack.path}"/>
+        </exec>-->
+        <copy todir="${dist.dir}" file="${reshack.path}ffdec.exe" overwrite="true"/>
+    </target>
 
+    <target name="-exe-splashscreen-inject-windows" depends="-exe-splashscreen-generate" if="is_windows">        
+        <exec executable="${reshack.path}ResourceHacker.exe" failonerror="true">
+            <arg value="-open"/><arg value="${dist.dir}/ffdec.exe"/>
+            <arg value="-save"/><arg value="${dist.dir}/ffdec.exe"/>
+            <arg value="-action"/><arg value="addoverwrite"/>
+            <arg value="-res"/><arg value="build/splash.bmp"/>
+            <arg value="-mask"/><arg value="BITMAP,1"/>
+        </exec>
+    </target>
+    
+    <target name="-exe-splashscreen" depends="-exe-splashscreen-inject-unix, -exe-splashscreen-inject-windows">
+        
+    </target>
+    
+    <target name="-exe-versioninfo-generate" depends="-loadversion,git-tag,-suffix">
+        <copy file="versioninfo.rc" tofile="build/versioninfo.rc" overwrite="true">
+            <filterset>
+              <filter token="MAJOR" value="${version.major}"/>
+              <filter token="MINOR" value="${version.minor}"/>
+              <filter token="RELEASE" value="${version.release}"/>
+              <filter token="BUILD" value="${version.build}"/>
+              <filter token="VERSION" value="${version}${version.suffix}"/>
+            </filterset>
+        </copy>
+    </target>
+    
+    <target name="-exe-versioninfo-inject-unix" depends="-exe-versioninfo-generate" unless="is_windows">
+        <copy todir="${reshack.path}" overwrite="true">
+            <file file="build/versioninfo.rc"/>
+            <file file="${dist.dir}/ffdec.exe"/>
+        </copy>        
+        <exec executable="xvfb-run" failonerror="false">
+            <arg value="wine" />
+            <arg value="${reshack.path}ResourceHacker.exe"/>
+            <arg value="-open"/><arg value="${reshack.path}versioninfo.rc"/>
+            <arg value="-save"/><arg value="${reshack.path}versioninfo.res"/>
+            <arg value="-action"/><arg value="compile"/>
+        </exec>
+        <exec executable="xvfb-run" failonerror="false">
+            <arg value="wine" />
+            <arg value="${reshack.path}ResourceHacker.exe"/>
+            <arg value="-open"/><arg value="${reshack.path}ffdec.exe"/>
+            <arg value="-save"/><arg value="${reshack.path}ffdec.exe"/>
+            <arg value="-action"/><arg value="addoverwrite"/>
+            <arg value="-res"/><arg value="${reshack.path}versioninfo.res"/>
+            <arg value="-mask"/><arg value="Version Info,1"/>
+        </exec>
+        <copy todir="${dist.dir}" file="${reshack.path}ffdec.exe" overwrite="true"/>
+    </target>
+
+    <target name="-exe-versioninfo-inject-windows" depends="-exe-versioninfo-generate" if="is_windows">
+        <exec executable="${reshack.path}ResourceHacker.exe" failonerror="true">
+            <arg value="-open"/><arg value="build/versioninfo.rc"/>
+            <arg value="-save"/><arg value="build/versioninfo.res"/>
+            <arg value="-action"/><arg value="compile"/>
+        </exec>
+        <exec executable="${reshack.path}ResourceHacker.exe" failonerror="true">
+            <arg value="-open"/><arg value="${dist.dir}/ffdec.exe"/>
+            <arg value="-save"/><arg value="${dist.dir}/ffdec.exe"/>
+            <arg value="-action"/><arg value="addoverwrite"/>
+            <arg value="-res"/><arg value="build/versioninfo.res"/>
+            <arg value="-mask"/><arg value="Version Info,1"/>
+        </exec>
+    </target>
+    
+    <target name="-exe-versioninfo" depends="-exe-versioninfo-inject-unix, -exe-versioninfo-inject-windows">
+        
+    </target>        
+    
 
     <target name="javadoc">
         <mkdir dir="${javadoc.dir}"/>
@@ -684,9 +696,11 @@
                  useexternalfile="yes">
             <fileset dir="${src.dir}" includes="**/*.java"/>
             <classpath>
-                <fileset dir="${lib.dir}" includes="**/*.jar"/>
+                <fileset dir="${lib.dir}" includes="**/*-fix.jar"/>
+                <fileset dir="${lib.dir}" includes="**/*.jar" excludes="**/*-fix.jar"/>
             </classpath>
         </javadoc>
+        <ant antfile="${core.lib.script}" target="javadoc" inheritAll="false" usenativebasedir="true"/>
     </target>
     <target name="clean" depends="clean_lib">        
         <delete dir="${compile.dir}"/>        
@@ -712,7 +726,8 @@
         <nbjpdastart addressproperty="jpda.address" name="ffdec" transport="dt_socket">
             <classpath>
                 <pathelement path="${compile.dir}"/>
-                <fileset dir="${lib.dir}" includes="**/*.jar"/>
+                <fileset dir="${lib.dir}" includes="**/*-fix.jar"/>
+                <fileset dir="${lib.dir}" includes="**/*.jar" excludes="**/*-fix.jar"/>
                 <fileset dir="${test.lib.dir}" includes="**/*.jar"/>
             </classpath>
         </nbjpdastart>
@@ -724,7 +739,8 @@
             <classpath>
                 <pathelement path="${compile.test.dir}"/>
                 <pathelement path="${compile.dir}"/>
-                <fileset dir="${lib.dir}" includes="**/*.jar"/>
+                <fileset dir="${lib.dir}" includes="**/*-fix.jar"/>
+                <fileset dir="${lib.dir}" includes="**/*.jar" excludes="**/*-fix.jar"/>
                 <fileset dir="${test.lib.dir}" includes="**/*.jar"/>
             </classpath>
             <jvmarg value="-noverify" />
@@ -764,39 +780,36 @@
         
     </target>
     
-    <target name="-new-version-set">
+    <target name="new-version-set">
         <property name="new.version" value="1" />
     </target>
     
-    <target name="new-version" depends="-new-version-set,all">
-        
-    </target>          
-    
-    <target name="new-version-library" depends="-new-version-set,library">
+    <target name="new-version" depends="new-version-set,all">
         
     </target>
     
-    <target name="new-version-archive" depends="-new-version-set,archive">
+    
+    <target name="new-version-library" depends="new-version-set,library">
         
     </target>
     
-    <target name="new-version-deb" depends="-new-version-set,deb">
+    <target name="new-version-archive" depends="new-version-set,archive">
         
     </target>
     
-    <target name="new-version-osx-app-archive" depends="-new-version-set,osx-app-archive">
+    <target name="new-version-deb" depends="new-version-set,deb">
         
     </target>
     
-    <target name="new-version-installer" depends="-new-version-set,installer">
+    <target name="new-version-osx-app-archive" depends="new-version-set,osx-app-archive">
+        
+    </target>
+        
+    <target name="new-version-osx-app-installer" depends="new-version-set,osx-app-installer">
         
     </target>
     
-    <target name="new-version-osx-app-installer" depends="-new-version-set,osx-app-installer">
-        
-    </target>
-    
-    <target name="new-version-locales" depends="-new-version-set,locales">
+    <target name="new-version-locales" depends="new-version-set">
         
     </target>
     
@@ -866,17 +879,8 @@
                                                                                                                                                                                                                                                                                                     
     <target name="-get-home" depends="-get-home-from-user-windows-appdata,-get-home-from-user-windows-home,-get-home-from-user-osx-home,-get-home-from-user,-get-home-no">        
         
-    </target>
+    </target> 
     
-    <target name="-get-playerglobal-home" depends="-get-home">
-        <property name="playerglobal.homedir" value="${app.homedir}/flashlib"/>
-        <mkdir dir="${playerglobal.homedir}"/>
-        <echo message="PlayerGlobal homedir: ${playerglobal.homedir}" level="info"/>
-    </target>
-    
-    <target name="download-playerglobal" depends="-get-playerglobal-home">
-        <copy file="${adobe.playerglobal.path}" todir="${playerglobal.homedir}" />                
-    </target>
     <target name="fix-src-endoflines">
         <fixcrlf srcdir="${src.dir}" includes="**/*.java" />
         <fixcrlf srcdir="${src.dir}" includes="**/*.properties" />
@@ -888,7 +892,121 @@
         <fixcrlf srcdir="${src.dir}" includes="**/*.sh" eol="lf" />
         <ant antfile="${core.lib.script}" target="fix-src-endoflines" inheritAll="false" usenativebasedir="true" />        
     </target>
-    <target name="deps" depends="download-playerglobal">
+    
+    <target name="update-changelog-md" depends="compile">
+        <java classname="com.jpexs.build.ChangelogUpdater" failonerror="true" fork="true">
+            <classpath>
+                <fileset dir="${basedir}" includes="lib/**/*-fix.jar"/>
+                <fileset dir="${basedir}" includes="lib/**/*.jar" excludes="lib/**/*-fix.jar"/>
+                <pathelement location="build/classes"/>
+            </classpath>
+        </java>
+    </target>
+    
+    <target name="update-metainfo" depends="compile" >
+        <java classname="com.jpexs.build.MetainfoUpdater" failonerror="true" fork="true">
+            <classpath>
+                <fileset dir="${basedir}" includes="lib/**/*-fix.jar"/>
+                <fileset dir="${basedir}" includes="lib/**/*.jar" excludes="lib/**/*-fix.jar"/>
+                <pathelement location="build/classes"/>
+            </classpath>
+        </java>
+    </target>
+    
+    <target name="-github-newversion-input">
+        <input message="Enter new version number (for example 19.2.3) :" addproperty="gh.newversion" />
+        <fail unless="gh.newversion">Version number must be nonempty</fail>
+        <tstamp>
+            <format property="gh.newversion.time" pattern="yyyy-MM-dd" />
+        </tstamp>
+    </target>
+    
+    <target name="rename-unreleased-section" depends="-github-newversion-input">        
+        <replace file="${basedir}/${changelog.file}" token="## [Unreleased]" value="## [${gh.newversion}] - ${gh.newversion.time}"/>
+    </target>
+    
+    <target name="-add-unreleased-section" depends="-github-newversion-input">
+        <replace file="${basedir}/${changelog.file}" token="## [${gh.newversion}] - ${gh.newversion.time}" value="## [Unreleased]${line.separator}${line.separator}## [${gh.newversion}] - ${gh.newversion.time}"/>        
+    </target>
+    
+    <target name="-git-checkout-master" depends="-git-required">
+        <exec executable="git" failonerror="true">
+            <arg value="checkout"/>
+            <arg value="master"/>
+        </exec> 
+        <exec executable="git" failonerror="true">
+            <arg value="pull"/>
+            <arg value="origin"/>
+            <arg value="master"/>
+        </exec> 
+    </target>
+    
+    <target name="build_cli">
+        <ant antfile="${cli.script}" target="build" inheritAll="false" usenativebasedir="true"/>
+    </target>
+   
+    <target name="update-dockefile" depends="-github-newversion-input">
+        <replaceregexp file="Dockerfile" match="version[^/]+/ffdec_[^/]+.zip" replace="version${gh.newversion}/ffdec_${gh.newversion}.zip"/>
+    </target>   
+    
+    <target name="github-newversion" depends="-git-required,-git-checkout-master,-github-newversion-input,rename-unreleased-section,update-changelog-md,update-metainfo,update-dockefile">
+        <exec executable="git" failonerror="true">
+            <arg value="add"/>
+            <arg value="${changelog.file}"/>            
+            <arg value="${metainfo.file}"/>   
+            <arg value="Dockerfile"/>
+        </exec> 
         
-    </target>        
+        <exec executable="git" failonerror="true">
+            <arg value="commit"/>
+            <arg value="-m"/>
+            <arg value="chore: change version to ${gh.newversion}"/>   
+        </exec> 
+        
+        <exec executable="git" failonerror="true">
+            <arg value="tag"/>
+            <arg value="version${gh.newversion}"/>            
+        </exec>
+        
+        <exec executable="git" failonerror="true">
+            <arg value="push"/>
+            <arg value="origin"/>
+            <arg value="master"/>
+            <arg value="version${gh.newversion}"/>
+        </exec>
+        
+        <antcall target="-add-unreleased-section" />
+        <antcall target="update-changelog-md" />
+    
+        <exec executable="git" failonerror="false">
+            <arg value="branch"/>
+            <arg value="-D"/>            
+            <arg value="dev"/>
+        </exec>
+        
+        <exec executable="git" failonerror="true">
+            <arg value="checkout"/>
+            <arg value="-b"/>            
+            <arg value="dev"/>
+        </exec>
+        
+        <exec executable="git" failonerror="true">
+            <arg value="add"/>
+            <arg value="${changelog.file}"/>  
+        </exec> 
+        
+        <exec executable="git" failonerror="true">
+            <arg value="commit"/>
+            <arg value="-m"/>
+            <arg value="chore: create Unreleased section in CHANGELOG.md&#10;&#10;[ci skip]"/>
+        </exec> 
+        
+        <exec executable="git" failonerror="true">
+            <arg value="push"/>
+            <arg value="--set-upstream"/>
+            <arg value="origin"/>
+            <arg value="dev"/>
+            <arg value="--force"/>
+        </exec> 
+    </target>
 </project>

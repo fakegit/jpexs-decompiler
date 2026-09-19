@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,7 +17,8 @@
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
-import com.jpexs.decompiler.flash.action.swf3.ActionGetURL;
+import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
+import com.jpexs.decompiler.flash.action.swf1.ActionGetURL;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
@@ -29,26 +30,45 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Get URL.
  *
  * @author JPEXS
  */
 public class GetURLActionItem extends ActionItem {
 
+    /**
+     * URL string
+     */
     public String urlString;
 
+    /**
+     * Target string
+     */
     public String targetString;
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) {
-        writer.append("getUrl");
-        writer.spaceBeforeCallParenthesies(2);
+        writer.append("getURL");
+        writer.spaceBeforeCallParenthesis(2);
         writer.append("(\"");
         writer.append(Helper.escapeActionScriptString(urlString));
-        writer.append("\", \"");
-        writer.append(Helper.escapeActionScriptString(targetString));
-        return writer.append("\")");
+        writer.append("\"");
+        if (!targetString.isEmpty()) {
+            writer.append(", \"");
+            writer.append(Helper.escapeActionScriptString(targetString));
+            writer.append("\"");
+        }
+        writer.append(")");
+        return writer;
     }
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param urlString URL string
+     * @param targetString Target string
+     */
     public GetURLActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, String urlString, String targetString) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.urlString = urlString;
@@ -57,7 +77,9 @@ public class GetURLActionItem extends ActionItem {
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        return toSourceMerge(localData, generator, new ActionGetURL(urlString, targetString));
+        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
+        return toSourceMerge(localData, generator, new ActionGetURL(urlString, targetString, charset));
     }
 
     @Override

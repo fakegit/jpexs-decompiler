@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,56 +16,124 @@
  */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
+import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
+import com.jpexs.decompiler.flash.abc.ABC;
+import com.jpexs.decompiler.flash.abc.AVM2LocalData;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
+import com.jpexs.decompiler.flash.abc.avm2.parser.script.AbcIndexing;
 import com.jpexs.decompiler.flash.abc.types.Multiname;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
+import com.jpexs.decompiler.flash.helpers.hilight.HighlightSpecialType;
 import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
-import com.jpexs.decompiler.graph.SimpleValue;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
+import com.jpexs.helpers.Reference;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 
 /**
+ * Find and get property.
  *
  * @author JPEXS
  */
-public class GetLexAVM2Item extends AVM2Item implements SimpleValue {
+public class GetLexAVM2Item extends AVM2Item {
 
+    /**
+     * Property name
+     */
     public Multiname propertyName;
 
+    /**
+     * Type
+     */
+    public GraphTargetItem type;
+
+    /**
+     * Call type
+     */
+    public GraphTargetItem callType;
+
+    /**
+     * Is static
+     */
+    public boolean isStatic;
+
+    /**
+     * Full property name
+     */
     private final DottedChain fullPropertyName;
 
-    public GetLexAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, Multiname propertyName, AVM2ConstantPool constants) {
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param propertyName Property name
+     * @param abc ABC
+     * @param constants Constants
+     * @param type Type
+     * @param callType Call type
+     * @param isStatic Is static
+     */
+    public GetLexAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, Multiname propertyName, ABC abc, AVM2ConstantPool constants, GraphTargetItem type, GraphTargetItem callType, boolean isStatic, Set<String> usedDeobfuscations) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.propertyName = propertyName;
-        this.fullPropertyName = propertyName.getNameWithNamespace(constants, true);
+        this.type = type;
+        this.callType = callType;
+        this.fullPropertyName = propertyName.getNameWithNamespace(usedDeobfuscations, abc, constants, true);
+        this.isStatic = isStatic;
     }
 
+    /**
+     * Gets the raw property name.
+     * @return Raw property name
+     */
     public String getRawPropertyName() {
         return fullPropertyName.toRawString();
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) {
-        String localName = propertyName.getNameWithCustomNamespace(localData.abc, localData.fullyQualifiedNames, false, true);
+        Reference<DottedChain> customNsRef = new Reference<>(null);
+        String localName = propertyName.getNameAndCustomNamespace(localData.usedDeobfuscations, localData.abc, localData.fullyQualifiedNames, false, true, customNsRef);
+        DottedChain customNs = customNsRef.getVal();                
+        if (customNs != null) {                        
+            String nsname = customNs.getLast();
+            String identifier = IdentifiersDeobfuscation.printIdentifier(localData.abc.getSwf(), localData.usedDeobfuscations, true, nsname);                    
+            
+            Boolean ambiguous = null;
+            
+            if (localData.classIndex > -1) {
+                DottedChain fullClassName = localData.abc.instance_info.get(localData.classIndex).getName(localData.abc.constants).getNameWithNamespace(new HashSet<>(), localData.abc, localData.abc.constants, false);
+                ambiguous = localData.abcIndex.isPropertyAmbiguous(localData.abc, localName, new TypeItem(fullClassName), true, true);                
+            }
+            
+            
+            if (ambiguous == null || ambiguous == true) {
+                writer.hilightSpecial(identifier, HighlightSpecialType.TYPE_NAME, customNs.toRawString());
+                writer.appendNoHilight("::");
+                getSrcData().localName = nsname + "::" + localName;            
+                return writer.append(localName);
+            } else {
+                getSrcData().localName = nsname + "::" + localName;            
+                return writer.append(localName);
+            }
+        }
+        
+        
         getSrcData().localName = localName;
-        return writer.append(propertyName.getNameWithCustomNamespace(localData.abc, localData.fullyQualifiedNames, false, true));
+        return writer.append(localName);
     }
 
     @Override
     public GraphTargetItem returnType() {
-        return TypeItem.UNBOUNDED;
+        return type;
     }
 
     @Override
     public boolean hasReturnValue() {
-        return true;
-    }
-
-    @Override
-    public boolean isSimpleValue() {
         return true;
     }
 

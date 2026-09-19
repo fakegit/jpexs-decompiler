@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,6 +17,7 @@
 package com.jpexs.decompiler.flash.abc.avm2.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.abc.avm2.graph.AVM2GraphTargetDialect;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instructions;
 import com.jpexs.decompiler.graph.CompilationException;
@@ -28,13 +29,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * As type conversion.
  *
  * @author JPEXS
  */
 public class AsTypeAVM2Item extends BinaryOpItem {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     * @param type Type
+     */
     public AsTypeAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value, GraphTargetItem type) {
-        super(instruction, lineStartIns, PRECEDENCE_RELATIONAL, value, type, "as", "", "");
+        super(AVM2GraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_RELATIONAL, value, type, "as", "", "");
     }
 
     @Override
@@ -46,7 +55,7 @@ public class AsTypeAVM2Item extends BinaryOpItem {
 
     @Override
     public GraphTargetItem returnType() {
-        return rightSide;
+        return rightSide.returnType();
     }
 
     @Override

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,25 +12,48 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.settings;
 
 import com.jpexs.decompiler.flash.exporters.modes.SpriteExportMode;
 
 /**
+ * Sprite export settings.
  *
  * @author JPEXS
  */
 public class SpriteExportSettings {
 
+    /**
+     * Export folder name
+     */
     public static final String EXPORT_FOLDER_NAME = "sprites";
 
+    /**
+     * Mode
+     */
     public SpriteExportMode mode;
 
+    /**
+     * Zoom
+     */
     public double zoom;
+    
+    /**
+     * Antialias conflation reducing scale coefficient
+     */
+    public int aaScale;
 
-    public SpriteExportSettings(SpriteExportMode mode, double zoom) {
+    /**
+     * Constructor.
+     * @param mode Mode
+     * @param zoom Zoom
+     * @param aaScale Antialias conflation reducing scale coefficient
+     */
+    public SpriteExportSettings(SpriteExportMode mode, double zoom, int aaScale) {
         this.mode = mode;
         this.zoom = zoom;
+        this.aaScale = aaScale;
     }
 }

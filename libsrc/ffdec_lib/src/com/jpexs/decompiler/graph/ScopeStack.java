@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,15 +17,24 @@
 package com.jpexs.decompiler.graph;
 
 /**
+ * Stack for scope.
  *
  * @author JPEXS
  */
 public class ScopeStack extends TranslateStack {
 
+    /**
+     * Constructs a new ScopeStack.
+     *
+     * @param allowEmpty Whether empty stack is allowed
+     */
     public ScopeStack(boolean allowEmpty) {
         super(allowEmpty ? "scope" : null);
     }
 
+    /**
+     * Constructs a new ScopeStack.
+     */
     public ScopeStack() {
         this(true);
     }

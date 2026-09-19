@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
 package com.jpexs.decompiler.flash.gui.abc;
 
 import com.jpexs.decompiler.flash.abc.ABC;
-import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.View;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import java.awt.AlphaComposite;
@@ -30,7 +29,6 @@ import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 
 /**
- *
  * @author JPEXS
  */
 public class TraitsList extends JList<Object> implements ListSelectionListener {
@@ -72,16 +70,19 @@ public class TraitsList extends JList<Object> implements ListSelectionListener {
     public void setAbc(ABC abc) {
         this.abc = abc;
         setModel(new DefaultListModel<>());
-        setClassIndex(-1, -1);
+        setClassIndex(-1, -1, false);
     }
 
-    public void setClassIndex(int classIndex, int scriptIndex) {
+    public void setClassIndex(int classIndex, int scriptIndex, boolean hasScriptInitializer) {
+        if (abc == null) {
+            return;
+        }
         if (classIndex >= abc.instance_info.size()) {
             return;
         }
 
         this.classIndex = classIndex;
-        setModel(new TraitsListModel(abc, classIndex, scriptIndex, sorted));
+        setModel(new TraitsListModel(abc, classIndex, scriptIndex, sorted, hasScriptInitializer));
     }
 
     private int lastSelected = -1;

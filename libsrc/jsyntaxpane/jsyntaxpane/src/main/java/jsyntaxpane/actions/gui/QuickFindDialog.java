@@ -27,6 +27,8 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import javax.swing.JCheckBox;
 import javax.swing.JRootPane;
+import javax.swing.JScrollBar;
+import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -85,12 +87,13 @@ public class QuickFindDialog extends javax.swing.JDialog
     public QuickFindDialog(final JTextComponent target, DocumentSearchData data) {
         super(ActionUtils.getFrameFor(target), false);
         initComponents();
+        jToolBar1.setFloatable(false);
         SwingUtils.addEscapeListener(this);
         dsd = new WeakReference<DocumentSearchData>(data);
         getRootPane().setWindowDecorationStyle(JRootPane.NONE);
 
     }
-
+    
     public void showFor(final JTextComponent target) {
         oldCaretPosition = target.getCaretPosition();
         Container view = target.getParent();
@@ -99,6 +102,13 @@ public class QuickFindDialog extends javax.swing.JDialog
         Point loc = new Point(0, view.getHeight());
         setSize(wd);
         setLocationRelativeTo(view);
+        if (view.getParent() instanceof JScrollPane) {
+            JScrollPane scrollPane = (JScrollPane) view.getParent();
+            JScrollBar horizontalScrollBar = scrollPane.getHorizontalScrollBar();
+            if (horizontalScrollBar.isVisible()) {
+                loc.y += horizontalScrollBar.getHeight();
+            }
+        }
         SwingUtilities.convertPointToScreen(loc, view);
         setLocation(loc);
         jTxtFind.setFont(target.getFont());
@@ -150,6 +160,7 @@ public class QuickFindDialog extends javax.swing.JDialog
         jSeparator3 = new javax.swing.JToolBar.Separator();
         jBtnPrev = new javax.swing.JButton();
         jBtnNext = new javax.swing.JButton();
+        jLblOccurrences = new javax.swing.JLabel();
         jChkIgnoreCase = new javax.swing.JCheckBox();
         jChkRegExp = new javax.swing.JCheckBox();
         jChkWrap = new javax.swing.JCheckBox();
@@ -163,7 +174,6 @@ public class QuickFindDialog extends javax.swing.JDialog
         setResizable(false);
 
         jToolBar1.setBorder(javax.swing.BorderFactory.createEtchedBorder());
-        jToolBar1.setFloatable(false);
         jToolBar1.setRollover(true);
         jToolBar1.add(jSeparator1);
 
@@ -183,7 +193,6 @@ public class QuickFindDialog extends javax.swing.JDialog
         jBtnPrev.setIcon(new javax.swing.ImageIcon(getClass().getResource("/META-INF/images/small-icons/go-up.png"))); // NOI18N
         jBtnPrev.setFocusable(false);
         jBtnPrev.setHorizontalTextPosition(javax.swing.SwingConstants.CENTER);
-        jBtnPrev.setOpaque(false);
         jBtnPrev.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
         jBtnPrev.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -196,7 +205,6 @@ public class QuickFindDialog extends javax.swing.JDialog
         jBtnNext.setFocusable(false);
         jBtnNext.setHorizontalTextPosition(javax.swing.SwingConstants.CENTER);
         jBtnNext.setMargin(new java.awt.Insets(2, 2, 2, 2));
-        jBtnNext.setOpaque(false);
         jBtnNext.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
         jBtnNext.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -205,10 +213,13 @@ public class QuickFindDialog extends javax.swing.JDialog
         });
         jToolBar1.add(jBtnNext);
 
+        jLblOccurrences.setText(bundle.getString("QuickFindDialog.Occurrences.Zero")); // NOI18N
+        jLblOccurrences.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, 5, 0, 5));
+        jToolBar1.add(jLblOccurrences);
+
         jChkIgnoreCase.setMnemonic('C');
         jChkIgnoreCase.setText(bundle.getString("QuickFindDialog.jChkIgnoreCase.text")); // NOI18N
         jChkIgnoreCase.setFocusable(false);
-        jChkIgnoreCase.setOpaque(false);
         jChkIgnoreCase.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
         jToolBar1.add(jChkIgnoreCase);
         jChkIgnoreCase.addActionListener(this);
@@ -216,7 +227,6 @@ public class QuickFindDialog extends javax.swing.JDialog
         jChkRegExp.setMnemonic('R');
         jChkRegExp.setText(bundle.getString("QuickFindDialog.jChkRegExp.text")); // NOI18N
         jChkRegExp.setFocusable(false);
-        jChkRegExp.setOpaque(false);
         jChkRegExp.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
         jToolBar1.add(jChkRegExp);
         jChkRegExp.addActionListener(this);
@@ -224,7 +234,6 @@ public class QuickFindDialog extends javax.swing.JDialog
         jChkWrap.setMnemonic('W');
         jChkWrap.setText(bundle.getString("QuickFindDialog.jChkWrap.text")); // NOI18N
         jChkWrap.setFocusable(false);
-        jChkWrap.setOpaque(false);
         jChkWrap.setVerticalTextPosition(javax.swing.SwingConstants.BOTTOM);
         jToolBar1.add(jChkWrap);
         jChkWrap.addActionListener(this);
@@ -255,6 +264,7 @@ public class QuickFindDialog extends javax.swing.JDialog
         } else {
             jLblStatus.setText(java.util.ResourceBundle.getBundle("jsyntaxpane/Bundle").getString("QuickFindDialog.NotFound"));
         }
+        updateOccurrences();
 }//GEN-LAST:event_jBtnNextActionPerformed
 
 	private void jBtnPrevActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jBtnPrevActionPerformed
@@ -263,8 +273,25 @@ public class QuickFindDialog extends javax.swing.JDialog
         } else {
             jLblStatus.setText(java.util.ResourceBundle.getBundle("jsyntaxpane/Bundle").getString("QuickFindDialog.NotFound"));
         }
+        updateOccurrences();
 }//GEN-LAST:event_jBtnPrevActionPerformed
 
+        //JPEXS
+        private void updateOccurrences() {
+                if (dsd.get().getOccurrencesCount(target.get()) == 0)
+                {
+                        jLblOccurrences.setText(
+                            java.util.ResourceBundle.getBundle("jsyntaxpane/Bundle").getString("QuickFindDialog.Occurrences.Zero")
+                        );
+                        return;
+                }
+                jLblOccurrences.setText(
+                        java.util.ResourceBundle.getBundle("jsyntaxpane/Bundle").getString("QuickFindDialog.Occurrences")
+                                .replace("%current%", "" + dsd.get().getCurrentOccurrence(target.get()))
+                                .replace("%total%", "" + dsd.get().getOccurrencesCount(target.get()))
+                );
+        } 
+        
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton jBtnNext;
     private javax.swing.JButton jBtnPrev;
@@ -272,6 +299,7 @@ public class QuickFindDialog extends javax.swing.JDialog
     private javax.swing.JCheckBox jChkRegExp;
     private javax.swing.JCheckBox jChkWrap;
     private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLblOccurrences;
     private javax.swing.JLabel jLblStatus;
     private javax.swing.JToolBar.Separator jSeparator1;
     private javax.swing.JToolBar.Separator jSeparator2;
@@ -302,6 +330,7 @@ public class QuickFindDialog extends javax.swing.JDialog
         String toFind = jTxtFind.getText();
         if (toFind == null || toFind.isEmpty()) {
             jLblStatus.setText(null);
+            jLblOccurrences.setText(null);
             return;
         }
         try {
@@ -318,6 +347,7 @@ public class QuickFindDialog extends javax.swing.JDialog
             } else {
                 jLblStatus.setText(null);
             }
+            updateOccurrences(); //JPEXS
             setSize(getPreferredSize());
             pack();
         } catch (PatternSyntaxException e) {

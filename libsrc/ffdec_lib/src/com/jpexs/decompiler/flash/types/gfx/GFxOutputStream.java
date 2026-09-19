@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,15 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types.gfx;
 
 import java.io.IOException;
 import java.io.OutputStream;
 
 /**
+ * Output stream for writing GFx data.
  *
  * @author JPEXS
  */
@@ -116,11 +118,23 @@ public class GFxOutputStream extends OutputStream {
         pos++;
     }
 
+    @Override
+    public void write(byte[] b) throws IOException {
+        os.write(b);
+        pos += b.length;
+    }
+
+    @Override
+    public void write(byte[] b, int off, int len) throws IOException {
+        os.write(b, off, len);
+        pos += len;
+    }
+
     /**
      * Writes SI32 (Signed 32bit integer) value to the stream
      *
      * @param value SI32 value
-     * @throws IOException
+     * @throws IOException On I/O error
      */
     public void writeSI32(long value) throws IOException {
         writeUI32(value);
@@ -130,7 +144,7 @@ public class GFxOutputStream extends OutputStream {
      * Writes SI16 (Signed 16bit integer) value to the stream
      *
      * @param value SI16 value
-     * @throws IOException
+     * @throws IOException On I/O error
      */
     public void writeSI16(int value) throws IOException {
         writeUI16(value);
@@ -140,7 +154,7 @@ public class GFxOutputStream extends OutputStream {
      * Writes SI8 (Signed 8bit integer) value to the stream
      *
      * @param value SI8 value
-     * @throws IOException
+     * @throws IOException On I/O error
      */
     public void writeSI8(int value) throws IOException {
         writeUI8(value);
@@ -150,7 +164,7 @@ public class GFxOutputStream extends OutputStream {
      * Writes UI32 (Unsigned 32bit integer) value to the stream
      *
      * @param value UI32 value
-     * @throws IOException
+     * @throws IOException On I/O error
      */
     public void writeUI32(long value) throws IOException {
         write((int) (value & 0xff));
@@ -163,7 +177,7 @@ public class GFxOutputStream extends OutputStream {
      * Writes UI16 (Unsigned 16bit integer) value to the stream
      *
      * @param value UI16 value
-     * @throws IOException
+     * @throws IOException On I/O error
      */
     public void writeUI16(int value) throws IOException {
         write((int) (value & 0xff));
@@ -174,7 +188,7 @@ public class GFxOutputStream extends OutputStream {
      * Writes UI8 (Unsigned 8bit integer) value to the stream
      *
      * @param val UI8 value to write
-     * @throws IOException
+     * @throws IOException On I/O error
      */
     public void writeUI8(int val) throws IOException {
         write(val & 0xff);
@@ -184,7 +198,7 @@ public class GFxOutputStream extends OutputStream {
      * Writes FLOAT (single precision floating point value) value to the stream
      *
      * @param value FLOAT value
-     * @throws IOException
+     * @throws IOException On I/O error
      */
     public void writeFLOAT(float value) throws IOException {
         writeUI32(Float.floatToIntBits(value));

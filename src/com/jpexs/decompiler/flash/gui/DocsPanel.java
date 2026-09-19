@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2016-2021 JPEXS
+ *  Copyright (C) 2016-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,7 +16,6 @@
  */
 package com.jpexs.decompiler.flash.gui;
 
-import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.abc.DocsListener;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -27,7 +26,6 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 
 /**
- *
  * @author JPEXS
  */
 public class DocsPanel extends JPanel implements DocsListener {

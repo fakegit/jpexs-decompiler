@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.helpers;
 
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
@@ -31,11 +32,18 @@ public class NulWriter extends GraphTextWriter {
     private final Stack<Boolean> stringAddedStack = new Stack<>();
 
     private boolean stringAdded = false;
+    
+    private int length = 0;
 
     public NulWriter() {
         super(new CodeFormatting());
     }
 
+    /**
+     * Starts a new loop.
+     * @param loopId Loop id
+     * @param loopType Loop type
+     */
     public void startLoop(long loopId, int loopType) {
         LoopWithType loop = new LoopWithType();
         loop.loopId = loopId;
@@ -43,6 +51,11 @@ public class NulWriter extends GraphTextWriter {
         loopStack.add(loop);
     }
 
+    /**
+     * Ends a loop.
+     * @param loopId Loop id
+     * @return LoopWithType
+     */
     public LoopWithType endLoop(long loopId) {
         LoopWithType loopIdInStack = loopStack.pop();
         if (loopId != loopIdInStack.loopId) {
@@ -51,6 +64,10 @@ public class NulWriter extends GraphTextWriter {
         return loopIdInStack;
     }
 
+    /**
+     * Gets the current loop id.
+     * @return Loop id
+     */
     public long getLoop() {
         if (loopStack.isEmpty()) {
             return -1;
@@ -58,6 +75,10 @@ public class NulWriter extends GraphTextWriter {
         return loopStack.peek().loopId;
     }
 
+    /**
+     * Gets the current non-switch loop id.
+     * @return Loop id
+     */
     public long getNonSwitchLoop() {
         if (loopStack.isEmpty()) {
             return -1;
@@ -77,6 +98,10 @@ public class NulWriter extends GraphTextWriter {
         return loop.loopId;
     }
 
+    /**
+     * Sets the loop as used.
+     * @param loopId Loop id
+     */
     public void setLoopUsed(long loopId) {
         if (loopStack.isEmpty()) {
             return;
@@ -97,65 +122,86 @@ public class NulWriter extends GraphTextWriter {
     @Override
     public NulWriter hilightSpecial(String text, HighlightSpecialType type, String specialValue, HighlightData data) {
         stringAdded = true;
-        return this;
-    }
-
-    @Override
-    public GraphTextWriter append(char value) {
-        stringAdded = true;
-        return this;
-    }
-
-    @Override
-    public GraphTextWriter append(int value) {
-        stringAdded = true;
-        return this;
-    }
-
-    @Override
-    public GraphTextWriter append(long value) {
-        stringAdded = true;
-        return this;
-    }
-
-    @Override
-    public NulWriter append(String str) {
-        stringAdded = true;
+        length += text.length();
         return this;
     }
 
     @Override
     public GraphTextWriter appendWithData(String str, HighlightData data) {
         stringAdded = true;
+        length += str.length();
+        return this;
+    }
+
+    @Override
+    public GraphTextWriter append(char value) {
+        stringAdded = true;
+        length++;
+        return this;
+    }
+
+    @Override
+    public GraphTextWriter append(int value) {
+        stringAdded = true;
+        length += ("" + value).length();
+        return this;
+    }
+
+    @Override
+    public GraphTextWriter append(long value) {
+        stringAdded = true;
+        length += ("" + value).length();
+        return this;
+    }
+
+    @Override
+    public NulWriter append(String str) {
+        stringAdded = true;
+        length += str.length();
         return this;
     }
 
     @Override
     public NulWriter append(String str, long offset, long fileOffset) {
         stringAdded = true;
+        length += str.length();
         return this;
     }
 
     @Override
     public NulWriter appendNoHilight(int i) {
         stringAdded = true;
+        length += ("" + i).length();
         return this;
     }
 
     @Override
     public NulWriter appendNoHilight(String str) {
         stringAdded = true;
+        length += str.length();
         return this;
     }
 
+    /**
+     * Creates mark.
+     */
     public void mark() {
         stringAddedStack.add(stringAdded);
         stringAdded = false;
     }
 
+    /**
+     * Gets the mark.
+     * @return Mark
+     */
     public boolean getMark() {
         boolean result = stringAdded;
         stringAdded = stringAddedStack.pop() || result;
         return result;
     }
+
+    @Override
+    public int getLength() {
+        return length;                
+    }       
 }

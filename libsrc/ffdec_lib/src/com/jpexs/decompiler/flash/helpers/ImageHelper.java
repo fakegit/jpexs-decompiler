@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,16 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.helpers;
 
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.tags.enums.ImageFormat;
 import com.jpexs.decompiler.flash.types.RGBA;
 import com.jpexs.helpers.Helper;
 import java.awt.Dimension;
+import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.io.ByteArrayInputStream;
@@ -38,6 +41,7 @@ import org.monte.media.jpeg.CMYKJPEGImageReader;
 import org.monte.media.jpeg.CMYKJPEGImageReaderSpi;
 
 /**
+ * Image helper.
  *
  * @author JPEXS
  */
@@ -47,10 +51,21 @@ public class ImageHelper {
         ImageIO.setUseCache(false);
     }
 
+    /**
+     * Reads image from byte array.
+     * @param data Image data
+     * @return Image
+     */
     public static BufferedImage read(byte[] data) throws IOException {
         return read(new ByteArrayInputStream(data));
     }
 
+    /**
+     * Reads image from input stream.
+     * @param input Input stream
+     * @return Image
+     * @throws IOException On I/O error
+     */
     public static BufferedImage read(InputStream input) throws IOException {
         BufferedImage in;
         byte[] data = Helper.readStream(input);
@@ -64,6 +79,14 @@ public class ImageHelper {
             } catch (IOException ex1) {
                 return null;
             }
+        }
+
+        if (in == null) {
+            BufferedImage img = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE);
+            Graphics g = img.getGraphics();
+            g.setColor(SWF.ERROR_COLOR);
+            g.fillRect(0, 0, 1, 1);
+            return img;
         }
 
         int type = in.getType();
@@ -80,6 +103,13 @@ public class ImageHelper {
         return in;
     }
 
+    /**
+     * Writes image to file.
+     * @param image Image
+     * @param format Image format
+     * @param output Output file
+     * @throws IOException On I/O error
+     */
     public static void write(BufferedImage image, ImageFormat format, File output) throws IOException {
         String formatName = getImageFormatString(format).toUpperCase(Locale.ENGLISH);
         if (format == ImageFormat.JPEG) {
@@ -89,6 +119,13 @@ public class ImageHelper {
         ImageIO.write(image, formatName, output);
     }
 
+    /**
+     * Writes image to output stream.
+     * @param image Image
+     * @param format Image format
+     * @param output Output stream
+     * @throws IOException On I/O error
+     */
     public static void write(BufferedImage image, ImageFormat format, OutputStream output) throws IOException {
         String formatName = getImageFormatString(format).toUpperCase(Locale.ENGLISH);
         if (format == ImageFormat.JPEG) {
@@ -98,6 +135,12 @@ public class ImageHelper {
         ImageIO.write(image, formatName, output);
     }
 
+    /**
+     * Writes image to byte array.
+     * @param image Image
+     * @param format Image format
+     * @param output Output byte array
+     */
     public static void write(BufferedImage image, ImageFormat format, ByteArrayOutputStream output) {
         String formatName = getImageFormatString(format).toUpperCase(Locale.ENGLISH);
         if (format == ImageFormat.JPEG) {
@@ -166,6 +209,11 @@ public class ImageHelper {
         return image;
     }
 
+    /**
+     * Gets image format string.
+     * @param format Image format
+     * @return Image format string
+     */
     public static String getImageFormatString(ImageFormat format) {
         switch (format) {
             case UNKNOWN:
@@ -178,12 +226,20 @@ public class ImageHelper {
                 return "png";
             case BMP:
                 return "bmp";
+            case WEBP:
+                return "webp";
         }
 
-        throw new Error("Unsuported image format: " + format);
+        throw new Error("Unsupported image format: " + format);
     }
 
-    public static Dimension getDimesion(InputStream input) throws IOException {
+    /**
+     * Gets image dimension.
+     * @param input Input stream
+     * @return Image dimension
+     * @throws IOException On I/O error
+     */
+    public static Dimension getDimension(InputStream input) throws IOException {
         try (ImageInputStream in = ImageIO.createImageInputStream(input)) {
             final Iterator<ImageReader> readers = ImageIO.getImageReaders(in);
             if (readers.hasNext()) {
@@ -196,6 +252,7 @@ public class ImageHelper {
                 }
             }
         } catch (IOException ex) {
+            //ignored
         }
 
         BufferedImage image = read(input);

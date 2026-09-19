@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.other;
 
 import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
@@ -21,12 +22,15 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
 
 /**
+ * label instruction - label for branch instructions.
  *
  * @author JPEXS
  */
-public class LabelIns extends InstructionDefinition {
-//this can be target of branch
+public class LabelIns extends InstructionDefinition { //this can be target of branch
 
+    /**
+     * Constructor
+     */
     public LabelIns() {
         super(0x09, "label", new int[]{}, false);
     }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -26,7 +26,6 @@ import com.jpexs.decompiler.flash.abc.avm2.parser.pcode.ASM3Parser;
 import com.jpexs.decompiler.flash.abc.avm2.parser.pcode.Flasm3Lexer;
 import com.jpexs.decompiler.flash.abc.avm2.parser.pcode.MissingSymbolHandler;
 import com.jpexs.decompiler.flash.abc.avm2.parser.pcode.ParsedSymbol;
-import com.jpexs.decompiler.flash.abc.types.Decimal;
 import com.jpexs.decompiler.flash.abc.types.Float4;
 import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
@@ -36,7 +35,6 @@ import com.jpexs.decompiler.flash.docs.As3PCodeOtherDocs;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.gui.GraphDialog;
 import com.jpexs.decompiler.flash.gui.Main;
-import com.jpexs.decompiler.flash.gui.View;
 import com.jpexs.decompiler.flash.gui.ViewMessages;
 import com.jpexs.decompiler.flash.gui.editor.DebuggableEditorPane;
 import com.jpexs.decompiler.flash.helpers.HighlightedText;
@@ -64,9 +62,11 @@ import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Utilities;
+import macromedia.asc.util.Decimal128;
 
 /**
- *
  * @author JPEXS
  */
 public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretListener {
@@ -74,6 +74,8 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
     public ABC abc;
 
     public int bodyIndex = -1;
+
+    public int methodIndex = -1;
 
     private int scriptIndex = -1;
 
@@ -87,7 +89,7 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
 
     private final DecompiledEditorPane decompiledEditor;
 
-    private boolean ignoreCarret = false;
+    private boolean ignoreCaret = false;
 
     private String name;
 
@@ -126,14 +128,30 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
         if (trait != null && exportMode != ScriptExportMode.AS && exportMode != ScriptExportMode.AS_METHOD_STUBS) {
             trait.convertTraitHeader(abc, writer);
         }
-        MethodBody body = abc.bodies.get(bodyIndex);
-        abc.bodies.get(bodyIndex).getCode().toASMSource(abc, abc.constants, abc.method_info.get(body.method_info), body, exportMode, writer);
+        if (bodyIndex > -1) {
+            MethodBody body = abc.bodies.get(bodyIndex);
+            abc.bodies.get(bodyIndex).getCode().toASMSource(abc, abc.constants, abc.method_info.get(body.method_info), body, exportMode, writer);
+        } else {
+            writer.appendNoHilight("method");
+            if (Configuration.indentAs3PCode.get()) {
+                writer.indent();
+            }
+            writer.newLine();
+
+            abc.method_info.get(methodIndex).toASMSource(abc, writer);
+
+            if (Configuration.indentAs3PCode.get()) {
+                writer.unindent();
+            }
+            writer.appendNoHilight("end ; method").newLine();
+        }
         if (trait != null && exportMode != ScriptExportMode.AS && exportMode != ScriptExportMode.AS_METHOD_STUBS) {
             if (Configuration.indentAs3PCode.get()) {
                 writer.unindent();
             }
             writer.appendNoHilight("end ; trait").newLine();
         }
+        writer.finishHilights();
         return new HighlightedText(writer);
     }
 
@@ -159,16 +177,19 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
             changeContentType("text/plain");
             if (textHexOnly == null) {
                 HighlightedTextWriter writer = new HighlightedTextWriter(Configuration.getCodeFormatting(), true);
-                Helper.byteArrayToHexWithHeader(writer, abc.bodies.get(bodyIndex).getCodeBytes());
+                if (bodyIndex > -1) {
+                    Helper.byteArrayToHexWithHeader(writer, abc.bodies.get(bodyIndex).getCodeBytes());
+                }
+                writer.finishHilights();
                 textHexOnly = new HighlightedText(writer);
             }
             setText(textHexOnly);
         }
-        hilighOffset(oldOffset);
+        hilightOffset(oldOffset);
     }
 
-    public void setIgnoreCarret(boolean ignoreCarret) {
-        this.ignoreCarret = ignoreCarret;
+    public void setIgnoreCaret(boolean ignoreCaret) {
+        this.ignoreCaret = ignoreCaret;
     }
 
     public ASMSourceEditorPane(DecompiledEditorPane decompiledEditor) {
@@ -192,27 +213,27 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
             }
         }
         if (h2 != null) {
-            ignoreCarret = true;
+            ignoreCaret = true;
             if (h2.startPos <= getDocument().getLength()) {
                 setCaretPosition(h2.startPos);
             }
             getCaret().setVisible(true);
-            ignoreCarret = false;
+            ignoreCaret = false;
         }
     }
 
-    public void hilighOffset(long offset) {
+    public void hilightOffset(long offset) {
         if (isEditable()) {
             return;
         }
         Highlighting h2 = Highlighting.searchOffset(highlightedText.getInstructionHighlights(), offset);
         if (h2 != null) {
-            ignoreCarret = true;
+            ignoreCaret = true;
             if (h2.startPos <= getDocument().getLength()) {
                 setCaretPosition(h2.startPos);
             }
             getCaret().setVisible(true);
-            ignoreCarret = false;
+            ignoreCaret = false;
         }
     }
 
@@ -221,15 +242,13 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
         return super.getName();
     }
 
-    public void setBodyIndex(String scriptPathName, int bodyIndex, ABC abc, String name, Trait trait, int scriptIndex) {
+    public void setMethod(String scriptPathName, int methodIndex, int bodyIndex, ABC abc, String name, Trait trait, int scriptIndex) {
+        this.methodIndex = methodIndex;
         this.bodyIndex = bodyIndex;
         this.abc = abc;
         this.name = name;
         this.trait = trait;
         this.scriptIndex = scriptIndex;
-        if (bodyIndex == -1) {
-            return;
-        }
         textWithHex = null;
         textNoHex = null;
         textHexOnly = null;
@@ -242,13 +261,13 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
             }
         }
         String aname = "#PCODE abc:" + abcIndex + ",body:" + bodyIndex + ";" + scriptPathName;
-        setScriptName(aname);
+        setScriptName(aname, aname);
         setHex(exportMode, true);
     }
 
     public void graph() {
         try {
-            AVM2Graph gr = new AVM2Graph(abc.bodies.get(bodyIndex).getCode(), abc, abc.bodies.get(bodyIndex), false, -1, -1, new HashMap<>(), new ScopeStack(), new HashMap<>(), new ArrayList<>(), new HashMap<>(), abc.bodies.get(bodyIndex).getCode().visitCode(abc.bodies.get(bodyIndex)));
+            AVM2Graph gr = new AVM2Graph(-1, null /*?*/, abc.bodies.get(bodyIndex).getCode(), abc, abc.bodies.get(bodyIndex), false, -1, -1, new HashMap<>(), new ScopeStack(), new ScopeStack(), new HashMap<>(), new ArrayList<>(), new HashMap<>()); //, abc.bodies.get(bodyIndex).getCode().visitCode(abc.bodies.get(bodyIndex)));
             (new GraphDialog(getAbcPanel().getMainPanel().getMainFrame().getWindow(), gr, name)).setVisible(true);
         } catch (InterruptedException ex) {
             Logger.getLogger(ASMSourceEditorPane.class.getName()).log(Level.SEVERE, null, ex);
@@ -271,9 +290,11 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
         try {
             String text = getText();
             if (text.trim().startsWith(Helper.hexData)) {
-                byte[] data = Helper.getBytesFromHexaText(text);
-                MethodBody mb = abc.bodies.get(bodyIndex);
-                mb.setCodeBytes(data);
+                if (bodyIndex > -1) {
+                    byte[] data = Helper.getBytesFromHexaText(text);
+                    MethodBody mb = abc.bodies.get(bodyIndex);
+                    mb.setCodeBytes(data);
+                }
             } else {
                 AVM2Code acode = ASM3Parser.parse(abc, new StringReader(text), trait, new MissingSymbolHandler() {
                     //no longer ask for adding new constants
@@ -298,7 +319,7 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
                     }
 
                     @Override
-                    public boolean missingDecimal(Decimal value) {
+                    public boolean missingDecimal(Decimal128 value) {
                         return true;
                     }
 
@@ -311,9 +332,10 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
                     public boolean missingFloat4(Float4 value) {
                         return true;
                     }
-                }, abc.bodies.get(bodyIndex), abc.method_info.get(abc.bodies.get(bodyIndex).method_info));
-                //acode.getBytes(abc.bodies.get(bodyIndex).getCodeBytes());
-                abc.bodies.get(bodyIndex).setCode(acode);
+                }, bodyIndex == -1 ? null : abc.bodies.get(bodyIndex), abc.method_info.get(methodIndex));
+                if (bodyIndex > -1) {
+                    abc.bodies.get(bodyIndex).setCode(acode);
+                }
             }
 
             ((Tag) abc.parentTag).setModified(true);
@@ -322,14 +344,15 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
             textNoHex = null;
             textHexOnly = null;
             setHex(exportMode, true);
-        } catch (IOException ex) {
-        } catch (InterruptedException ex) {
+        } catch (IOException | InterruptedException ex) {
+            //ignored
         } catch (AVM2ParseException ex) {
             gotoLine((int) ex.line);
             markError();
             ViewMessages.showMessageDialog(Main.getDefaultMessagesComponent(), (ex.text + " on line " + ex.line), Main.getMainFrame().translate("error"), JOptionPane.ERROR_MESSAGE);
             return false;
         }
+        abc.fireChanged();
         return true;
     }
 
@@ -369,6 +392,8 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
     public void clear() {
         setText("");
         bodyIndex = -1;
+        methodIndex = -1;
+        scriptIndex = -1;
         setCaretPosition(0);
     }
 
@@ -439,7 +464,7 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
         Flasm3Lexer lexer = new Flasm3Lexer(new StringReader(getText().replace("\r\n", "\n")));
         ParsedSymbol symb;
         String lastLevel;
-        final Integer singleUse[] = new Integer[]{
+        final Integer[] singleUse = new Integer[]{
             ParsedSymbol.TYPE_KEYWORD_FINAL,
             ParsedSymbol.TYPE_KEYWORD_OVERRIDE,
             ParsedSymbol.TYPE_KEYWORD_METADATA,
@@ -452,14 +477,14 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
             ParsedSymbol.TYPE_KEYWORD_HAS_OPTIONAL
         };
 
-        final Integer openingBlocks[] = new Integer[]{
+        final Integer[] openingBlocks = new Integer[]{
             ParsedSymbol.TYPE_KEYWORD_METHOD,
             ParsedSymbol.TYPE_KEYWORD_CODE,
             ParsedSymbol.TYPE_KEYWORD_BODY,
             ParsedSymbol.TYPE_KEYWORD_TRAIT,
             ParsedSymbol.TYPE_KEYWORD_METADATA_BLOCK
         };
-        final Integer singleLine[] = new Integer[]{
+        final Integer[] singleLine = new Integer[]{
             ParsedSymbol.TYPE_KEYWORD_ITEM,
             ParsedSymbol.TYPE_KEYWORD_NAME,
             ParsedSymbol.TYPE_KEYWORD_FLAG,
@@ -475,8 +500,9 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
             ParsedSymbol.TYPE_KEYWORD_DISPID,
             ParsedSymbol.TYPE_KEYWORD_SLOTID,
             ParsedSymbol.TYPE_KEYWORD_TYPE,
-            ParsedSymbol.TYPE_KEYWORD_VALUE,};
-        final Integer parameters[] = new Integer[]{
+            ParsedSymbol.TYPE_KEYWORD_VALUE
+        };
+        final Integer[] parameters = new Integer[]{
             ParsedSymbol.TYPE_KEYWORD_FROM,
             ParsedSymbol.TYPE_KEYWORD_TO,
             ParsedSymbol.TYPE_KEYWORD_TARGET,
@@ -485,7 +511,8 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
             ParsedSymbol.TYPE_KEYWORD_SLOT,
             ParsedSymbol.TYPE_KEYWORD_CONST,
             ParsedSymbol.TYPE_KEYWORD_GETTER,
-            ParsedSymbol.TYPE_KEYWORD_SETTER};
+            ParsedSymbol.TYPE_KEYWORD_SETTER
+        };
         final List<Integer> openingBlocksList = Arrays.asList(openingBlocks);
         final List<Integer> singleLineList = Arrays.asList(singleLine);
         final List<Integer> parameterList = Arrays.asList(parameters);
@@ -609,32 +636,75 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
             if (curLine == null) {
                 return;
             }
-            curLine = curLine.trim();
-            //strip labels, e.g. ofs123:pushint 25
-            if (curLine.matches("\\p{L}[\\p{L}0-9]*:.*")) {
-                curLine = curLine.substring(curLine.indexOf(':') + 1).trim();
-            }
-
-            //strip instruction arguments, we want only its name
-            if (curLine.contains(" ")) {
-                curLine = curLine.substring(0, curLine.indexOf(' '));
-            }
-            //strip comments, e.g. pushnull;comment
-            if (curLine.contains(";")) {
-                curLine = curLine.substring(0, curLine.indexOf(';'));
-            }
-            String insName = curLine.toLowerCase();
-            if (AVM2Code.instructionAliases.containsKey(insName)) {
-                insName = AVM2Code.instructionAliases.get(insName);
-            }
-            Point loc = getLineLocation(getLine() + 1);
-            if (loc != null) {
-                SwingUtilities.convertPointToScreen(loc, this);
-            }
-            if (insNameToDef.containsKey(insName)) {
-
-                fireDocs("instruction." + insName, As3PCodeDocs.getDocsForIns(insName, false, true, true, nightMode), loc);
-                return;
+            try {
+                Flasm3Lexer lexer = new Flasm3Lexer(new StringReader(curLine));
+                ParsedSymbol symb = lexer.lex();
+                while (symb.type == ParsedSymbol.TYPE_LABEL) {
+                    symb = lexer.lex();
+                }
+                if (symb.type == ParsedSymbol.TYPE_INSTRUCTION_NAME) {
+                    String insName = (String) symb.value;
+                    int argumentToHilight = -1;
+                    int column = 0;
+                    try {
+                        int caretPosition = getCaretPosition();
+                        int rowStart = Utilities.getRowStart(this, caretPosition);
+                        column = caretPosition - rowStart;
+                    } catch (BadLocationException ex) {
+                        //ignore
+                    }
+                    symb = lexer.lex();
+                    if (symb.pos <= column) {
+                        argumentToHilight++;
+                        int parentLevel = 0;
+                        Stack<Integer> parentsStack = new Stack<>();
+                        while (symb.type != ParsedSymbol.TYPE_EOF) {
+                            if (symb.pos >= column) {
+                                break;
+                            }
+                            if (symb.type == ParsedSymbol.TYPE_PARENT_OPEN
+                                    || symb.type == ParsedSymbol.TYPE_BRACKET_OPEN) {
+                                parentsStack.push(symb.type);
+                                parentLevel++;
+                            }
+                            if (symb.type == ParsedSymbol.TYPE_PARENT_CLOSE) {
+                                if (parentsStack.isEmpty()) {
+                                    throw new IOException("parent stack empty");
+                                }
+                                if (parentsStack.pop() != ParsedSymbol.TYPE_PARENT_OPEN) {
+                                    throw new IOException("invalid parent");
+                                }
+                                parentLevel--;
+                            }
+                            if (symb.type == ParsedSymbol.TYPE_BRACKET_CLOSE) {
+                                if (parentsStack.isEmpty()) {
+                                    throw new IOException("parent stack empty");
+                                }
+                                if (parentsStack.pop() != ParsedSymbol.TYPE_BRACKET_OPEN) {
+                                    throw new IOException("invalid parent");
+                                }
+                                parentLevel--;
+                            }
+                            if (parentLevel == 0 && symb.type == ParsedSymbol.TYPE_COMMA) {
+                                argumentToHilight++;
+                            }
+                            symb = lexer.lex();
+                        }
+                    }
+                    if (AVM2Code.instructionAliases.containsKey(insName)) {
+                        insName = AVM2Code.instructionAliases.get(insName);
+                    }
+                    Point loc = getLineLocation(getLine() + 1);
+                    if (loc != null) {
+                        SwingUtilities.convertPointToScreen(loc, this);
+                    }
+                    if (insNameToDef.containsKey(insName)) {
+                        fireDocs("instruction." + insName, As3PCodeDocs.getDocsForIns(insName, false, true, true, nightMode, argumentToHilight), loc);
+                        return;
+                    }
+                }
+            } catch (IOException | AVM2ParseException iex) {
+                //ignore
             }
         }
         String pathDocs = As3PCodeOtherDocs.getDocsForPath(pathNoTrait, nightMode);
@@ -653,7 +723,7 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
     public void caretUpdate(CaretEvent e) {
         updateDocs();
 
-        if (ignoreCarret) {
+        if (ignoreCaret) {
             return;
         }
         if (isEditable()) {

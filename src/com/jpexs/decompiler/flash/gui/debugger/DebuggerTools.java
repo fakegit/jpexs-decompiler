@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -29,6 +29,8 @@ import com.jpexs.decompiler.flash.tags.FileAttributesTag;
 import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.helpers.Helper;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.logging.Level;
@@ -36,7 +38,6 @@ import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 /**
- *
  * @author JPEXS
  */
 public class DebuggerTools {
@@ -90,33 +91,79 @@ public class DebuggerTools {
         if (hasDebugger(swf)) {
             ScriptPack dsp = getDebuggerScriptPack(swf);
             String debuggerPkg = dsp.getClassPath().packageStr.toRawString();
+            List<String> displayTypes = Arrays.asList("Loader");
+            List<String> utilsTypes = Arrays.asList(
+                    "getDefinitionByName",
+                    "getQualifiedClassName",
+                    "getQualifiedSuperclassName",
+                    "describeType"
+            );
+
             for (ABCContainerTag ct : swf.getAbcList()) {
                 ABC a = ct.getABC();
                 if (dsp.abc == a) { //do not replace Loader in debugger itself
                     continue;
                 }
+                int debuggerNs = a.constants.getNamespaceId(Namespace.KIND_PACKAGE, debuggerPkg, 0, true);
                 for (int i = 1; i < a.constants.getMultinameCount(); i++) {
                     Multiname m = a.constants.getMultiname(i);
-                    if ("flash.display.Loader".equals(m.getNameWithNamespace(a.constants, true).toRawString())) {
-                        m.namespace_index = a.constants.getNamespaceId(Namespace.KIND_PACKAGE, debuggerPkg, 0, true);
-                        m.name_index = a.constants.getStringId("DebugLoader", true);
-                        ((Tag) ct).setModified(true);
-                    } else if ("flash.utils.getDefinitionByName".equals(m.getNameWithNamespace(a.constants, true).toRawString())) {
-                        m.namespace_index = a.constants.getNamespaceId(Namespace.KIND_PACKAGE, debuggerPkg, 0, true);
-                        m.name_index = a.constants.getStringId("debugGetDefinitionByName", true);
-                        ((Tag) ct).setModified(true);
-                    } else if ("flash.utils.getQualifiedClassName".equals(m.getNameWithNamespace(a.constants, true).toRawString())) {
-                        m.namespace_index = a.constants.getNamespaceId(Namespace.KIND_PACKAGE, debuggerPkg, 0, true);
-                        m.name_index = a.constants.getStringId("debugGetQualifiedClassName", true);
-                        ((Tag) ct).setModified(true);
-                    } else if ("flash.utils.getQualifiedSuperclassName".equals(m.getNameWithNamespace(a.constants, true).toRawString())) {
-                        m.namespace_index = a.constants.getNamespaceId(Namespace.KIND_PACKAGE, debuggerPkg, 0, true);
-                        m.name_index = a.constants.getStringId("debugGetQualifiedSuperclassName", true);
-                        ((Tag) ct).setModified(true);
-                    } else if ("flash.utils.describeType".equals(m.getNameWithNamespace(a.constants, true).toRawString())) {
-                        m.namespace_index = a.constants.getNamespaceId(Namespace.KIND_PACKAGE, debuggerPkg, 0, true);
-                        m.name_index = a.constants.getStringId("debugDescribeType", true);
-                        ((Tag) ct).setModified(true);
+                    String rawNsName = m.getNameWithNamespace(new LinkedHashSet<>(), a, a.constants, true).toRawString();
+                    if (m.kind == Multiname.MULTINAME) {
+                        String simpleName = m.getName(new LinkedHashSet<>(), a, a.constants, new ArrayList<>(), true, false);
+                        String nsToSearch;
+                        if (displayTypes.contains(simpleName)) {
+                            nsToSearch = "flash.display";
+                        } else if (utilsTypes.contains(simpleName)) {
+                            nsToSearch = "flash.utils";
+                        } else {
+                            continue;
+                        }
+
+                        int nsFoundId = -1;
+                        for (int ns : a.constants.getNamespaceSet(m.namespace_set_index).namespaces) {
+                            String nsString = a.constants.namespaceToString(a, ns);
+                            if (nsString != null) {
+                                if (nsString.equals(nsToSearch)) {
+                                    nsFoundId = ns;
+                                    break;
+                                }
+                            }
+                        }
+                        if (nsFoundId > -1) {
+                            m.kind = Multiname.QNAME;
+                            m.namespace_index = nsFoundId;
+                            m.namespace_set_index = 0;
+                            rawNsName = m.getNameWithNamespace(new LinkedHashSet<>(), a, a.constants, true).toRawString();
+                        }
+                    }
+                    if (null != rawNsName) {
+                        switch (rawNsName) {
+                            case "flash.display.Loader":
+                                m.namespace_index = debuggerNs;
+                                m.name_index = a.constants.getStringId("DebugLoader", true);
+                                ((Tag) ct).setModified(true);
+                                break;
+                            case "flash.utils.getDefinitionByName":
+                                m.namespace_index = debuggerNs;
+                                m.name_index = a.constants.getStringId("debugGetDefinitionByName", true);
+                                ((Tag) ct).setModified(true);
+                                break;
+                            case "flash.utils.getQualifiedClassName":
+                                m.namespace_index = debuggerNs;
+                                m.name_index = a.constants.getStringId("debugGetQualifiedClassName", true);
+                                ((Tag) ct).setModified(true);
+                                break;
+                            case "flash.utils.getQualifiedSuperclassName":
+                                m.namespace_index = debuggerNs;
+                                m.name_index = a.constants.getStringId("debugGetQualifiedSuperclassName", true);
+                                ((Tag) ct).setModified(true);
+                                break;
+                            case "flash.utils.describeType":
+                                m.namespace_index = debuggerNs;
+                                m.name_index = a.constants.getStringId("debugDescribeType", true);
+                                ((Tag) ct).setModified(true);
+                                break;
+                        }
                     }
                 }
             }
@@ -131,7 +178,7 @@ public class DebuggerTools {
                 ABC a = ct.getABC();
                 for (int i = 1; i < a.constants.getMultinameCount(); i++) {
                     Multiname m = a.constants.getMultiname(i);
-                    if ("trace".equals(m.getNameWithNamespace(a.constants, true).toRawString())) {
+                    if ("trace".equals(m.getNameWithNamespace(new LinkedHashSet<>(), a, a.constants, true).toRawString())) {
                         m.namespace_index = a.constants.getNamespaceId(Namespace.KIND_PACKAGE, debuggerPkg, 0, true);
                         m.name_index = a.constants.getStringId(fname, true);
                         ((Tag) ct).setModified(true);
@@ -154,7 +201,7 @@ public class DebuggerTools {
                 ABC a = ct.getABC();
                 for (int i = 1; i < a.constants.getMultinameCount(); i++) {
                     Multiname m = a.constants.getMultiname(i);
-                    String packageStr = m.getNameWithNamespace(a.constants, true).toString();
+                    String packageStr = m.getNameWithNamespace(new LinkedHashSet<>(), a, a.constants, true).toString();
                     if (isDebuggerClass(packageStr, "debugTrace")
                             || isDebuggerClass(packageStr, "debugAlert")
                             || isDebuggerClass(packageStr, "debugSocket")
@@ -187,6 +234,7 @@ public class DebuggerTools {
                 if (Configuration.randomDebuggerPackage.get()) {
                     newdebuggerpkg += ".pkg" + rhex;
                 }
+                swf.debuggerPackage = newdebuggerpkg;
 
                 //add debug ABC tags to main SWF
                 for (ABCContainerTag ds : debugSWF.getAbcList()) {
@@ -199,13 +247,13 @@ public class DebuggerTools {
                     }
                     //Set debugger port to actually set port
                     for (int i = 0; i < a.constants.getIntCount(); i++) {
-                        if (a.constants.getInt(i) == 123456L) {
-                            a.constants.setInt(i, (long) port);
+                        if (a.constants.getInt(i) == 123456) {
+                            a.constants.setInt(i, port);
                         }
                     }
                     //Add to target SWF
                     ((Tag) ds).setSwf(swf);
-                    swf.addTag((Tag) ds, (Tag) firstAbc);
+                    swf.addTagBefore((Tag) ds, (Tag) firstAbc);
                     swf.getAbcList().add(swf.getAbcList().indexOf(firstAbc), ds);
                     ((Tag) ds).setModified(true);
 
@@ -215,6 +263,43 @@ public class DebuggerTools {
                     ft.setModified(true);
                 }
 
+                //Add call to DebugConnection.initClient("") to the document class
+                /*String documentClass = swf.getDocumentClass();
+                if (documentClass != null) {
+                    List<String> searchClassNames = new ArrayList<>();
+                    searchClassNames.add(documentClass);
+                    List<ScriptPack> documentClassPacks = swf.getScriptPacksByClassNames(searchClassNames);
+                    if (!documentClassPacks.isEmpty()) {
+                        ScriptPack documentClassPack = documentClassPacks.get(0);
+                        Trait publicTrait = documentClassPack.getPublicTrait();
+                        if (publicTrait != null) {
+                            if (publicTrait instanceof TraitClass) {
+                                TraitClass classTrait = (TraitClass) publicTrait;
+                                int classIndex = classTrait.class_info;
+                                ABC a = documentClassPack.abc;
+                                int cinitMethodInfo = a.class_info.get(classIndex).cinit_index;
+                                MethodBody body = a.findBody(cinitMethodInfo);
+                                AVM2Code code = body.getCode();                                
+                                int debugConnectionMultiname = a.constants.getMultinameId(
+                                        Multiname.createQName(false, a.constants.getStringId("DebugConnection", true), 
+                                           a.constants.getNamespaceId(Namespace.KIND_PACKAGE, newdebuggerpkg, 0, true)
+                                        ), true);
+                                int initClientMultiname = a.constants.getMultinameId(
+                                        Multiname.createQName(false, a.constants.getStringId("initClient", true), 
+                                           a.constants.getNamespaceId(Namespace.KIND_PACKAGE, "", 0, true)
+                                        ), true);
+                                code.insertInstruction(0, new AVM2Instruction(0, AVM2Instructions.GetLex, new int[] {debugConnectionMultiname}), true, body);
+                                code.insertInstruction(1, new AVM2Instruction(0, AVM2Instructions.PushString, new int[] {a.constants.getStringId("", true)}), true, body);
+                                code.insertInstruction(2, new AVM2Instruction(0, AVM2Instructions.CallPropVoid, new int[] {initClientMultiname, 1}), true, body);
+                                if (body.max_stack < 2) {
+                                    body.max_stack = 2;
+                                }                                
+                                body.setModified();
+                            }
+                        }
+                    }
+                }
+                 */
             } catch (Exception ex) {
                 logger.log(Level.SEVERE, "Error while attaching debugger", ex);
                 //ignore

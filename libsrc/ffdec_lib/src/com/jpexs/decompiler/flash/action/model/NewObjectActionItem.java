@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,13 +31,20 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * New object.
  *
  * @author JPEXS
  */
 public class NewObjectActionItem extends ActionItem {
 
+    /**
+     * Object name
+     */
     public GraphTargetItem objectName;
 
+    /**
+     * Arguments
+     */
     public List<GraphTargetItem> arguments;
 
     @Override
@@ -46,6 +53,14 @@ public class NewObjectActionItem extends ActionItem {
         visitor.visitAll(arguments);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param objectName Object name
+     * @param arguments Arguments
+     */
     public NewObjectActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem objectName, List<GraphTargetItem> arguments) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.objectName = objectName;
@@ -55,8 +70,8 @@ public class NewObjectActionItem extends ActionItem {
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("new ");
-        writer.append(IdentifiersDeobfuscation.printIdentifier(false, objectName.toStringNoQuotes(localData)));
-        writer.spaceBeforeCallParenthesies(arguments.size());
+        writer.append(IdentifiersDeobfuscation.printIdentifier(localData.swf, localData.usedDeobfuscations, false, objectName.toStringNoQuotes(localData)));
+        writer.spaceBeforeCallParenthesis(arguments.size());
         writer.append("(");
         for (int t = 0; t < arguments.size(); t++) {
             if (t > 0) {

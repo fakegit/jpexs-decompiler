@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -30,15 +30,34 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Get the name of the next property when iterating over an object.
  *
  * @author JPEXS
  */
 public class NextNameAVM2Item extends AVM2Item {
 
+    /**
+     * Index
+     */
     public GraphTargetItem index;
 
+    /**
+     * Object
+     */
     public GraphTargetItem obj;
 
+    /**
+     * Local register
+     */
+    public GraphTargetItem localReg;
+
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param index Index
+     * @param obj Object
+     */
     public NextNameAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem index, GraphTargetItem obj) {
         super(instruction, lineStartIns, NOPRECEDENCE);
         this.index = index;
@@ -53,8 +72,12 @@ public class NextNameAVM2Item extends AVM2Item {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
+        if (localReg != null) {
+            localReg.appendTo(writer, localData);
+            return writer;
+        }
         writer.append("§§nextname");
-        writer.spaceBeforeCallParenthesies(2);
+        writer.spaceBeforeCallParenthesis(2);
         writer.append("(");
         index.toString(writer, localData);
         writer.append(",");

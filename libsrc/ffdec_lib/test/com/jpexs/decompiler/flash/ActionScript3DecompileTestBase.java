@@ -1,9 +1,25 @@
+/*
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
+ * 
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.0 of the License, or (at your option) any later version.
+ * 
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.ScriptPack;
 import com.jpexs.decompiler.flash.abc.types.ConvertData;
-import com.jpexs.decompiler.flash.abc.types.traits.Traits;
+import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.helpers.CodeFormatting;
@@ -19,8 +35,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertTrue;
@@ -44,6 +62,10 @@ public abstract class ActionScript3DecompileTestBase extends ActionScriptTestBas
         Configuration.registerNameFormat.set("_loc%d_");
         Configuration.showMethodBodyId.set(false);
         Configuration.displayDupInstructions.set(true);
+        
+        Configuration.as3QNameObfuscatedPropsInSquareBrackets.set(true);
+        Configuration.autoDeobfuscateIdentifiers.set(false);
+
     }
 
     protected void addSwf(String identifier, String path) throws FileNotFoundException, IOException, InterruptedException {
@@ -77,7 +99,7 @@ public abstract class ActionScript3DecompileTestBase extends ActionScriptTestBas
         abc = scriptPack.abc;
         scriptIndex = scriptPack.scriptIndex;
 
-        clsIndex = abc.findClassByName(new DottedChain(new String[]{"tests", className}, ""));
+        clsIndex = abc.findClassByName(new DottedChain(new String[]{"tests", className}));
 
         assertTrue(clsIndex > -1);
         assertTrue(scriptIndex > -1);
@@ -87,19 +109,20 @@ public abstract class ActionScript3DecompileTestBase extends ActionScriptTestBas
         assertTrue(bodyIndex > -1);
         HighlightedTextWriter writer;
         try {
-            List<Traits> ts = new ArrayList<>();
-            ts.add(abc.instance_info.get(clsIndex).instance_traits);
-
             Configuration.autoDeobfuscate.set(methodName.toLowerCase().contains("obfus"));
 
-            abc.bodies.get(bodyIndex).convert(new ConvertData(), "run", ScriptExportMode.AS, isStatic, abc.bodies.get(bodyIndex).method_info, scriptIndex, clsIndex, abc, null, new ScopeStack(), 0, new NulWriter(), new ArrayList<>(), ts, true, new HashSet<>());
+            List<MethodBody> callStack = new ArrayList<>();
+            callStack.add(abc.bodies.get(bodyIndex));
+            Set<String> usedDeobfuscations = new LinkedHashSet<>();
+            abc.bodies.get(bodyIndex).convert(swf.version, callStack, swf.getAbcIndex(), new ConvertData(), "run", ScriptExportMode.AS, isStatic, abc.bodies.get(bodyIndex).method_info, scriptIndex, clsIndex, abc, null, new ScopeStack(), 0, new NulWriter(), new ArrayList<>(), abc.instance_info.get(clsIndex).instance_traits, true, new HashSet<>(), new ArrayList<>(), usedDeobfuscations);
             writer = new HighlightedTextWriter(new CodeFormatting(), false);
-            abc.bodies.get(bodyIndex).toString("run", ScriptExportMode.AS, abc, null, writer, new ArrayList<>(), new HashSet<>());
+            abc.bodies.get(bodyIndex).toString(usedDeobfuscations, swf.version, callStack, swf.getAbcIndex(), "run", ScriptExportMode.AS, abc, null, writer, new ArrayList<>(), new HashSet<>(), -1);
         } catch (InterruptedException ex) {
             fail();
             return;
         }
         Configuration.autoDeobfuscate.set(false);
+        writer.finishHilights();
         String actualResult = cleanPCode(writer.toString());
         expectedResult = cleanPCode(expectedResult);
         assertEquals(actualResult, expectedResult);

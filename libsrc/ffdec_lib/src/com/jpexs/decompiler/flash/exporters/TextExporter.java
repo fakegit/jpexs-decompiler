@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters;
 
 import com.jpexs.decompiler.flash.AbortRetryIgnoreHandler;
@@ -21,12 +22,14 @@ import com.jpexs.decompiler.flash.ReadOnlyTagList;
 import com.jpexs.decompiler.flash.RetryTask;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.exporters.commonshape.ExportRectangle;
+import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.exporters.commonshape.SVGExporter;
 import com.jpexs.decompiler.flash.exporters.modes.TextExportMode;
 import com.jpexs.decompiler.flash.exporters.settings.TextExportSettings;
 import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.decompiler.flash.tags.base.TextTag;
 import com.jpexs.decompiler.flash.types.CXFORMWITHALPHA;
+import com.jpexs.helpers.CancellableWorker;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.Path;
 import com.jpexs.helpers.utf8.Utf8Helper;
@@ -39,6 +42,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Text exporter.
  *
  * @author JPEXS
  */
@@ -50,6 +54,10 @@ public class TextExporter {
 
     public List<File> exportTexts(AbortRetryIgnoreHandler handler, String outdir, ReadOnlyTagList tags, final TextExportSettings settings, EventListener evl) throws IOException, InterruptedException {
         List<File> ret = new ArrayList<>();
+        if (CancellableWorker.isInterrupted()) {
+            return ret;
+        }
+
         if (tags.isEmpty()) {
             return ret;
         }
@@ -79,10 +87,11 @@ public class TextExporter {
                     final TextTag textTag = (TextTag) t;
                     final File file = new File(outdir + File.separator + Helper.makeFileName(textTag.getCharacterExportFileName() + ".svg"));
                     new RetryTask(() -> {
+                        Matrix m = Matrix.getScaleInstance(settings.zoom);
                         try (OutputStream fos = new BufferedOutputStream(new FileOutputStream(file))) {
                             ExportRectangle rect = new ExportRectangle(textTag.getRect());
-                            SVGExporter exporter = new SVGExporter(rect, settings.zoom);
-                            textTag.toSVG(exporter, -2, new CXFORMWITHALPHA(), 0);
+                            SVGExporter exporter = new SVGExporter(rect, settings.zoom, "text");
+                            textTag.toSVG(0, 0, exporter, -2, new CXFORMWITHALPHA(), 0, m, m);
                             fos.write(Utf8Helper.getBytes(exporter.getSVG()));
                         }
                     }, handler).run();
@@ -124,6 +133,9 @@ public class TextExporter {
                             fos.write(Utf8Helper.getBytes(Helper.newLine + Configuration.textExportSingleFileSeparator.get() + Helper.newLine));
                         }, handler).run();
                     }
+                    if (CancellableWorker.isInterrupted()) {
+                        break;
+                    }
                 }
             }
             ret.add(file);
@@ -150,6 +162,9 @@ public class TextExporter {
                     }, handler).run();
                     ret.add(file);
 
+                    if (CancellableWorker.isInterrupted()) {
+                        break;
+                    }
                     if (evl != null) {
                         evl.handleExportedEvent("text", currentIndex, count, t.getName());
                     }

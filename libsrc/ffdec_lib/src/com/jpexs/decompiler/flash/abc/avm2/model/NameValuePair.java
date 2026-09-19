@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,13 +25,22 @@ import com.jpexs.decompiler.graph.model.TernarOpItem;
 import java.util.Objects;
 
 /**
+ * Name-value pair. (For usage in objects)
  *
  * @author JPEXS
  */
 public class NameValuePair extends AVM2Item {
 
+    /**
+     * Name
+     */
     public GraphTargetItem name;
 
+    /**
+     * Constructor.
+     * @param name Name
+     * @param value Value
+     */
     public NameValuePair(GraphTargetItem name, GraphTargetItem value) {
         super(name.getSrc(), name.getLineStartItem(), NOPRECEDENCE, value);
         this.name = name;
@@ -47,7 +56,17 @@ public class NameValuePair extends AVM2Item {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        name.toStringString(writer, localData);
+        boolean needsParents = !((name.getNotCoerced() instanceof NumberValueAVM2Item) || (name.getNotCoerced() instanceof StringAVM2Item)); // special for obfuscated strings
+        if (needsParents) {
+            writer.append("(");
+        }
+        if ((name instanceof ConvertAVM2Item) && ((ConvertAVM2Item) name).type.equals(TypeItem.STRING)) {
+            name = name.value;
+        }
+        name.toString(writer, localData);
+        if (needsParents) {
+            writer.append(")");
+        }
         writer.append(":");
         if (value instanceof TernarOpItem) { //Ternar operator contains ":"
             writer.append("(");

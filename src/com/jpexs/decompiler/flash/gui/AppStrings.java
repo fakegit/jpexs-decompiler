@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@ package com.jpexs.decompiler.flash.gui;
 import java.util.ResourceBundle;
 
 /**
- *
  * @author JPEXS
  */
 public class AppStrings {
@@ -42,13 +41,17 @@ public class AppStrings {
         return name;
     }
 
-    public static String translate(String key) {
+    public static String translate(String key) {        
         return resourceBundle.getString(key);
     }
 
     public static String translate(String bundle, String key) {
         ResourceBundle b = ResourceBundle.getBundle(bundle);
         return b.getString(key);
+    }
+    
+    public static String translate(Class bundleClass, String key) {
+        return translate(getResourcePath(bundleClass), key);
     }
 
     public static void updateLanguage() {

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,9 +23,11 @@ import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.tags.DoActionTag;
 import com.jpexs.decompiler.flash.tags.ShowFrameTag;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.HashMap;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.fail;
@@ -45,6 +47,8 @@ public class ActionScript2Test extends ActionScript2TestBase {
         Configuration.simplifyExpressions.set(false);
         Configuration.decompile.set(true);
         Configuration.registerNameFormat.set("_loc%d_");
+        Configuration.autoRenameIdentifiers.set(false);
+        Configuration.skipDetectionOfUninitializedClassFields.set(false);
         swf = new SWF(new BufferedInputStream(new FileInputStream("testdata/as2/as2.swf")), false);
     }
 
@@ -53,10 +57,11 @@ public class ActionScript2Test extends ActionScript2TestBase {
         assertNotNull(doa);
         HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
         try {
-            Action.actionsToSource(doa, doa.getActions(), "", writer);
+            Action.actionsToSource(new HashMap<>() /*FIXME*/, doa, doa.getActions(), "", writer, Utf8Helper.charsetName);
         } catch (InterruptedException ex) {
             fail();
         }
+        writer.finishHilights();
         String actualResult = cleanPCode(writer.toString());
         expectedResult = cleanPCode(expectedResult);
         assertEquals(actualResult, expectedResult);
@@ -82,6 +87,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
         return null;
     }
 
+    //--FRAMES-START--
     @Test
     public void frame23_Test() {
         compareSrc(23, "stop();\r\n"
@@ -495,10 +501,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "{\r\n"
                 + "throw new Error();\r\n"
                 + "}\r\n"
-                + "else\r\n"
-                + "{\r\n"
                 + "_loc1_ = 7;\r\n"
-                + "}\r\n"
                 + "}\r\n"
                 + "catch(e)\r\n"
                 + "{\r\n"
@@ -1889,10 +1892,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "{\r\n"
                 + "throw e;\r\n"
                 + "}\r\n"
-                + "else\r\n"
-                + "{\r\n"
                 + "trace(\"err:\" + e);\r\n"
-                + "}\r\n"
                 + "}\r\n"
                 + "try\r\n"
                 + "{\r\n"
@@ -1991,9 +1991,10 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "{\r\n"
                 + "var _loc3_ = {};\r\n"
                 + "var _loc2_ = {};\r\n"
+                + "var _loc1_;\r\n"
                 + "for(var _loc4_ in _loc3_)\r\n"
                 + "{\r\n"
-                + "var _loc1_ = _loc2_[_loc4_];\r\n"
+                + "_loc1_ = _loc2_[_loc4_];\r\n"
                 + "switch(_loc1_)\r\n"
                 + "{\r\n"
                 + "case \"A\":\r\n"
@@ -2393,4 +2394,293 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "var b = 5.2.toString();\r\n"
         );
     }
+
+    @Test
+    public void frame86_tryInsideForInTest() {
+        compareSrc(86, "trace(\"tryInsideForInTest\");\r\n"
+                + "var obj = {};\r\n"
+                + "for(var thing in obj)\r\n"
+                + "{\r\n"
+                + "try\r\n"
+                + "{\r\n"
+                + "trace(\"a\");\r\n"
+                + "}\r\n"
+                + "catch(error:Object)\r\n"
+                + "{\r\n"
+                + "}\r\n"
+                + "}\r\n"
+        );
+    }
+
+    @Test
+    public void frame87_callRegisterTest() {
+        compareSrc(87, "function tst(o)\r\n"
+                + "{\r\n"
+                + "var _loc1_ = \"a\";\r\n"
+                + "o[_loc1_]();\r\n"
+                + "}\r\n"
+                + "trace(\"callRegisterTest\");\r\n"
+                + "var f = function()\r\n"
+                + "{\r\n"
+                + "trace(\"A\");\r\n"
+                + "};\r\n"
+                + "var g = function()\r\n"
+                + "{\r\n"
+                + "trace(\"B\");\r\n"
+                + "};\r\n"
+                + "var obj = {a:f,b:g};\r\n"
+                + "tst(obj);\r\n"
+        );
+    }
+
+    @Test
+    public void frame88_switchForInTest() {
+        compareSrc(88, "trace(\"switchForInTest\");\r\n"
+                + "var t = 5;\r\n"
+                + "var a = [\"x\",\"y\",\"z\"];\r\n"
+                + "switch(t)\r\n"
+                + "{\r\n"
+                + "case 0:\r\n"
+                + "trace(\"A\");\r\n"
+                + "break;\r\n"
+                + "case 1:\r\n"
+                + "trace(\"B\");\r\n"
+                + "break;\r\n"
+                + "case 2:\r\n"
+                + "for(var k in a)\r\n"
+                + "{\r\n"
+                + "trace(k);\r\n"
+                + "}\r\n"
+                + "}\r\n"
+                + "trace(\"finish\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame89_functionPostIncrementTest() {
+        compareSrc(89, "function myFunc()\r\n"
+                + "{\r\n"
+                + "var _loc2_ = 0;\r\n"
+                + "var _loc1_ = {};\r\n"
+                + "var _loc4_ = _loc1_[_loc2_++];\r\n"
+                + "var _loc3_ = _loc1_[_loc2_--];\r\n"
+                + "}\r\n"
+                + "trace(\"functionPostIncrementTest\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame90_bitwiseOperandsTest() {
+        compareSrc(90, "trace(\"bitwiseOperandsTest\");\r\n"
+                + "var a = 100;\r\n"
+                + "var b = a & 0x08FF;\r\n"
+                + "var c = 0x08FF & a;\r\n"
+                + "var d = a | 0x0480;\r\n"
+                + "var e = 0x0480 | a;\r\n"
+                + "var f = a ^ 0x0641;\r\n"
+                + "var g = 0x0641 ^ a;\r\n"
+        );
+    }
+
+    @Test
+    public void frame91_dynamicGetUrlTest() {
+        compareSrc(91, "trace(\"dynamicGetUrlTest\");\r\n"
+                + "var n = 5;\r\n"
+                + "unloadMovieNum(n);\r\n"
+                + "printNum(n,\"bmax\");\r\n"
+                + "printAsBitmapNum(n,\"bmax\");\r\n"
+                + "loadMovieNum(\"something.swf\",n,\"POST\");\r\n"
+                + "var v = _root.something;\r\n"
+                + "print(v,\"bmax\");\r\n"
+                + "printAsBitmap(v,\"bmax\");\r\n"
+                + "var r = 5;\r\n"
+                + "getURL(\"file\" + r + \".swf\",\"_blank\",\"POST\");\r\n"
+                + "fscommand(\"test\" + r,\"xx\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame92_Test() {
+        compareSrc(92, "function f(tst)\r\n"
+                + "{\r\n"
+                + "var _loc1_;\r\n"
+                + "if(tst)\r\n"
+                + "{\r\n"
+                + "_loc1_ = 1;\r\n"
+                + "}\r\n"
+                + "else\r\n"
+                + "{\r\n"
+                + "_loc1_ = 2;\r\n"
+                + "}\r\n"
+                + "}\r\n"
+                + "trace(\"testVarDefineInFunc\");\r\n"
+                + "f(tst);\r\n"
+        );
+    }
+
+    @Test
+    public void frame93_Test() {
+        compareSrc(93, "trace(\"testInnerSwitchNoLabel\");\r\n"
+                + "var a;\r\n"
+                + "var b;\r\n"
+                + "switch(a)\r\n"
+                + "{\r\n"
+                + "case 4:\r\n"
+                + "trace(\"4\");\r\n"
+                + "break;\r\n"
+                + "case 7:\r\n"
+                + "trace(\"7\");\r\n"
+                + "break;\r\n"
+                + "default:\r\n"
+                + "switch(b)\r\n"
+                + "{\r\n"
+                + "case 1:\r\n"
+                + "trace(\"1\");\r\n"
+                + "break;\r\n"
+                + "case 2:\r\n"
+                + "trace(\"2\");\r\n"
+                + "}\r\n"
+                + "}\r\n"
+                + "trace(\"end\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame94_functionSwitchTest() {
+        compareSrc(94, "function reset()\r\n"
+                + "{\r\n"
+                + "}\r\n"
+                + "trace(\"functionSwitchTest\");\r\n"
+                + "stop();\r\n"
+                + "switch(test)\r\n"
+                + "{\r\n"
+                + "case 1:\r\n"
+                + "trace(\"A\");\r\n"
+                + "break;\r\n"
+                + "case 2:\r\n"
+                + "case 3:\r\n"
+                + "trace(\"B\");\r\n"
+                + "}\r\n"
+        );
+    }
+
+    @Test
+    public void frame95_breakDetectionTest() {
+        compareSrc(95, "function myFunction(item)\r\n"
+                + "{\r\n"
+                + "var _loc2_;\r\n"
+                + "var _loc4_;\r\n"
+                + "if(!isNaN(item))\r\n"
+                + "{\r\n"
+                + "_loc2_ = [1,2,3];\r\n"
+                + "for(var _loc3_ in _loc2_)\r\n"
+                + "{\r\n"
+                + "switch(_loc3_)\r\n"
+                + "{\r\n"
+                + "case \"A\":\r\n"
+                + "if(item == \"a\")\r\n"
+                + "{\r\n"
+                + "return true;\r\n"
+                + "}\r\n"
+                + "case \"B\":\r\n"
+                + "if(item == \"b\")\r\n"
+                + "{\r\n"
+                + "return true;\r\n"
+                + "}\r\n"
+                + "case \"C\":\r\n"
+                + "if(item == \"c\")\r\n"
+                + "{\r\n"
+                + "return true;\r\n"
+                + "}\r\n"
+                + "case \"D\":\r\n"
+                + "if(item == \"d\")\r\n"
+                + "{\r\n"
+                + "return true;\r\n"
+                + "}\r\n"
+                + "}\r\n"
+                + "}\r\n"
+                + "}\r\n"
+                + "else\r\n"
+                + "{\r\n"
+                + "trace(\"item is nan\");\r\n"
+                + "}\r\n"
+                + "return false;\r\n"
+                + "}\r\n"
+                + "trace(\"breakDetectionTest\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame96_doWhileTwiceTest() {
+        compareSrc(96, "trace(\"doWhileTwiceTest\");\r\n"
+                + "var a = 1;\r\n"
+                + "var b = 2;\r\n"
+                + "while(true)\r\n"
+                + "{\r\n"
+                + "while(true)\r\n"
+                + "{\r\n"
+                + "if(a)\r\n"
+                + "{\r\n"
+                + "trace(\"x\");\r\n"
+                + "if(b)\r\n"
+                + "{\r\n"
+                + "break;\r\n"
+                + "}\r\n"
+                + "trace(\"y\");\r\n"
+                + "}\r\n"
+                + "trace(\"z\");\r\n"
+                + "if(false)\r\n"
+                + "{\r\n"
+                + "break;\r\n"
+                + "}\r\n"
+                + "}\r\n"
+                + "trace(\"g\");\r\n"
+                + "if(b)\r\n"
+                + "{\r\n"
+                + "break;\r\n"
+                + "}\r\n"
+                + "trace(\"h\");\r\n"
+                + "if(false)\r\n"
+                + "{\r\n"
+                + "break;\r\n"
+                + "}\r\n"
+                + "}\r\n"
+                + "trace(\"finish\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame97_twoInTest() {
+        compareSrc(97, "trace(\"twoInTest\");\r\n"
+                + "var o = {a:{}};\r\n"
+                + "for(var n in o)\r\n"
+                + "{\r\n"
+                + "var c = 5;\r\n"
+                + "for(var i in o.a)\r\n"
+                + "{\r\n"
+                + "if(i == c)\r\n"
+                + "{\r\n"
+                + "if(i == 0)\r\n"
+                + "{\r\n"
+                + "trace(\"xx\");\r\n"
+                + "break;\r\n"
+                + "}\r\n"
+                + "}\r\n"
+                + "}\r\n"
+                + "}\r\n"
+        );
+    }
+
+    @Test
+    public void frame98_andIntTest() {
+        compareSrc(98, "trace(\"andIntTest\");\r\n"
+                + "var a = 1;\r\n"
+                + "var b = 5;\r\n"
+                + "if(0 && (1 || a < b))\r\n"
+                + "{\r\n"
+                + "trace(\"okay\");\r\n"
+                + "}\r\n"
+        );
+    }
+    //--FRAMES-END--
 }

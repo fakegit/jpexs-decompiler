@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.iggy;
 
 import com.jpexs.decompiler.flash.iggy.annotations.IggyFieldType;
@@ -21,11 +22,12 @@ import com.jpexs.decompiler.flash.iggy.streams.WriteDataStreamInterface;
 import java.io.IOException;
 
 /**
+ * Flash header for 32-bit iggy files.
  *
  * @author JPEXS
- *
+ * <p>
  * Based of works of somebody called eternity.
- *
+ * <p>
  * All relative offsets are relative from that specific field position All
  * relative offsets can get value "1" to indicate "nothing"
  */

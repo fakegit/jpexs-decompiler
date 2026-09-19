@@ -1,23 +1,25 @@
 /*
- * Copyright (C) 2021 JPEXS
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *  Copyright (C) 2021-2026 JPEXS
+ * 
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ * 
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ * 
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package com.jpexs.decompiler.flash.gui;
 
 import com.jpexs.decompiler.flash.configuration.ConfigurationItem;
+import com.jpexs.decompiler.flash.gui.colordialog.MyColorChooserDialog;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import javax.swing.Icon;
 import javax.swing.JCheckBox;
@@ -26,10 +28,10 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
 /**
- *
  * @author JPEXS
  */
 public class ViewMessages {
+
     public static int showOptionDialog(final Component parentComponent, final Object message, final String title, final int optionType, final int messageType, final Icon icon, final Object[] options, final Object initialValue) {
         final int[] ret = new int[1];
         View.execInEventDispatch(() -> {
@@ -133,5 +135,19 @@ public class ViewMessages {
             ret[0] = (String) JOptionPane.showInputDialog(parentComponent, message, title, JOptionPane.QUESTION_MESSAGE, null, null, initialSelection);
         });
         return ret[0];
+    }
+
+    public static String showInputDialog(Component parentComponent, final Object message, final String title, final Icon icon, final Object initialSelection) {
+        final String[] ret = new String[1];
+        View.execInEventDispatch(() -> {
+            ret[0] = (String) JOptionPane.showInputDialog(parentComponent, message, title, JOptionPane.QUESTION_MESSAGE, icon, null, initialSelection);
+        });
+        return ret[0];
+    }
+    
+    public static Color showColorDialog(Component parentComponent, Color initialColor, boolean withTransparency) {
+        MyColorChooserDialog colorDialog = new MyColorChooserDialog(parentComponent, initialColor, withTransparency);
+        colorDialog.setVisible(true);
+        return colorDialog.getColor();
     }
 }

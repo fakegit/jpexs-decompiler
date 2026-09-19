@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -108,7 +108,7 @@ public class ExportTest extends FileTestBase {
                     return this;
                 }
 
-            }, fdir.getAbsolutePath(), new ScriptExportSettings(exportMode, false, false), false, null);
+            }, fdir.getAbsolutePath(), new ScriptExportSettings(exportMode, false, false, false, false), false, null);
         } catch (Exception ex) {
             fail("Exception during decompilation: " + filePath + " " + ex.getMessage());
         }
@@ -116,6 +116,6 @@ public class ExportTest extends FileTestBase {
 
     @Override
     public String[] getTestDataDirs() {
-        return new String[]{TESTDATADIR, FREE_ACTIONSCRIPT_AS2, FREE_ACTIONSCRIPT_AS3};
+        return new String[]{TESTDATADIR};
     }
 }

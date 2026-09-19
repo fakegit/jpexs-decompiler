@@ -15,6 +15,8 @@ package jsyntaxpane.actions;
 
 import java.awt.Component;
 import java.text.MessageFormat;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -46,6 +48,10 @@ public class DocumentSearchData {
 	private boolean wrap = true;
 	private ReplaceDialog replaceDlg;
 	private QuickFindDialog quickFindDlg;
+        /**
+         * JPEXS
+         */
+        private Map<JTextComponent, Integer> currentOccurrenceMap = new WeakHashMap<>();
 
 	/**
 	 * This prevent creating a new instance.  You must call the getFromEditor
@@ -54,6 +60,8 @@ public class DocumentSearchData {
 	 */
 	private DocumentSearchData() {
 	}
+
+                      
 
 	public Pattern getPattern() {
 		return pattern;
@@ -96,7 +104,7 @@ public class DocumentSearchData {
 
 	/**
 	 * Get the Search data from a Document.  If document does not have any
-	 * search data, then a new instance is added, put and reurned.
+	 * search data, then a new instance is added, put and returned.
 	 * @param target JTextCOmponent we are attaching to
 	 * @return
 	 */
@@ -176,20 +184,66 @@ public class DocumentSearchData {
 		// go throw all matches, and stop when we reach current pos
 		int start = -1;
 		int end = -1;
+                int occurrenceNumber = 0; //JPEXS
+                boolean gotoLast = false; //JPEXS
 		while (matcher.find()) {
-			if (matcher.end() >= dot) {
-				break;
+			if (!gotoLast //JPEXS
+                                && matcher.end() > dot /* JPEXS: changed from >= */) {
+                                if (end == -1 && isWrap()) { //JPEXS
+                                    gotoLast = true; //JPEXS
+                                } else {                                    
+                                    break;
+                                }				
 			}
+                        occurrenceNumber++;
 			start = matcher.start();
 			end = matcher.end();
 		}
 		if (end > 0) {
-			target.select(start, end);
+                        target.select(start, end);
+                        currentOccurrenceMap.put(target, occurrenceNumber);
 			return true;
 		} else {
-			return false;
+                        return false;
 		}
 	}
+        
+        /**
+         * Gets search occurrences. (JPEXS)
+         *
+         * @param target
+         * @return Number of occurrences
+         */
+        public int getOccurrencesCount(JTextComponent target) {
+                if (getPattern() == null) {
+			return 0;
+		}
+                SyntaxDocument sDoc = ActionUtils.getSyntaxDocument(target);
+		if (sDoc == null) {
+			return 0;
+		}
+                Matcher matcher = sDoc.getMatcher(getPattern());
+                if (matcher == null) {
+                    return 0;
+                }
+                int count = 0;
+                while (matcher.find()) {
+                        count++;
+                }
+                return count;
+        }
+        
+        /**
+         * Gets current occurrence number. (JPEXS)
+         * @param target
+         * @return Current occurrence number.
+         */
+        public int getCurrentOccurrence(JTextComponent target) {
+                if (!currentOccurrenceMap.containsKey(target)) {
+                    return 0;
+                }
+                return currentOccurrenceMap.get(target);
+        }  
 
 	/**
 	 * Perform a FindNext operation on the given text component.  Position
@@ -214,22 +268,37 @@ public class DocumentSearchData {
 		if (start >= sDoc.getLength()) {
 			start = sDoc.getLength();
 		}
-		Matcher matcher = sDoc.getMatcher(getPattern(), start);
-		if (matcher != null && matcher.find()) {
-			// since we used an offset in the matcher, the matcher location
-			// MUST be offset by that location
-			target.select(matcher.start() + start, matcher.end() + start);
+		Matcher matcher = sDoc.getMatcher(getPattern());
+                
+                //JPEXS
+                int occurrenceNumber = 0;
+                boolean found = false;
+                if (matcher != null) {
+                    while(matcher.find()) {                            
+                            occurrenceNumber++;
+                            if (matcher.start() >= start) {
+                                    found = true;
+                                    break;
+                            }
+                    }
+                }
+                
+		if (found) { //JPEXS
+			target.select(matcher.start(), matcher.end()); //JPEXS
+                        currentOccurrenceMap.put(target, occurrenceNumber);
 			return true;
 		} else {
 			if (isWrap()) {
 				matcher = sDoc.getMatcher(getPattern());
 				if (matcher != null && matcher.find()) {
 					target.select(matcher.start(), matcher.end());
+                                        currentOccurrenceMap.put(target, 1);
 					return true;
 				} else {
+                                        currentOccurrenceMap.put(target, 0);
 					return false;
 				}
-			} else {
+			} else {                                
 				return false;
 			}
 		}

@@ -1,9 +1,44 @@
+/*
+ *  Copyright (C) 2010-2026 JPEXS
+ * 
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ * 
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ * 
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package com.jpexs.decompiler.flash.gui;
 
-import javax.swing.*;
-import java.beans.*;
-import java.awt.*;
+import com.jpexs.decompiler.flash.helpers.ImageHelper;
+import com.jpexs.decompiler.flash.tags.enums.ImageFormat;
+import com.jpexs.helpers.Helper;
+import dev.matrixlab.webp4j.WebPCodec;
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Image;
+import java.awt.MediaTracker;
+import java.awt.image.BufferedImage;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import javax.swing.ImageIcon;
+import javax.swing.JComponent;
+import javax.swing.JFileChooser;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.SwingConstants;
+import javax.swing.UIManager;
 import javax.swing.border.Border;
 
 public class FileChooserImagePreview extends JComponent
@@ -59,9 +94,26 @@ public class FileChooserImagePreview extends JComponent
             return;
         }
 
-        ImageIcon tmpIcon = new ImageIcon(file.getPath());
+        BufferedImage img = null;
+        if (file.getPath().toLowerCase().endsWith(".webp")) {
+            if (ImageFormat.WEBP.available()) {                
+                try {
+                    img = WebPCodec.decodeImage(Helper.readFile(file.getAbsolutePath()));
+                } catch (IOException ex) {
+                    //ignore
+                }
+            }
+        } else {
+            try (FileInputStream fis = new FileInputStream(file)) {
+                img = ImageHelper.read(fis);
+            } catch (IOException ex) {
+                //ignore
+            }
+        }
+                
+        if (img != null) {
+            ImageIcon tmpIcon = new ImageIcon(img);
 
-        if (tmpIcon != null) {
             if (tmpIcon.getImageLoadStatus() == MediaTracker.COMPLETE) {
                 if (tmpIcon.getIconWidth() > PREVIEW_SIZE) {
                     thumbnail = new ImageIcon(tmpIcon.getImage().getScaledInstance(PREVIEW_SIZE, -1, Image.SCALE_DEFAULT));

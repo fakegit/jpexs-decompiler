@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,25 +12,31 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.base;
 
 import com.jpexs.decompiler.flash.DisassemblyListener;
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.ActionList;
+import com.jpexs.decompiler.flash.action.ActionTreeOperation;
 import com.jpexs.decompiler.flash.action.ConstantPoolTooBigException;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.tags.DefineButtonTag;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.decompiler.flash.treeitems.Openable;
+import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.helpers.ByteArrayRange;
 import com.jpexs.helpers.Helper;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
- * Object containing ASM source
+ * Button action.
  *
  * @author JPEXS
  */
@@ -40,21 +46,19 @@ public class ButtonAction implements ASMSource {
 
     private String scriptName = "-";
 
+    private String exportedScriptName = "-";
+
     private final DefineButtonTag buttonTag;
 
+    /**
+     * Constructor.
+     *
+     * @param buttonTag Button tag
+     */
     public ButtonAction(DefineButtonTag buttonTag) {
         this.buttonTag = buttonTag;
     }
 
-    /**
-     * Converts actions to ASM source
-     *
-     * @param exportMode PCode or hex?
-     * @param writer
-     * @param actions
-     * @return ASM source
-     * @throws java.lang.InterruptedException
-     */
     @Override
     public GraphTextWriter getASMSource(ScriptExportMode exportMode, GraphTextWriter writer, ActionList actions) throws InterruptedException {
         if (actions == null) {
@@ -70,7 +74,16 @@ public class ButtonAction implements ASMSource {
             actions = getActions();
         }
 
-        return Action.actionsToSource(this, actions, getScriptName(), writer);
+        return Action.actionsToSource(new HashMap<>(), this, actions, getScriptName(), writer, buttonTag.getCharset());
+    }
+
+    @Override
+    public GraphTextWriter getActionScriptSource(GraphTextWriter writer, ActionList actions, List<ActionTreeOperation> treeOperations) throws InterruptedException {
+        if (actions == null) {
+            actions = getActions();
+        }
+
+        return Action.actionsToSource(new HashMap<>(), this, actions, getScriptName(), writer, buttonTag.getCharset(), treeOperations);
     }
 
     /**
@@ -87,7 +100,7 @@ public class ButtonAction implements ASMSource {
      * Returns actions associated with this object
      *
      * @return List of actions
-     * @throws java.lang.InterruptedException
+     * @throws InterruptedException On interrupt
      */
     @Override
     public ActionList getActions() throws InterruptedException {
@@ -180,8 +193,8 @@ public class ButtonAction implements ASMSource {
     }
 
     @Override
-    public SWF getSwf() {
-        return buttonTag.getSwf();
+    public Openable getOpenable() {
+        return buttonTag.getOpenable();
     }
 
     @Override
@@ -192,5 +205,34 @@ public class ButtonAction implements ASMSource {
     @Override
     public String toString() {
         return buttonTag.toString();
+    }
+
+    @Override
+    public Tag getTag() {
+        return buttonTag;
+    }
+
+    @Override
+    public SWF getSwf() {
+        return (SWF) getOpenable();
+    }
+
+    @Override
+    public List<GraphTargetItem> getActionsToTree() {
+        try {
+            return Action.actionsToTree(new LinkedHashSet<>(), false, new HashMap<>(), false, false, getActions(), buttonTag.getSwf().version, 0, getScriptName(), buttonTag.getSwf().getCharset());
+        } catch (InterruptedException ex) {
+            return new ArrayList<>();
+        }
+    }
+
+    @Override
+    public String getExportedScriptName() {
+        return exportedScriptName;
+    }
+
+    @Override
+    public void setExportedScriptName(String scriptName) {
+        this.exportedScriptName = scriptName;
     }
 }

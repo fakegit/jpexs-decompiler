@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.comparison;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -29,11 +30,15 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.List;
 
 /**
+ * lessthan instruction - Less than.
  *
  * @author JPEXS
  */
 public class LessThanIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public LessThanIns() {
         super(0xad, "lessthan", new int[]{}, true);
     }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,20 +12,24 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.ActionGraphTargetDialect;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
 import com.jpexs.decompiler.flash.action.model.GetMemberActionItem;
 import com.jpexs.decompiler.flash.action.model.GetPropertyActionItem;
 import com.jpexs.decompiler.flash.action.model.GetVariableActionItem;
 import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.parser.script.VariableActionItem;
+import com.jpexs.decompiler.flash.action.swf4.ActionPop;
 import com.jpexs.decompiler.flash.action.swf4.ActionPush;
 import com.jpexs.decompiler.flash.action.swf4.ActionSetProperty;
 import com.jpexs.decompiler.flash.action.swf4.ActionSetVariable;
 import com.jpexs.decompiler.flash.action.swf4.RegisterNumber;
+import com.jpexs.decompiler.flash.action.swf5.ActionCallMethod;
 import com.jpexs.decompiler.flash.action.swf5.ActionIncrement;
 import com.jpexs.decompiler.flash.action.swf5.ActionSetMember;
 import com.jpexs.decompiler.flash.action.swf5.ActionStoreRegister;
@@ -38,13 +42,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Pre increment.
  *
  * @author JPEXS
  */
 public class PreIncrementActionItem extends UnaryOpItem {
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     */
     public PreIncrementActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object) {
-        super(instruction, lineStartIns, PRECEDENCE_UNARY, object, "++", "Number");
+        super(ActionGraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_UNARY, object, "++", "" /*"Number" Causes unnecessary ++Number(xx) when xx not number*/);
     }
 
     @Override
@@ -54,7 +66,17 @@ public class PreIncrementActionItem extends UnaryOpItem {
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+        return toSourceBoth(localData, generator, true);
+    }
+
+    @Override
+    public List<GraphSourceItem> toSourceIgnoreReturnValue(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+        return toSourceBoth(localData, generator, false);
+    }        
+    
+    private List<GraphSourceItem> toSourceBoth(SourceGeneratorLocalData localData, SourceGenerator generator, boolean wantResult) throws CompilationException {
         ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
         List<GraphSourceItem> ret = new ArrayList<>();
         GraphTargetItem val = value;
         if (val instanceof VariableActionItem) {
@@ -68,26 +90,44 @@ public class PreIncrementActionItem extends UnaryOpItem {
             ret.add(new ActionIncrement());
             int tmpReg = asGenerator.getTempRegister(localData);
 
-            ret.add(new ActionStoreRegister(tmpReg));
+            ret.add(new ActionStoreRegister(tmpReg, charset));
             ret.add(new ActionSetVariable());
-            ret.add(new ActionPush(new RegisterNumber(tmpReg)));
+            ret.add(new ActionPush(new RegisterNumber(tmpReg), charset));
             asGenerator.releaseTempRegister(localData, tmpReg);
         } else if (val instanceof GetMemberActionItem) {
-            GetMemberActionItem mem = (GetMemberActionItem) val;
-            ret.addAll(mem.toSource(localData, generator));
-            ret.remove(ret.size() - 1); //ActionGetMember
-            ret.addAll(mem.toSource(localData, generator));
-            ret.add(new ActionIncrement());
-            int tmpReg = asGenerator.getTempRegister(localData);
-            ret.add(new ActionStoreRegister(tmpReg));
-            ret.add(new ActionSetMember());
-            ret.add(new ActionPush(new RegisterNumber(tmpReg)));
-            asGenerator.releaseTempRegister(localData, tmpReg);
+            GetMemberActionItem mem = (GetMemberActionItem) val;                        
+            if (mem.isGetter) {
+                String memberNameAsStr = ((DirectValueActionItem) mem.memberName).getAsString();
+                ret.addAll(toSourceMerge(localData, generator,
+                    mem,
+                    new ActionIncrement()
+                ));
+                ret.addAll(toSourceMerge(localData, generator, new ActionPush((Long) (long) 1, charset),
+                    mem.object,
+                    asGenerator.pushConst("__set__" + memberNameAsStr), 
+                    new ActionCallMethod()));                
+            } else {                        
+                ret.addAll(mem.toSource(localData, generator));
+                ret.remove(ret.size() - 1); //ActionGetMember
+                ret.addAll(mem.toSource(localData, generator));
+                ret.add(new ActionIncrement());
+                int tmpReg = 0;
+                if (wantResult) {
+                    tmpReg = asGenerator.getTempRegister(localData);
+                    ret.add(new ActionStoreRegister(tmpReg, charset));            
+                }
+                ret.add(new ActionSetMember());   
+                if (wantResult) {
+                    ret.add(new ActionPush(new RegisterNumber(tmpReg), charset));
+                    asGenerator.releaseTempRegister(localData, tmpReg);
+                }
+                return ret;
+            }            
         } else if ((val instanceof DirectValueActionItem) && ((DirectValueActionItem) val).value instanceof RegisterNumber) {
             RegisterNumber rn = (RegisterNumber) ((DirectValueActionItem) val).value;
-            ret.add(new ActionPush(new RegisterNumber(rn.number)));
+            ret.add(new ActionPush(new RegisterNumber(rn.number), charset));
             ret.add(new ActionIncrement());
-            ret.add(new ActionStoreRegister(rn.number));
+            ret.add(new ActionStoreRegister(rn.number, charset));
         } else if (val instanceof GetPropertyActionItem) {
             GetPropertyActionItem gp = (GetPropertyActionItem) val;
             ret.addAll(gp.toSource(localData, generator)); // old value
@@ -96,6 +136,9 @@ public class PreIncrementActionItem extends UnaryOpItem {
             ret.addAll(gp.toSource(localData, generator));
             ret.add(new ActionIncrement());
             ret.add(new ActionSetProperty());
+        }
+        if (!wantResult) {
+            ret.add(new ActionPop());
         }
         return ret;
     }

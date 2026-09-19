@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
 package com.jpexs.decompiler.flash.gui.debugger;
 
 /**
- *
  * @author JPEXS
  */
 public interface DebugListener {
@@ -26,7 +25,17 @@ public interface DebugListener {
 
     public void onLoaderURL(String clientId, String url);
 
-    public void onLoaderBytes(String clientId, byte data[]);
+    public void onLoaderURLInfo(String clientId, String url);
+
+    public void onLoaderBytes(String clientId, byte[] data);
+
+    public void onDumpByteArray(String clientId, byte[] data);
 
     public void onFinish(String clientId);
+
+    public byte[] onRequestBytes(String clientId);
+
+    public void onLoaderModifyBytes(String clientId, byte[] inputData, String url, DebugLoaderDataModified modifiedListener);
+
+    public boolean isModifyBytesSupported();
 }

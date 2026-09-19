@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,8 @@
  */
 package com.jpexs.decompiler.flash.gui.generictageditors;
 
+import com.jpexs.decompiler.flash.SWF;
+import com.jpexs.decompiler.flash.types.annotations.DottedIdentifier;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.ReflectionTools;
 import java.awt.Component;
@@ -23,10 +25,10 @@ import java.awt.Dimension;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.lang.reflect.Field;
+import java.util.Objects;
 import javax.swing.JTextArea;
 
 /**
- *
  * @author JPEXS
  */
 public class StringEditor extends JTextArea implements GenericTagEditor {
@@ -42,6 +44,7 @@ public class StringEditor extends JTextArea implements GenericTagEditor {
     private String fieldName;
 
     private boolean multiline;
+    private final SWF swf;
 
     @Override
     public boolean getScrollableTracksViewportWidth() {
@@ -65,7 +68,7 @@ public class StringEditor extends JTextArea implements GenericTagEditor {
         return 0;
     }
 
-    public StringEditor(String fieldName, Object obj, Field field, int index, Class<?> type, boolean multiline) {
+    public StringEditor(String fieldName, Object obj, Field field, int index, Class<?> type, boolean multiline, SWF swf) {
         setLineWrap(true);
         this.obj = obj;
         this.field = field;
@@ -73,6 +76,7 @@ public class StringEditor extends JTextArea implements GenericTagEditor {
         this.type = type;
         this.fieldName = fieldName;
         this.multiline = multiline;
+        this.swf = swf;
         if (multiline) {
             Dimension d = new Dimension(500, 200);
             setPreferredSize(d);
@@ -84,19 +88,45 @@ public class StringEditor extends JTextArea implements GenericTagEditor {
     @Override
     public void reset() {
         try {
-            setText((String) ReflectionTools.getValue(obj, field, index));
+            String newValue = (String) ReflectionTools.getValue(obj, field, index);
+            DottedIdentifier di = field.getAnnotation(DottedIdentifier.class);
+            if (di != null) {
+                if (di.exportName()) {
+                    newValue = Helper.escapeExportname(swf, newValue, false);
+                } else {
+                    newValue = Helper.escapePCodeString(newValue);
+                    //DottedChain.parseNoSuffix(newValue).toPrintableString(new LinkedHashSet<>(), swf, di.as3());
+                }
+            }
+            setText(newValue);
         } catch (IllegalArgumentException | IllegalAccessException ex) {
             // ignore
         }
     }
 
     @Override
-    public void save() {
+    public boolean save() {
         try {
-            ReflectionTools.setValue(obj, field, index, getText());
-        } catch (IllegalAccessException ex) {
+            String oldValue = (String) ReflectionTools.getValue(obj, field, index);
+            String newValue = getText();
+            DottedIdentifier di = field.getAnnotation(DottedIdentifier.class);
+            if (di != null) {
+                if (di.exportName()) {
+                    newValue = Helper.unescapeExportname(swf, newValue);
+                } else {
+                    newValue = Helper.unescapePCodeString(newValue);
+                    //DottedChain.parsePrintable(newValue).toRawString();
+                }
+            }
+
+            if (Objects.equals(oldValue, newValue)) {
+                return false;
+            }
+            ReflectionTools.setValue(obj, field, index, newValue);
+        } catch (IllegalArgumentException | IllegalAccessException ex) {
             // ignore
         }
+        return true;
     }
 
     @Override
@@ -139,5 +169,15 @@ public class StringEditor extends JTextArea implements GenericTagEditor {
 
     @Override
     public void validateValue() {
+    }
+
+    @Override
+    public Object getObject() {
+        return obj;
+    }
+
+    @Override
+    public void setValueNormalizer(ValueNormalizer normalizer) {
+
     }
 }

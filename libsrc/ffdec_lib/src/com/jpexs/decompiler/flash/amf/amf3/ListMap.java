@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,27 +12,29 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.amf.amf3;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * Map which maintains order of keys
+ * Map which maintains order of keys. Similar to LinkedHashMap.
  *
  * @param <K> Key type
  * @param <V> Value type
  */
 public class ListMap<K, V> implements Map<K, V> {
 
-    private final Set<K> orderedKeys = new ListSet<>();
+    private final Set<K> orderedKeys = new LinkedHashSet<>();
     private final Map<K, V> map;
 
     /**
@@ -128,7 +130,7 @@ public class ListMap<K, V> implements Map<K, V> {
 
     @Override
     public Set<K> keySet() {
-        return new ListSet<>(orderedKeys);
+        return new LinkedHashSet<>(orderedKeys);
     }
 
     @Override
@@ -142,7 +144,7 @@ public class ListMap<K, V> implements Map<K, V> {
 
     @Override
     public Set<Entry<K, V>> entrySet() {
-        Set<Entry<K, V>> ret = new ListSet<>();
+        Set<Entry<K, V>> ret = new LinkedHashSet<>();
         for (K key : orderedKeys) {
             V value = map.get(key);
             ret.add(new MyEntry<>(key, value));
@@ -150,9 +152,14 @@ public class ListMap<K, V> implements Map<K, V> {
         return ret;
     }
 
+    /**
+     * Entry implementation
+     * @param <K> Key type
+     * @param <V> Value type
+     */
     public static class MyEntry<K, V> implements Entry<K, V> {
 
-        private K key;
+        private final K key;
         private V value;
 
         public MyEntry(K key, V value) {

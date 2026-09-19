@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2021 JPEXS
+ *  Copyright (C) 2021-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,8 +22,8 @@ import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.AppDialog;
 import com.jpexs.decompiler.flash.gui.FasterScrollPane;
 import com.jpexs.decompiler.flash.gui.Main;
-import com.jpexs.decompiler.flash.gui.MainPanel;
 import com.jpexs.decompiler.flash.gui.PreviewPanel;
+import com.jpexs.decompiler.flash.gui.TimelinedMaker;
 import com.jpexs.decompiler.flash.gui.View;
 import com.jpexs.decompiler.flash.tags.DefineButton2Tag;
 import com.jpexs.decompiler.flash.tags.DefineSpriteTag;
@@ -45,6 +45,8 @@ import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -74,7 +76,6 @@ import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
 /**
- *
  * @author JPEXS
  */
 public class AddScriptDialog extends AppDialog {
@@ -122,6 +123,11 @@ public class AddScriptDialog extends AppDialog {
     private List<String> existingClasses = new ArrayList<>();
     private List<Integer> spriteIdsWithDoInitAction;
 
+    private boolean createClassSet = false;
+
+    private final JPanel classPanel;
+    private final JPanel topPanel;
+
     public AddScriptDialog(Window owner, SWF swf) {
         super(owner);
         setDefaultCloseOperation(HIDE_ON_CLOSE);
@@ -151,7 +157,7 @@ public class AddScriptDialog extends AppDialog {
         panButtons.add(okButton);
         panButtons.add(cancelButton);
 
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
         JLabel typeLabel = new JLabel(translate("type"));
         typeComboBox = new JComboBox<>(new String[]{
@@ -196,7 +202,7 @@ public class AddScriptDialog extends AppDialog {
         centerPanel.add(createSpriteInitPanel(), "" + TYPE_SPRITE_INIT);
         centerPanel.add(createButtonPanel(), "" + TYPE_BUTTON_EVENT);
         centerPanel.add(createInstancePanel(), "" + TYPE_INSTANCE_EVENT);
-        centerPanel.add(createClassPanel(), "" + TYPE_CLASS);
+        centerPanel.add(classPanel = createClassPanel(), "" + TYPE_CLASS);
         cnt.add(centerPanel, BorderLayout.CENTER);
 
         cnt.add(panButtons, BorderLayout.SOUTH);
@@ -204,10 +210,33 @@ public class AddScriptDialog extends AppDialog {
         setSize(900, 600);
         setModal(true);
         setResizable(true);
-        View.setWindowIcon(this);
+        View.setWindowIcon(this, "scriptadd");
         View.centerScreen(this);
 
         checkEnabled();
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowOpened(WindowEvent e) {
+                if (createClassSet) {
+                    classNameTextField.requestFocusInWindow();
+                }
+            }
+        });
+    }
+
+    public void setCreateClassOnly(String prefillClassName) {
+        setTitle(translate("dialog.title.combined").replace("%title%", translate("dialog.title")).replace("%type%", translate("type.class")));
+        typeComboBox.setSelectedIndex(5);
+        centerPanel.removeAll();
+        centerPanel.add(classPanel, "" + TYPE_CLASS);
+        ((CardLayout) centerPanel.getLayout()).show(centerPanel, "" + TYPE_CLASS);
+        topPanel.setVisible(false);
+        pack();
+        classNameTextField.setText(prefillClassName);
+        classNameTextField.setSelectionStart(prefillClassName.length());
+        createClassSet = true;
+        checkEnabled();
+        View.centerScreen(this);
     }
 
     private JPanel createFramePanel(DocumentListener checkEnabledDocumentListener) {
@@ -227,7 +256,8 @@ public class AddScriptDialog extends AppDialog {
         for (Tag t : swf.getTags()) {
 
             if (t instanceof DoActionTag) {
-                hasScript = true;
+                //It is no longer a problem to have more than single DoAction
+                //hasScript = true;
             }
             if (t instanceof ShowFrameTag) {
                 MyFrame myf = new MyFrame(f);
@@ -261,7 +291,7 @@ public class AddScriptDialog extends AppDialog {
         frameList.addListSelectionListener(this::frameValueChanged);
         frameList.getSelectionModel().setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
-        framePreviewPanel = new PreviewPanel(Main.getMainFrame().getPanel(), null);
+        framePreviewPanel = new PreviewPanel(Main.getMainFrame().getPanel());
         framePreviewPanel.setReadOnly(true);
         framePreviewPanel.setPreferredSize(new Dimension(300, 1));
         framePreviewPanel.showEmpty();
@@ -288,7 +318,8 @@ public class AddScriptDialog extends AppDialog {
                 boolean hasScript = false;
                 for (Tag t2 : s.getTags()) {
                     if (t2 instanceof DoActionTag) {
-                        hasScript = true;
+                        //It is no longer a problem to have more than single DoAction
+                        //hasScript = true;
                     }
                     if (t2 instanceof ShowFrameTag) {
                         MyTreeNode frameNode = new MyTreeNode();
@@ -310,7 +341,7 @@ public class AddScriptDialog extends AppDialog {
 
     private JPanel createSpriteInitPanel() {
 
-        spriteInitPreviewPanel = new PreviewPanel(Main.getMainFrame().getPanel(), null);
+        spriteInitPreviewPanel = new PreviewPanel(Main.getMainFrame().getPanel());
         spriteInitPreviewPanel.setReadOnly(true);
         spriteInitPreviewPanel.setPreferredSize(new Dimension(300, 1));
         spriteInitPreviewPanel.showEmpty();
@@ -434,7 +465,7 @@ public class AddScriptDialog extends AppDialog {
 
         spriteFramePanel.add(spriteFrameTopPanel, BorderLayout.NORTH);
 
-        spriteFramePreviewPanel = new PreviewPanel(Main.getMainFrame().getPanel(), null);
+        spriteFramePreviewPanel = new PreviewPanel(Main.getMainFrame().getPanel());
         spriteFramePreviewPanel.setReadOnly(true);
         spriteFramePreviewPanel.setPreferredSize(new Dimension(300, 1));
         spriteFramePreviewPanel.showEmpty();
@@ -473,7 +504,7 @@ public class AddScriptDialog extends AppDialog {
         buttonList.addListSelectionListener(this::buttonValueChanged);
         buttonList.getSelectionModel().setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
-        buttonPreviewPanel = new PreviewPanel(Main.getMainFrame().getPanel(), null);
+        buttonPreviewPanel = new PreviewPanel(Main.getMainFrame().getPanel());
         buttonPreviewPanel.setReadOnly(true);
         buttonPreviewPanel.setPreferredSize(new Dimension(300, 1));
         buttonPreviewPanel.showEmpty();
@@ -662,7 +693,7 @@ public class AddScriptDialog extends AppDialog {
             instanceTree.setBackground(Color.white);
         }
 
-        instancePreviewPanel = new PreviewPanel(Main.getMainFrame().getPanel(), null);
+        instancePreviewPanel = new PreviewPanel(Main.getMainFrame().getPanel());
         instancePreviewPanel.setReadOnly(true);
         instancePreviewPanel.setPreferredSize(new Dimension(300, 1));
         instancePreviewPanel.showEmpty();
@@ -730,22 +761,22 @@ public class AddScriptDialog extends AppDialog {
             int f = ((MyFrame) ((MyTreeNode) tnode.getParent()).getData()).frame;
             Object parent = ((MyTreeNode) tnode.getParent().getParent()).getData();
             if (parent instanceof DefineSpriteTag) {
-                instancePreviewPanel.showImagePanel((DefineSpriteTag) parent, swf, f - 1);
+                instancePreviewPanel.showImagePanel((DefineSpriteTag) parent, swf, f - 1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false, true, false, false);
             } else {
-                instancePreviewPanel.showImagePanel(swf, swf, f - 1);
+                instancePreviewPanel.showImagePanel(swf, swf, f - 1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false, true, false, false);
             }
 
         } else if (tnode.getData() instanceof DefineSpriteTag) {
             instancePreviewPanel.selectImageDepth(-1);
-            instancePreviewPanel.showImagePanel((DefineSpriteTag) tnode.getData(), swf, -1);
+            instancePreviewPanel.showImagePanel((DefineSpriteTag) tnode.getData(), swf, -1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false, true, false, false);
         } else if (tnode.getData() instanceof MyFrame) {
             instancePreviewPanel.selectImageDepth(-1);
             int f = ((MyFrame) tnode.getData()).frame;
             Object parent = ((MyTreeNode) tnode.getParent()).getData();
             if (parent instanceof DefineSpriteTag) {
-                instancePreviewPanel.showImagePanel((DefineSpriteTag) parent, swf, f - 1);
+                instancePreviewPanel.showImagePanel((DefineSpriteTag) parent, swf, f - 1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false, true, false, false);
             } else {
-                instancePreviewPanel.showImagePanel(swf, swf, f - 1);
+                instancePreviewPanel.showImagePanel(swf, swf, f - 1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false, true, false, false);
             }
         }
         checkEnabled();
@@ -759,7 +790,7 @@ public class AddScriptDialog extends AppDialog {
             checkEnabled();
             return;
         }
-        spriteInitPreviewPanel.showImagePanel(spriteInitList.getSelectedValue(), swf, -1);
+        spriteInitPreviewPanel.showImagePanel(spriteInitList.getSelectedValue(), swf, -1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false, true, false, false);
         checkEnabled();
     }
 
@@ -771,7 +802,7 @@ public class AddScriptDialog extends AppDialog {
             checkEnabled();
             return;
         }
-        framePreviewPanel.showImagePanel(swf, swf, selectedIndex);
+        framePreviewPanel.showImagePanel(swf, swf, selectedIndex, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false, true, false, false);
         int f = selectedIndex + 1;
 
         if (!frameTextField.getText().equals("" + f)) {
@@ -783,7 +814,7 @@ public class AddScriptDialog extends AppDialog {
     private void buttonValueChanged(ListSelectionEvent e) {
         buttonPreviewPanel.showEmpty();
         if (buttonList.getSelectedIndex() >= 0) {
-            buttonPreviewPanel.showImagePanel(MainPanel.makeTimelined(buttonList.getSelectedValue()), swf, -1);
+            buttonPreviewPanel.showImagePanel(TimelinedMaker.makeTimelined(buttonList.getSelectedValue()), swf, -1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false, true, false, false);
         }
 
         checkEnabled();
@@ -799,14 +830,14 @@ public class AddScriptDialog extends AppDialog {
         }
         MyTreeNode tnode = (MyTreeNode) selection.getLastPathComponent();
         if (tnode.getData() instanceof DefineSpriteTag) {
-            spriteFramePreviewPanel.showImagePanel((DefineSpriteTag) tnode.getData(), swf, -1);
+            spriteFramePreviewPanel.showImagePanel((DefineSpriteTag) tnode.getData(), swf, -1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false, true, false, false);
         } else if (tnode.getData() instanceof MyFrame) {
             int f = ((MyFrame) tnode.getData()).frame;
             Object parent = ((MyTreeNode) tnode.getParent()).getData();
             if (parent instanceof DefineSpriteTag) {
-                spriteFramePreviewPanel.showImagePanel((DefineSpriteTag) parent, swf, f - 1);
+                spriteFramePreviewPanel.showImagePanel((DefineSpriteTag) parent, swf, f - 1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false, true, false, false);
             } else {
-                spriteFramePreviewPanel.showImagePanel(swf, swf, f - 1);
+                spriteFramePreviewPanel.showImagePanel(swf, swf, f - 1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false, true, false, false);
             }
             if (!spriteFrameTextField.getText().equals("" + f)) {
                 spriteFrameTextField.setText("" + f);
@@ -971,6 +1002,9 @@ public class AddScriptDialog extends AppDialog {
         }
 
         if (type == TYPE_CLASS) {
+            if (classNameTextField.getText().trim().endsWith(".")) {
+                okButton.setEnabled(false);
+            }
             if (classNameTextField.getText().trim().isEmpty()) {
                 okButton.setEnabled(false);
             }

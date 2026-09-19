@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
 package com.jpexs.decompiler.flash.gui.helpers;
 
 /**
- *
  * @author JPEXS
  */
 public class CollectionChangedEvent<E> {
@@ -48,6 +47,14 @@ public class CollectionChangedEvent<E> {
                 oldIndex = index;
                 break;
         }
+    }
+
+    public CollectionChangedEvent(CollectionChangedAction action, E oldItem, E newItem, int oldIndex, int newIndex) {
+        this.action = action;
+        this.oldItem = oldItem;
+        this.newItem = newItem;
+        this.oldIndex = oldIndex;
+        this.newIndex = newIndex;
     }
 
     public CollectionChangedAction getAction() {

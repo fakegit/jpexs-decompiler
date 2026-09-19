@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,19 +12,40 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph;
 
+import com.jpexs.decompiler.graph.model.BreakItem;
 import com.jpexs.decompiler.graph.model.ContinueItem;
 import java.util.List;
 
 /**
+ * Block interface. For example, a block can be a loop, if statement, or a
+ * function.
  *
  * @author JPEXS
  */
 public interface Block {
 
+    /**
+     * Gets all sub continues.
+     *
+     * @return List of continues
+     */
     public List<ContinueItem> getContinues();
+    
+    /**
+     * Gets all sub breaks.
+     *
+     * @return List of breaks
+     */
+    public List<BreakItem> getBreaks();
 
+    /**
+     * Gets all sub blocks.
+     *
+     * @return List of blocks
+     */
     public List<List<GraphTargetItem>> getSubs();
 }

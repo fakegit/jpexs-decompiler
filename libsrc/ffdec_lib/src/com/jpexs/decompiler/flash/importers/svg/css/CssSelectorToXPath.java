@@ -1,3 +1,19 @@
+/*
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
+ * 
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.0 of the License, or (at your option) any later version.
+ * 
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.importers.svg.css;
 
 import java.util.ArrayList;
@@ -6,11 +22,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
+ * Css selector to XPath converter.
  *
  * @author JPEXS
- *
+ * <p>
  * Based on implementation https://github.com/css2xpath/css2xpath
- *
  */
 public class CssSelectorToXPath {
 
@@ -39,24 +55,25 @@ public class CssSelectorToXPath {
         return "substring-before(concat(substring-after("
                 + (s == null || s.isEmpty() ? xpath_url_attrs : s) + ",\"://\"),\"/\"),\"/\")";
     }
+
     private final String xpath_url_attrs = "@href|@src";
     private final String xpath_lower_case = xpath_to_lower(null);
     private final String xpath_ns_uri = "ancestor-or-self::*[last()]/@url";
     private final String xpath_ns_path = xpath_url_path(xpath_url(xpath_ns_uri));
-    private final String xpath_has_protocal = "(starts-with(" + xpath_url_attrs + ",\"http://\") or starts-with(" + xpath_url_attrs + ",\"https://\"))";
+    private final String xpath_has_protocol = "(starts-with(" + xpath_url_attrs + ",\"http://\") or starts-with(" + xpath_url_attrs + ",\"https://\"))";
     private final String xpath_is_internal = "starts-with(" + xpath_url(null) + "," + xpath_url_domain(xpath_ns_uri) + ") or " + xpath_ends_with(xpath_url_domain(null), xpath_url_domain(xpath_ns_uri));
-    private final String xpath_is_local = "(" + xpath_has_protocal + " and starts-with(" + xpath_url(null) + "," + xpath_url(xpath_ns_uri) + "))";
+    private final String xpath_is_local = "(" + xpath_has_protocol + " and starts-with(" + xpath_url(null) + "," + xpath_url(xpath_ns_uri) + "))";
     private final String xpath_is_path = "starts-with(" + xpath_url_attrs + ",\"/\")";
     private final String xpath_is_local_path = "starts-with(" + xpath_url_path(null) + "," + xpath_ns_path + ")";
     private final String xpath_normalize_space = "normalize-space()";
-    private final String xpath_internal = "[not(" + xpath_has_protocal + ") or " + xpath_is_internal + "]";
-    private final String xpath_external = "[" + xpath_has_protocal + " and not(" + xpath_is_internal + ")]";
+    private final String xpath_internal = "[not(" + xpath_has_protocol + ") or " + xpath_is_internal + "]";
+    private final String xpath_external = "[" + xpath_has_protocol + " and not(" + xpath_is_internal + ")]";
     private final char escape_literal = (char) 30;
     private final char escape_parens = (char) 31;
     private final String regex_string_literal = "(\"[^\"\\x1E]*\"|'[^'\\x1E]*'|=\\s*[^\\s\\]\\'\\\"]+)"; // /g
     private final String regex_escaped_literal = "['\"]?(\\x1E+)['\"]?"; // /g;
     private final String regex_css_wrap_pseudo = "(\\x1F\\)|[^\\)])\\:(first|limit|last|gt|lt|eq|nth)([^\\-]|$)"; // bez g
-    private final String regex_specal_chars = "[\\x1C-\\x1F]+"; // /g;
+    private final String regex_special_chars = "[\\x1C-\\x1F]+"; // /g;
     private final String regex_first_axis = "^([\\s\\(\\x1F]*)(\\.?[^\\.\\/\\(]{1,2}[a-z]*:*)";
     private final String regex_filter_prefix = "(^|\\/|\\:)\\["; // /g;
     private final String regex_attr_prefix = "([^\\(\\[\\/\\|\\s\\x1F])\\@"; // /g;
@@ -129,9 +146,6 @@ public class CssSelectorToXPath {
             case "~":
                 return prefix + "/following-sibling::" + literal;
             case ",":
-                if (axis == null) {
-
-                }
                 axis = ".//";
                 return "|" + axis + literal;
             case "^": // first child
@@ -345,7 +359,7 @@ public class CssSelectorToXPath {
             case "root":
                 return "/ancestor::[last()]";
             case "range":
-                String arr[] = arg.split(",");
+                String[] arr = arg.split(",");
 
                 return "[" + arr[0] + "<=position() and position()<=" + arr[1] + "]";
             case "input": // Sizzle: "input, button, select, and textarea are all considered to be input elements."
@@ -434,7 +448,7 @@ public class CssSelectorToXPath {
         return buf.toString();
     }
 
-    // Find the begining of the selector, starting at i and working backwards
+    // Find the beginning of the selector, starting at i and working backwards
     private int selectorStart(String s, int i) {
         int depth = 0;
         int offset = 0;
@@ -462,6 +476,7 @@ public class CssSelectorToXPath {
                     if (depth == 0) {
                         return ++i + offset;
                     }
+                //fallthrough (?)
                 default:
                     offset = 0;
             }
@@ -546,10 +561,23 @@ public class CssSelectorToXPath {
         return -1;
     }
 
+    /**
+     * Convert CSS selector to XPath.
+     *
+     * @param s CSS selector
+     * @return XPath
+     */
     public String css2xpath(String s) {
         return css2xpath(s, false);
     }
 
+    /**
+     * Convert CSS selector to XPath.
+     *
+     * @param s CSS selector
+     * @param nested true if nested
+     * @return XPath
+     */
     public String css2xpath(String s, boolean nested) {
         if (nested == true) {
             // Replace :pseudo-classes
@@ -665,7 +693,7 @@ public class CssSelectorToXPath {
         });
 
         // Remove any special characters
-        s = s.replaceAll(regex_specal_chars, "");
+        s = s.replaceAll(regex_special_chars, "");
 
         // add * to stand-alone filters
         s = s.replaceAll(regex_filter_prefix, "$1*[");
@@ -679,7 +707,7 @@ public class CssSelectorToXPath {
     s = escapeChar(s, '[', ']', filter_char);
     s = s.replace(/(\x1D+)\]\[\1(.+?[^\x1D])\1\]/g, ' and ($2)$1]')
          */
-        s = prependAxis(s, ".//"); // prepend ".//" axis to begining of CSS selector
+        s = prependAxis(s, ".//"); // prepend ".//" axis to beginning of CSS selector
         return s;
     }
 

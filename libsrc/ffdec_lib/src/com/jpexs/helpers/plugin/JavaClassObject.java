@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, Miron Sadziak, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, Miron Sadziak, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,17 +12,18 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.helpers.plugin;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
-import javax.tools.JavaFileObject.Kind;
 import javax.tools.SimpleJavaFileObject;
 
 /**
+ * A file object used to represent compiled classes in memory.
  *
  * @author JPEXS
  */
@@ -62,8 +63,8 @@ public class JavaClassObject extends SimpleJavaFileObject {
      * array. This way the compiler will write everything into the byte array
      * that we will instantiate later
      *
-     * @return
-     * @throws java.io.IOException
+     * @return Output stream
+     * @throws IOException On I/O error
      */
     @Override
     public OutputStream openOutputStream() throws IOException {

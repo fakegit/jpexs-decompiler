@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,33 +12,51 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import java.util.List;
 
 /**
+ * Parenthesis.
  *
  * @author JPEXS
  */
 public class ParenthesisItem extends GraphTargetItem {
 
-    public ParenthesisItem(GraphSourceItem src, GraphSourceItem lineStartIns, GraphTargetItem value) {
-        super(src, lineStartIns, PRECEDENCE_PRIMARY, value);
+    /**
+     * Constructor.
+     * 
+     * @param dialect Dialect
+     * @param src Source
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     */
+    public ParenthesisItem(GraphTargetDialect dialect, GraphSourceItem src, GraphSourceItem lineStartIns, GraphTargetItem value) {
+        super(dialect, src, lineStartIns, PRECEDENCE_PRIMARY, value);
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("(");
-        value.toString(writer, localData);
+        appendNoParenthesis(writer, localData);
         return writer.append(")");
     }
+
+    @Override
+    public GraphTextWriter appendNoParenthesis(GraphTextWriter writer, LocalData localData) throws InterruptedException {
+        value.toString(writer, localData);
+        return writer;
+    }   
+    
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {

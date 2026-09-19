@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,13 +31,23 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Boolean value.
  *
  * @author JPEXS
  */
 public class BooleanAVM2Item extends AVM2Item {
 
+    /**
+     * Value.
+     */
     public Boolean value;
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     */
     public BooleanAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, Boolean value) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.value = value;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,17 +12,22 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.localregs;
 
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 
 /**
+ * getlocal1 instruction - get local register 1 value.
  *
  * @author JPEXS
  */
 public class GetLocal1Ins extends GetLocalTypeIns {
 
+    /**
+     * Constructor
+     */
     public GetLocal1Ins() {
         super(0xd1, "getlocal1", new int[]{}, false);
     }

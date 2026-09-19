@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.stack;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -28,11 +29,15 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.List;
 
 /**
+ * pushstring instruction - Push a string onto the stack.
  *
  * @author JPEXS
  */
 public class PushStringIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public PushStringIns() {
         super(0x2c, "pushstring", new int[]{AVM2Code.DAT_STRING_INDEX}, false);
     }

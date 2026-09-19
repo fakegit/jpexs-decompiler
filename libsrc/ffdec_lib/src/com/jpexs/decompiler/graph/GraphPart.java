@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,172 +17,144 @@
 package com.jpexs.decompiler.graph;
 
 import com.jpexs.decompiler.flash.BaseLocalData;
+import com.jpexs.helpers.CancellableWorker;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Stack;
 
 /**
+ * Represents a part of a graph. Block of instructions which are executed in
+ * sequence. No jumps or branches are allowed inside a GraphPart.
  *
  * @author JPEXS
  */
 public class GraphPart implements Serializable {
 
-    public static final int TYPE_NONE = 0;
-
-    public static final int TYPE_LOOP_HEADER = 1;
-
-    public static final int TYPE_PRELOOP = 3;
-
-    public static final int TYPE_REENTRY = 2;
-
-    public boolean traversed = false;
-
-    public int DFSP_pos = 0;
-
-    public GraphPart iloop_header;
-
-    public int type = TYPE_NONE;
-
-    public boolean irreducible = false;
-
+    /**
+     * Start IP
+     */
     public int start = 0;
 
+    /**
+     * End IP
+     */
     public int end = 0;
 
-    public int instanceCount = 0;
-
+    /**
+     * Next parts
+     */
     public List<GraphPart> nextParts = new ArrayList<>();
 
-    public int posX = -1;
-
-    public int posY = -1;
-
+    /**
+     * Path
+     */
     public GraphPath path = new GraphPath();
 
+    /**
+     * Previous parts
+     */
     public List<GraphPart> refs = new ArrayList<>();
 
-    public boolean ignored = false;
+    /**
+     * Level in the graph
+     */
+    public int level; 
 
-    public List<Object> forContinues = new ArrayList<>();
+    /**
+     * Closed time. The node is closed when all its input edges are already
+     * visited. Calculated in Graph.calculateClosedTime.
+     */
+    public int closedTime;
 
-    public int level;
-
-    public int discoveredTime;
-
-    public int finishedTime;
-
-    public int order;
-
-    //public List<GraphPart> throwParts = new ArrayList<>();
-
-    public enum StopPartType {
-
-        NONE, AND_OR, COMMONPART
-    }
-
-    //public StopPartType stopPartType = StopPartType.NONE;
-    //public TranslateStack andOrStack; // Stores stack when AND_OR stopPart has been reached
-    /*public class CommonPartStack { // Stores stack when COMMONPART stopPart has been reached
-
-     boolean isTrueStack;
-
-     TranslateStack trueStack;
-
-     TranslateStack falseStack;
-     }/
-
-     //public ArrayList<CommonPartStack> commonPartStacks;
-
-     /*    public void setAndOrStack(TranslateStack stack) {
-     andOrStack = stack;
-     }
-
-     public void setCommonPartStack(TranslateStack stack) {
-     CommonPartStack currentStack = commonPartStacks.get(commonPartStacks.size() - 1);
-     if (currentStack.isTrueStack) {
-     currentStack.trueStack = stack;
-     } else {
-     currentStack.falseStack = stack;
-     }
-     }*/
-    public int setTime(int time, List<GraphPart> ordered, List<GraphPart> visited) {
-        if (visited.contains(this)) {
-            return time;
-        }
-        discoveredTime = time;
-        visited.add(this);
-        for (GraphPart next : nextParts) {
-            if (!visited.contains(next)) {
-                time = next.setTime(time + 1, ordered, visited);
-            }
-        }
-        time++;
-        finishedTime = time;
-        order = ordered.size();
-        ordered.add(this);
-        return time;
-    }
-
-    private boolean leadsTo(BaseLocalData localData, Graph gr, GraphSource code, GraphPart prev, GraphPart part, HashSet<GraphPart> visited, List<Loop> loops, List<ThrowState> throwStates, boolean useThrow) throws InterruptedException {
-        if (Thread.currentThread().isInterrupted()) {
+    /**
+     * Checks if this part leads to another part.
+     *
+     * @param localData Local data
+     * @param gr Graph
+     * @param code Code
+     * @param prev Previous part
+     * @param part Part to check
+     * @param visited Visited parts
+     * @param loops Loops
+     * @param throwStates Throw states
+     * @param firstCanBeLoopContinue Can entry point be loop continue?
+     * @return True if this part leads to the other part
+     * @throws InterruptedException On interrupt
+     */
+    private boolean hasPathTo(BaseLocalData localData, Graph gr, GraphSource code, GraphPart prev,
+            GraphPart part, VisitedGraphParts visited, BitSet reachableParts, List<Loop> loops,
+            List<ThrowState> throwStates, boolean firstCanBeLoopContinue) throws InterruptedException {
+        if (CancellableWorker.isInterrupted()) {
             throw new InterruptedException();
         }
 
-        GraphPart tpart = gr.checkPart(null, localData, prev, this, null);
-        if (tpart == null) {
-            return false;
-        }
-        if (tpart != this) {
-            return tpart.leadsTo(localData, gr, code, null, part, visited, loops, throwStates, useThrow);
-        }
-        Loop currentLoop = null;
-        for (Loop l : loops) {
-            /*if(l.phase==0){
-             if(l.loopContinue==this){
-             l.leadsToMark = 1;
-             next = l.loopBreak;
-             currentLoop = l;
-             continue;
-             }
-             }*/
-            if (l.phase == 1) {
-                if (l.loopContinue == this) {
-                    return false;
-                }
-                if (l.loopPreContinue == this) {
-                    return false;
-                }
-                if (l.loopBreak == this) {
-                    //return false;    //?
+        Stack<GraphPart> todo = new Stack<>();
+        todo.push(this);
+        boolean first = firstCanBeLoopContinue; //This is big HACK of how to get always-break working
+
+        looptodo:
+        while (!todo.isEmpty()) {
+            GraphPart thisPart = todo.pop();
+
+            GraphPart tpart = gr.checkPart(null, localData, prev, thisPart, null);
+            if (tpart == null) {
+                continue;
+            }
+            if (tpart != thisPart) {
+                todo.push(tpart);
+                continue;
+            }
+            for (Loop l : loops) {
+                if (l.phase == 1) {                    
+                    if (l.loopContinue == thisPart) {
+                        if (!first) {
+                            continue looptodo;
+                        }
+                    }
+                    if (l.loopPreContinue == thisPart) {
+                        if (!first) {
+                            continue looptodo;
+                        }
+                    }
+                    if (l.loopBreak == thisPart) {
+                        //return false;    //?
+                    }
                 }
             }
-        }
-        if (visited.contains(this)) {
-            return false;
-        }
-        /*if (loops.contains(this)) {
-         return false;
-         }*/
-        visited.add(this);
-        if (end < code.size() && code.get(end).isBranch() && (code.get(end).ignoredLoops())) {
-            return false;
-        }
-        for (GraphPart p : nextParts) {
-            if (p == part) {
-                return true;
-            } else if (p.leadsTo(localData, gr, code, this, part, visited, loops, throwStates, useThrow)) {
-                return true;
+            first = false;
+            if (visited.contains(thisPart)) {
+                continue;
             }
-        }
-        for (ThrowState ts : throwStates) {
-            if (ts.state != 1) {
-                if (ts.throwingParts.contains(this)) {
-                    GraphPart p = ts.targetPart;
-                    if (p == part) {
-                        return true;
-                    } else if (p.leadsTo(localData, gr, code, this, part, visited, loops, throwStates, useThrow)) {
-                        return true;
+            visited.add(thisPart);
+            for (GraphPart p : thisPart.nextParts) {
+                if (reachableParts != null) {
+                    reachableParts.set(gr.getReachabilityPartIndex(p));
+                } else if (p == part) {
+                    return true;
+                }
+                if (visited.contains(p)) {
+                    continue;
+                }
+                todo.push(p);
+            }
+            for (ThrowState ts : throwStates) {
+                if (ts.state != 1) {
+                    if (ts.throwingParts.contains(thisPart)) {
+                        GraphPart p = ts.targetPart;
+
+                        if (reachableParts != null) {
+                            reachableParts.set(gr.getReachabilityPartIndex(p));
+                        } else if (p == part) {
+                            return true;
+                        }
+                        if (visited.contains(p)) {
+                            continue;
+                        }
+
+                        todo.push(p);
                     }
                 }
             }
@@ -190,78 +162,117 @@ public class GraphPart implements Serializable {
         return false;
     }
 
-    public boolean leadsTo(BaseLocalData localData, Graph gr, GraphSource code, GraphPart part, List<Loop> loops, List<ThrowState> throwStates, boolean useThrow) throws InterruptedException {
+    private BitSet getReachableParts(BaseLocalData localData, Graph gr, GraphSource code,
+            List<Loop> loops, List<ThrowState> throwStates, boolean firstCanBeLoopContinue) throws InterruptedException {
+        BitSet reachableParts = new BitSet();
+        hasPathTo(localData, gr, code, null /*???*/, null, new VisitedGraphParts(code.size()),
+                reachableParts, loops, throwStates, firstCanBeLoopContinue);
+        return reachableParts;
+    }
+
+    /**
+     * Checks if this part leads to another part.
+     *
+     * @param localData Local data
+     * @param gr Graph
+     * @param code Code
+     * @param part Part to check
+     * @param loops Loops
+     * @param throwStates Throw states
+     * @param firstCanBeLoopContinue Can entry point be loop continue?
+     * @return True if this part leads to the other part
+     * @throws InterruptedException On interrupt
+     */
+    public boolean leadsTo(BaseLocalData localData, Graph gr, GraphSource code, GraphPart part, List<Loop> loops, List<ThrowState> throwStates, boolean firstCanBeLoopContinue) throws InterruptedException {
         for (Loop l : loops) {
             l.leadsToMark = 0;
         }
-        return leadsTo(localData, gr, code, null /*???*/, part, new HashSet<>(), loops, throwStates, useThrow);
+        BitSet cachedResult = gr.getCachedReachability(localData, this, loops, throwStates, firstCanBeLoopContinue);
+        int partIndex = gr.getReachabilityPartIndex(part);
+        if (cachedResult != null) {
+            return cachedResult.get(partIndex);
+        }
+        if (gr.shouldCacheReachability(localData, this, loops, throwStates, firstCanBeLoopContinue)) {
+            BitSet reachableParts = getReachableParts(localData, gr, code, loops, throwStates, firstCanBeLoopContinue);
+            gr.cacheReachability(localData, this, loops, throwStates, firstCanBeLoopContinue, reachableParts);
+            return reachableParts.get(partIndex);
+        }
+        return hasPathTo(localData, gr, code, null /*???*/, part, new VisitedGraphParts(code.size()),
+                null, loops, throwStates, firstCanBeLoopContinue);
+        //return gr.partLeadsTo(localData, this, part, code, loops, throwStates, firstCanBeLoopContinue);
     }
 
+    /**
+     * Visited set optimized for regular graph parts, whose start is an
+     * instruction index. Unusual synthetic parts and duplicate starts retain
+     * full GraphPart equality through fallback sets.
+     */
+    private static final class VisitedGraphParts {
+
+        private static final int MAX_INDEXED_STARTS = 1 << 16;
+
+        private final int[] endByStart;
+        private HashSet<Long> duplicateStarts;
+        private HashSet<GraphPart> syntheticParts;
+
+        VisitedGraphParts(int codeSize) {
+            endByStart = new int[Math.min(codeSize, MAX_INDEXED_STARTS)];
+        }
+
+        boolean contains(GraphPart part) {
+            if (isRegular(part)) {
+                int storedEnd = endByStart[part.start];
+                if (storedEnd == part.end + 1) {
+                    return true;
+                }
+                return storedEnd != 0 && duplicateStarts != null && duplicateStarts.contains(key(part));
+            }
+            return syntheticParts != null && syntheticParts.contains(part);
+        }
+
+        void add(GraphPart part) {
+            if (isRegular(part)) {
+                if (endByStart[part.start] == 0) {
+                    endByStart[part.start] = part.end + 1;
+                } else if (endByStart[part.start] != part.end + 1) {
+                    if (duplicateStarts == null) {
+                        duplicateStarts = new HashSet<>();
+                    }
+                    duplicateStarts.add(key(part));
+                }
+            } else {
+                if (syntheticParts == null) {
+                    syntheticParts = new HashSet<>();
+                }
+                syntheticParts.add(part);
+            }
+        }
+
+        private boolean isRegular(GraphPart part) {
+            return part.start >= 0 && part.start < endByStart.length && part.end >= 0 && part.end < Integer.MAX_VALUE;
+        }
+
+        private static long key(GraphPart part) {
+            return ((long) part.start << 32) ^ (part.end & 0xffffffffL);
+        }
+    }
+
+    /**
+     * Constructs a new GraphPart.
+     *
+     * @param start Start IP
+     * @param end End IP
+     */
     public GraphPart(int start, int end) {
         this.start = start;
         this.end = end;
     }
 
-    private GraphPart getNextPartPath(GraphPart original, GraphPath path, List<GraphPart> visited) {
-        if (visited.contains(this) && (this == original)) {
-            return null;
-        }
-        if (visited.contains(this) && (this != original)) {
-            return null;
-        }
-        visited.add(this);
-        for (GraphPart p : nextParts) {
-            if (p == original) {
-                continue;
-            }
-            if (p.path.equals(path)) {
-                return p;
-            } else if (p.path.length() >= path.length()) {
-                GraphPart gp = p.getNextPartPath(original, path, visited);
-                if (gp != null) {
-                    return gp;
-                }
-            }
-        }
-        return null;
-    }
-
-    public GraphPart getNextPartPath(List<GraphPart> ignored) {
-        List<GraphPart> visited = new ArrayList<>();
-        visited.addAll(ignored);
-        if (visited.contains(this)) {
-            visited.remove(this);
-        }
-        return getNextPartPath(this, path, visited);
-    }
-
-    public GraphPart getNextSuperPartPath(List<GraphPart> ignored) {
-        List<GraphPart> visited = new ArrayList<>();
-        visited.addAll(ignored);
-        return getNextSuperPartPath(this, path, visited);
-    }
-
-    private GraphPart getNextSuperPartPath(GraphPart original, GraphPath path, List<GraphPart> visited) {
-        if (visited.contains(this)) {
-            return null;
-        }
-        visited.add(this);
-        for (GraphPart p : nextParts) {
-            if (p == original) {
-                continue;
-            }
-            if (p.path.length() < path.length()) {
-                return p;
-            } else {
-                GraphPart gp = p.getNextSuperPartPath(original, path, visited);
-                if (gp != null) {
-                    return gp;
-                }
-            }
-        }
-        return null;
-    }
-
+    /**
+     * To string.
+     *
+     * @return String representation
+     */
     @Override
     public String toString() {
         if (end < start) {
@@ -271,47 +282,52 @@ public class GraphPart implements Serializable {
         int printEnd = end + 1;
 
         return "" + (printStart < 0 ? "(" : "") + printStart + (printStart < 0 ? ")" : "")
-                + "-" + (printEnd < 0 ? "(" : "") + printEnd + (printEnd < 0 ? ")" : "") + (instanceCount > 1 ? "(" + instanceCount + " links)" : "");// + "  p" + path;
+                + "-" + (printEnd < 0 ? "(" : "") + printEnd + (printEnd < 0 ? ")" : "");
     }
 
+    /**
+     * Checks if this part contains an IP.
+     *
+     * @param ip IP
+     * @return True if this part contains the IP
+     */
     public boolean containsIP(int ip) {
         return (ip >= start) && (ip <= end);
     }
 
-    private boolean containsPart(GraphPart part, GraphPart what, List<GraphPart> used) {
-        if (used.contains(part)) {
-            return false;
-        }
-        used.add(part);
-        for (GraphPart subpart : part.nextParts) {
-            if (subpart == what) {
-                return true;
-            }
-            if (containsPart(subpart, what, used)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
+    /**
+     * Gets the height of this part - number of instructions in this part.
+     *
+     * @return Height
+     */
     public int getHeight() {
         return end - start + 1;
     }
 
+    /**
+     * Gets IP at offset from start.
+     *
+     * @param offset Offset
+     * @return IP
+     */
     public int getPosAt(int offset) {
         return start + offset;
     }
 
-    public boolean containsPart(GraphPart what) {
-        return containsPart(this, what, new ArrayList<>());
-    }
-
+    /**
+     * Gets sub parts. Currently only self is allowed.
+     */
     public List<GraphPart> getSubParts() {
         List<GraphPart> ret = new ArrayList<>();
         ret.add(this);
         return ret;
     }
 
+    /**
+     * Hash code.
+     *
+     * @return Hash code
+     */
     @Override
     public int hashCode() {
         int hash = 3;
@@ -319,6 +335,12 @@ public class GraphPart implements Serializable {
         return hash;
     }
 
+    /**
+     * Equals.
+     *
+     * @param obj Object
+     * @return True if equals
+     */
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {

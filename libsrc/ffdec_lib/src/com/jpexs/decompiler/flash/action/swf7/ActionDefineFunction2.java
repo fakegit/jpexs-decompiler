@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,6 +23,7 @@ import com.jpexs.decompiler.flash.action.ActionList;
 import com.jpexs.decompiler.flash.action.ActionScriptFunction;
 import com.jpexs.decompiler.flash.action.ActionScriptObject;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
+import com.jpexs.decompiler.flash.action.as2.Trait;
 import com.jpexs.decompiler.flash.action.model.FunctionActionItem;
 import com.jpexs.decompiler.flash.action.parser.ActionParseException;
 import com.jpexs.decompiler.flash.action.parser.pcode.FlasmLexer;
@@ -41,52 +42,106 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
+ * DefineFunction2 action - Defines a function. Additional features.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 7)
 public class ActionDefineFunction2 extends Action implements GraphSourceItemContainer {
 
+    /**
+     * Function name
+     */
     public String functionName;
 
+    /**
+     * Replaced function name
+     */
     public String replacedFunctionName;
 
+    /**
+     * Parameter names
+     */
     public List<String> paramNames = new ArrayList<>();
 
+    /**
+     * Replaced parameter names
+     */
     public List<String> replacedParamNames;
 
+    /**
+     * Parameter registers
+     */
     public List<Integer> paramRegisters = new ArrayList<>();
 
+    /**
+     * Preload parent flag
+     */
     public boolean preloadParentFlag;
 
+    /**
+     * Preload root flag
+     */
     public boolean preloadRootFlag;
 
+    /**
+     * Suppress super flag
+     */
     public boolean suppressSuperFlag;
 
+    /**
+     * Preload super flag
+     */
     public boolean preloadSuperFlag;
 
+    /**
+     * Suppress arguments flag
+     */
     public boolean suppressArgumentsFlag;
 
+    /**
+     * Preload arguments flag
+     */
     public boolean preloadArgumentsFlag;
 
+    /**
+     * Suppress this flag
+     */
     public boolean suppressThisFlag;
 
+    /**
+     * Preload this flag
+     */
     public boolean preloadThisFlag;
 
+    /**
+     * Reserved
+     */
     @Reserved
     public int reserved;
 
+    /**
+     * Preload global flag
+     */
     public boolean preloadGlobalFlag;
 
+    /**
+     * Register count
+     */
     public int registerCount;
 
+    /**
+     * Code size
+     */
     public int codeSize;
 
-    private int version;
-
+    /**
+     * Constant pool
+     */
     public List<String> constantPool;
 
     @Override
@@ -98,8 +153,27 @@ public class ActionDefineFunction2 extends Action implements GraphSourceItemCont
         return true;
     }
 
-    public ActionDefineFunction2(String functionName, boolean preloadParentFlag, boolean preloadRootFlag, boolean suppressSuperFlag, boolean preloadSuperFlag, boolean suppressArgumentsFlag, boolean preloadArgumentsFlag, boolean suppressThisFlag, boolean preloadThisFlag, boolean preloadGlobalFlag, int registerCount, int codeSize, int version, List<String> paramNames, List<Integer> paramRegisters) {
-        super(0x8E, 0);
+    /**
+     * Constructor.
+     *
+     * @param functionName Function name
+     * @param preloadParentFlag Preload parent flag
+     * @param preloadRootFlag Preload root flag
+     * @param suppressSuperFlag Suppress super flag
+     * @param preloadSuperFlag Preload super flag
+     * @param suppressArgumentsFlag Suppress arguments flag
+     * @param preloadArgumentsFlag Preload arguments flag
+     * @param suppressThisFlag Suppress this flag
+     * @param preloadThisFlag Preload this flag
+     * @param preloadGlobalFlag Preload global flag
+     * @param registerCount Register count
+     * @param codeSize Code size
+     * @param paramNames Parameter names
+     * @param paramRegisters Parameter registers
+     * @param charset Charset
+     */
+    public ActionDefineFunction2(String functionName, boolean preloadParentFlag, boolean preloadRootFlag, boolean suppressSuperFlag, boolean preloadSuperFlag, boolean suppressArgumentsFlag, boolean preloadArgumentsFlag, boolean suppressThisFlag, boolean preloadThisFlag, boolean preloadGlobalFlag, int registerCount, int codeSize, List<String> paramNames, List<Integer> paramRegisters, String charset) {
+        super(0x8E, 0, charset);
         this.functionName = functionName;
         this.preloadParentFlag = preloadParentFlag;
         this.preloadRootFlag = preloadRootFlag;
@@ -112,14 +186,19 @@ public class ActionDefineFunction2 extends Action implements GraphSourceItemCont
         this.preloadGlobalFlag = preloadGlobalFlag;
         this.registerCount = registerCount;
         this.codeSize = codeSize;
-        this.version = version;
         this.paramNames = paramNames;
         this.paramRegisters = paramRegisters;
     }
 
-    public ActionDefineFunction2(int actionLength, SWFInputStream sis, int version) throws IOException {
-        super(0x8E, actionLength);
-        this.version = version;
+    /**
+     * Constructor.
+     *
+     * @param actionLength Action length
+     * @param sis SWF input stream
+     * @throws IOException On I/O error
+     */
+    public ActionDefineFunction2(int actionLength, SWFInputStream sis) throws IOException {
+        super(0x8E, actionLength, sis.getCharset());
         functionName = sis.readString("functionName");
         int numParams = sis.readUI16("numParams");
         registerCount = sis.readUI8("registerCount");
@@ -140,22 +219,43 @@ public class ActionDefineFunction2 extends Action implements GraphSourceItemCont
         codeSize = sis.readUI16("codeSize");
     }
 
-    public ActionDefineFunction2(FlasmLexer lexer) throws IOException, ActionParseException {
-        super(0x8E, -1);
+    /**
+     * Constructor.
+     *
+     * @param lexer Flasm lexer
+     * @param charset Charset
+     * @throws IOException On I/O error
+     * @throws ActionParseException On action parse error
+     */
+    public ActionDefineFunction2(FlasmLexer lexer, String charset) throws IOException, ActionParseException {
+        super(0x8E, -1, charset);
         functionName = lexString(lexer);
+        lexOptionalComma(lexer);
         int numParams = (int) lexLong(lexer);
+        lexOptionalComma(lexer);
         registerCount = (int) lexLong(lexer);
+        lexOptionalComma(lexer);
         preloadParentFlag = lexBoolean(lexer);
+        lexOptionalComma(lexer);
         preloadRootFlag = lexBoolean(lexer);
+        lexOptionalComma(lexer);
         suppressSuperFlag = lexBoolean(lexer);
+        lexOptionalComma(lexer);
         preloadSuperFlag = lexBoolean(lexer);
+        lexOptionalComma(lexer);
         suppressArgumentsFlag = lexBoolean(lexer);
+        lexOptionalComma(lexer);
         preloadArgumentsFlag = lexBoolean(lexer);
+        lexOptionalComma(lexer);
         suppressThisFlag = lexBoolean(lexer);
+        lexOptionalComma(lexer);
         preloadThisFlag = lexBoolean(lexer);
+        lexOptionalComma(lexer);
         preloadGlobalFlag = lexBoolean(lexer);
         for (int i = 0; i < numParams; i++) {
+            lexOptionalComma(lexer);
             paramRegisters.add((int) lexLong(lexer));
+            lexOptionalComma(lexer);
             paramNames.add(lexString(lexer));
         }
         lexBlockOpen(lexer);
@@ -204,7 +304,7 @@ public class ActionDefineFunction2 extends Action implements GraphSourceItemCont
     }
 
     @Override
-    public GraphTextWriter getASMSourceReplaced(ActionList container, Set<Long> knownAddreses, ScriptExportMode exportMode, GraphTextWriter writer) {
+    public GraphTextWriter getASMSourceReplaced(ActionList container, Set<Long> knownAddresses, ScriptExportMode exportMode, GraphTextWriter writer) {
         List<String> oldParamNames = paramNames;
         if (replacedParamNames != null) {
             paramNames = replacedParamNames;
@@ -213,7 +313,7 @@ public class ActionDefineFunction2 extends Action implements GraphSourceItemCont
         if (replacedFunctionName != null) {
             functionName = replacedFunctionName;
         }
-        String ret = getASMSource(container, knownAddreses, exportMode);
+        String ret = getASMSource(container, knownAddresses, exportMode);
         paramNames = oldParamNames;
         functionName = oldFunctionName;
         writer.appendNoHilight(ret);
@@ -222,22 +322,23 @@ public class ActionDefineFunction2 extends Action implements GraphSourceItemCont
     }
 
     @Override
-    public String getASMSource(ActionList container, Set<Long> knownAddreses, ScriptExportMode exportMode) {
+    public String getASMSource(ActionList container, Set<Long> knownAddresses, ScriptExportMode exportMode) {
         StringBuilder paramStr = new StringBuilder();
         for (int i = 0; i < paramNames.size(); i++) {
-            paramStr.append(paramRegisters.get(i)).append(" \"").append(Helper.escapeActionScriptString(paramNames.get(i))).append("\" ");
+            paramStr.append(", ");
+            paramStr.append(paramRegisters.get(i)).append(", \"").append(Helper.escapeActionScriptString(paramNames.get(i))).append("\"");
         }
 
-        return ("DefineFunction2 \"" + Helper.escapeActionScriptString(functionName) + "\" " + paramRegisters.size() + " " + registerCount
-                + " " + preloadParentFlag
-                + " " + preloadRootFlag
-                + " " + suppressSuperFlag
-                + " " + preloadSuperFlag
-                + " " + suppressArgumentsFlag
-                + " " + preloadArgumentsFlag
-                + " " + suppressThisFlag
-                + " " + preloadThisFlag
-                + " " + preloadGlobalFlag).trim() + " " + paramStr + " {" + (codeSize == 0 ? "\r\n}" : "");// + "\r\n" + Action.actionsToString(getAddress() + getHeaderLength(), getItems(container), knownAddreses, constantPool, version, hex, getFileAddress() + hdrSize) + "}";
+        return ("DefineFunction2 \"" + Helper.escapeActionScriptString(functionName) + "\", " + paramRegisters.size() + ", " + registerCount
+                + ", " + preloadParentFlag
+                + ", " + preloadRootFlag
+                + ", " + suppressSuperFlag
+                + ", " + preloadSuperFlag
+                + ", " + suppressArgumentsFlag
+                + ", " + preloadArgumentsFlag
+                + ", " + suppressThisFlag
+                + ", " + preloadThisFlag
+                + ", " + preloadGlobalFlag).trim() + paramStr + " {";
     }
 
     @Override
@@ -245,6 +346,11 @@ public class ActionDefineFunction2 extends Action implements GraphSourceItemCont
         return "DefineFunction2";
     }
 
+    /**
+     * Gets the first register
+     *
+     * @return First register
+     */
     public int getFirstRegister() {
         int pos = 1;
         if (preloadThisFlag) {
@@ -269,7 +375,7 @@ public class ActionDefineFunction2 extends Action implements GraphSourceItemCont
     }
 
     @Override
-    public void translate(SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+    public void translate(Set<String> usedDeobfuscations, Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
     }
 
     @Override
@@ -318,7 +424,7 @@ public class ActionDefineFunction2 extends Action implements GraphSourceItemCont
                 funcList.add((FunctionActionItem) val);
             }
         }
-        FunctionActionItem fti = new FunctionActionItem(this, lineStartItem, functionName, paramNames, getRegNames(), content.get(0), constantPool, getFirstRegister(), new ArrayList<>(), funcList, false /*actually unknown*/);
+        FunctionActionItem fti = new FunctionActionItem(this, lineStartItem, functionName, paramNames, getRegNames(), content.get(0), constantPool, getFirstRegister(), new ArrayList<>(), funcList, false /*actually unknown*/, new ArrayList<>(), paramRegisters);
         functions.put(functionName, fti);
         stack.push(fti);
     }

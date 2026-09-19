@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.types;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -24,38 +25,76 @@ import com.jpexs.decompiler.graph.DottedChain;
 import java.util.List;
 
 /**
+ * Class info.
  *
  * @author JPEXS
  */
 public class ClassInfo {
 
-    public int cinit_index; //MethodInfo - static initializer
+    /**
+     * Static class initializer method info index.
+     */
+    public int cinit_index;
 
+    /**
+     * Static traits.
+     */
     public Traits static_traits;
 
+    /**
+     * True if class is deleted.
+     */
     @Internal
     public boolean deleted;
 
+    /**
+     * Last disp_id.
+     */
     @Internal
     public int lastDispId = -1;
 
+    /**
+     * Constructs a new ClassInfo.
+     */
     public ClassInfo() {
         static_traits = new Traits();
     }
 
+    /**
+     * Constructs a new ClassInfo.
+     *
+     * @param traits Static traits
+     */
     public ClassInfo(Traits traits) {
         static_traits = traits;
     }
 
+    /**
+     * To string.
+     *
+     * @return String
+     */
     @Override
     public String toString() {
         return "method_index=" + cinit_index + "\r\n" + static_traits.toString();
     }
 
+    /**
+     * To string.
+     *
+     * @param abc ABC
+     * @param fullyQualifiedNames Fully qualified names
+     * @return String
+     */
     public String toString(ABC abc, List<DottedChain> fullyQualifiedNames) {
         return "method_index=" + cinit_index + "\r\n" + static_traits.toString(abc, fullyQualifiedNames);
     }
 
+    /**
+     * Gets next disp_id.
+     *
+     * @return Next disp_id
+     */
     public int getNextDispId() {
         if (lastDispId == -1) {
             lastDispId = 0;

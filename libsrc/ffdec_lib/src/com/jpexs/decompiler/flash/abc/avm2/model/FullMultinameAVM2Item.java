@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,38 +16,74 @@
  */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
+import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
+import com.jpexs.decompiler.flash.abc.avm2.parser.script.AbcIndexing;
 import com.jpexs.decompiler.flash.abc.types.Namespace;
+import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
+import com.jpexs.decompiler.flash.helpers.hilight.HighlightSpecialType;
 import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
+import com.jpexs.decompiler.graph.model.UnboundedTypeItem;
+import com.jpexs.helpers.Helper;
+import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Fully resolved multiname.
  *
  * @author JPEXS
  */
 public class FullMultinameAVM2Item extends AVM2Item {
 
+    /**
+     * Multiname index
+     */
     public int multinameIndex;
 
+    /**
+     * Name
+     */
     public GraphTargetItem name;
 
+    /**
+     * Namespace
+     */
     public GraphTargetItem namespace;
 
+    /**
+     * Is property
+     */
     public boolean property;
 
+    /**
+     * Resolved multiname name
+     */
     public String resolvedMultinameName;
 
+    /**
+     * Constructor.
+     *
+     * @param property Is property
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param multinameIndex Multiname index
+     * @param resolvedMultinameName Resolved multiname name
+     * @param name Name
+     */
     public FullMultinameAVM2Item(boolean property, GraphSourceItem instruction, GraphSourceItem lineStartIns, int multinameIndex, String resolvedMultinameName, GraphTargetItem name) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.multinameIndex = multinameIndex;
@@ -57,6 +93,14 @@ public class FullMultinameAVM2Item extends AVM2Item {
         this.resolvedMultinameName = resolvedMultinameName;
     }
 
+    /**
+     * Constructor.
+     * @param property Is property
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param multinameIndex Multiname index
+     * @param resolvedMultinameName Resolved multiname name
+     */
     public FullMultinameAVM2Item(boolean property, GraphSourceItem instruction, GraphSourceItem lineStartIns, int multinameIndex, String resolvedMultinameName) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.multinameIndex = multinameIndex;
@@ -66,6 +110,16 @@ public class FullMultinameAVM2Item extends AVM2Item {
         this.property = property;
     }
 
+    /**
+     * Constructor.
+     * @param property Is property
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param multinameIndex Multiname index
+     * @param resolvedMultinameName Resolved multiname name
+     * @param name Name
+     * @param namespace Namespace
+     */
     public FullMultinameAVM2Item(boolean property, GraphSourceItem instruction, GraphSourceItem lineStartIns, int multinameIndex, String resolvedMultinameName, GraphTargetItem name, GraphTargetItem namespace) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.multinameIndex = multinameIndex;
@@ -85,57 +139,139 @@ public class FullMultinameAVM2Item extends AVM2Item {
         }
     }
 
+    /**
+     * Is runtime multiname.
+     * @return Is runtime multiname
+     */
     public boolean isRuntime() {
         return (name != null) || (namespace != null);
     }
 
+    /**
+     * Is top level.
+     * @param tname Top level name
+     * @param abc ABC
+     * @param localRegNames Local register names
+     * @param fullyQualifiedNames Fully qualified names
+     * @param seenMethods Seen methods
+     * @return Is top level
+     * @throws InterruptedException On interrupt
+     */
     public boolean isTopLevel(String tname, ABC abc, HashMap<Integer, String> localRegNames, List<DottedChain> fullyQualifiedNames, Set<Integer> seenMethods) throws InterruptedException {
         String cname;
         if (name != null) {
-            cname = name.toString(LocalData.create(abc, localRegNames, fullyQualifiedNames, seenMethods));
+            cname = name.toString(LocalData.create(new ArrayList<>(), null, abc, localRegNames, fullyQualifiedNames, seenMethods, ScriptExportMode.AS, -1, new LinkedHashSet<>(), -1));
         } else {
-            cname = (abc.constants.getMultiname(multinameIndex).getName(abc.constants, fullyQualifiedNames, true, true));
+            cname = (abc.constants.getMultiname(multinameIndex).getName(new LinkedHashSet<>(), abc, abc.constants, fullyQualifiedNames, true, true));
         }
         String cns = "";
         if (namespace != null) {
-            cns = namespace.toString(LocalData.create(abc, localRegNames, fullyQualifiedNames, seenMethods));
+            cns = namespace.toString(LocalData.create(new ArrayList<>(), null, abc, localRegNames, fullyQualifiedNames, seenMethods, ScriptExportMode.AS, -1, new LinkedHashSet<>(), -1));
         } else {
             Namespace ns = abc.constants.getMultiname(multinameIndex).getNamespace(abc.constants);
             if ((ns != null) && (ns.name_index != 0)) {
-                cns = ns.getName(abc.constants).toPrintableString(true);
+                cns = ns.getName(abc.constants).toPrintableString(new LinkedHashSet<>(), abc.getSwf(), true);
             }
         }
         return cname.equals(tname) && cns.isEmpty();
     }
 
+    /**
+     * Is XML.
+     * @param abc ABC
+     * @param localRegNames Local register names
+     * @param fullyQualifiedNames Fully qualified names
+     * @param seenMethods Seen methods
+     * @return Is XML
+     * @throws InterruptedException On interrupt
+     */
     public boolean isXML(ABC abc, HashMap<Integer, String> localRegNames, List<DottedChain> fullyQualifiedNames, Set<Integer> seenMethods) throws InterruptedException {
         return isTopLevel("XML", abc, localRegNames, fullyQualifiedNames, seenMethods);
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
+        return appendTo(writer, localData, false, null, false);
+    }    
+    
+    public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData, boolean afterDot, GraphTargetItem parentType, boolean isStatic) throws InterruptedException {
         if (namespace != null) {
             namespace.toString(writer, localData);
             writer.append("::");
-        } else {
-            /*Namespace ns = constants.getMultiname(multinameIndex).getNamespace(constants);
-             if ((ns != null)&&(ns.name_index!=0)) {
-             ret =  hilight(ns.getName(constants) + "::")+ret;
-             }*/
         }
         if (name != null) {
             writer.append("[");
             if (name instanceof IntegerValueAVM2Item) {
                 name.toString(writer, localData);
             } else {
-                name.toStringString(writer, localData);
+                name.toString(writer, localData);
             }
             writer.append("]");
         } else {
             AVM2ConstantPool constants = localData.constantsAvm2;
-            List<DottedChain> fullyQualifiedNames = property ? new ArrayList<>() : localData.fullyQualifiedNames;
+            List<DottedChain> fullyQualifiedNames = afterDot ? new ArrayList<>() : localData.fullyQualifiedNames;
             if (multinameIndex > 0 && multinameIndex < constants.getMultinameCount()) {
-                writer.append(constants.getMultiname(multinameIndex).getName(constants, fullyQualifiedNames, false, true));
+                String simpleName = constants.getMultiname(multinameIndex).getName(new HashSet<>(), localData.abc, constants, fullyQualifiedNames, true, false);
+                if ("*".equals(simpleName)) {
+                    writer.append("*");
+                } else {
+                    Reference<DottedChain> customNsRef = new Reference<>(null);
+                    String localName;
+                    boolean isAttribute = constants.getMultiname(multinameIndex).isAttribute();
+                    String namespaceSuffix = constants.getMultiname(multinameIndex).getNamespaceSuffix();
+                    if (!isAttribute && afterDot && namespaceSuffix.isEmpty() && Configuration.as3QNameObfuscatedPropsInSquareBrackets.get()) {
+                        //do not deobfuscate
+                        localName = constants.getMultiname(multinameIndex).getNameAndCustomNamespace(new HashSet<>(), localData.abc, fullyQualifiedNames, true, true, customNsRef);
+                    } else {
+                        localName = constants.getMultiname(multinameIndex).getNameAndCustomNamespace(localData.usedDeobfuscations, localData.abc, fullyQualifiedNames, false, true, customNsRef);                        
+                    }
+                    
+                    DottedChain customNs = customNsRef.getVal();
+                    
+                    Boolean isAmbiguous = null;
+                    if (parentType instanceof TypeItem) { //not ApplyTypeAVM2Item or UnboundedTypeItem
+                        String rawName = constants.getMultiname(multinameIndex).getName(localData.usedDeobfuscations, localData.abc, localData.abc.constants, fullyQualifiedNames, true, true);
+                        if (localData.abcIndex != null) {
+                            isAmbiguous = localData.abcIndex.isPropertyAmbiguous(localData.abc, rawName, parentType, true, true);
+                        }
+                    }
+                    
+                    /*if (customNs != null) {
+                        isAmbiguous = true;
+                    }*/
+                    
+                    if (isAmbiguous == null || isAmbiguous) {
+                        if (customNs != null) {
+                            String nsname = customNs.getLast();
+                            String identifier = IdentifiersDeobfuscation.printIdentifier(localData.abc.getSwf(), localData.usedDeobfuscations, true, nsname);                    
+                            writer.hilightSpecial(identifier, HighlightSpecialType.TYPE_NAME, customNs.toRawString());
+                            writer.appendNoHilight("::");
+                        } else if (isAmbiguous != null) {   
+                            Namespace ns = constants.getMultiname(multinameIndex).getSingleNamespace(localData.abc.constants);
+                            if (ns != null) {
+                                String prefix = Namespace.kindToPrefix(ns.kind);
+                                if (prefix != null) {
+                                    writer.append(prefix).append("::");
+                                }
+                            }
+                        }
+                    }
+                    
+        
+                    if (!isAttribute && afterDot && namespaceSuffix.isEmpty() && Configuration.as3QNameObfuscatedPropsInSquareBrackets.get()) {
+                        if (IdentifiersDeobfuscation.isValidName(true, localName)) {
+                            writer.append(localName);
+                        } else {
+                            if (localName.matches("^0|[1-9][0-9]*$")) {
+                                writer.append("[").append(localName).append("]");
+                            } else {
+                                writer.append("[\"").append(Helper.escapeActionScriptString(localName)).append("\"]");
+                            }
+                        }
+                    } else {
+                        writer.append(localName);
+                    }
+                }
             } else {
                 writer.append("§§multiname(").append(multinameIndex).append(")");
             }
@@ -143,6 +279,11 @@ public class FullMultinameAVM2Item extends AVM2Item {
         return writer;
     }
 
+    /**
+     * Compare same.
+     * @param other Other
+     * @return Is same
+     */
     public boolean compareSame(FullMultinameAVM2Item other) {
         if (multinameIndex != other.multinameIndex) {
             return false;

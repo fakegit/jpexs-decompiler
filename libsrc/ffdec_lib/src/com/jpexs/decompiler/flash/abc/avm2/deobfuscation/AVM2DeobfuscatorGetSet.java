@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.deobfuscation;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -35,32 +36,58 @@ import com.jpexs.decompiler.flash.abc.avm2.model.UndefinedAVM2Item;
 import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.helpers.SWFDecompilerAdapter;
-import com.jpexs.decompiler.graph.Graph;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.NotCompileTimeItem;
 import com.jpexs.decompiler.graph.ScopeStack;
 import com.jpexs.decompiler.graph.TranslateException;
+import com.jpexs.helpers.CancellableWorker;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- *
- * AVM2 Deobfuscator removing single get / set registers
- *
+ * AVM2 Deobfuscator removing single get / set registers.
+ * <p>
  * Example: getlocal_1, getlocal_2, (kill 1), (kill 2), setlocal_2, setlocal_1
  *
  * @author JPEXS
  */
 public class AVM2DeobfuscatorGetSet extends SWFDecompilerAdapter {
 
+    /**
+     * Undefined item
+     */
     private static final UndefinedAVM2Item UNDEFINED_ITEM = new UndefinedAVM2Item(null, null);
 
+    /**
+     * Not compile time undefined item
+     */
     private static final NotCompileTimeItem NOT_COMPILE_TIME_UNDEFINED_ITEM = new NotCompileTimeItem(null, null, UNDEFINED_ITEM);
 
+    /**
+     * Execution limit
+     */
     private final int executionLimit = 30000;
 
+    /**
+     * Constructor.
+     */
+    public AVM2DeobfuscatorGetSet() {
+    }
+
+    /**
+     * Remove obfuscation get sets
+     *
+     * @param classIndex Class index
+     * @param isStatic Is static
+     * @param scriptIndex Script index
+     * @param abc ABC
+     * @param body Method body
+     * @param inlineIns Inline instructions
+     * @return True if removed
+     * @throws InterruptedException On interrupt
+     */
     protected boolean removeObfuscationGetSets(int classIndex, boolean isStatic, int scriptIndex, ABC abc, MethodBody body, List<AVM2Instruction> inlineIns) throws InterruptedException {
         AVM2Code code = body.getCode();
         if (code.code.isEmpty()) {
@@ -81,11 +108,12 @@ public class AVM2DeobfuscatorGetSet extends SWFDecompilerAdapter {
         AVM2LocalData localData = newLocalData(scriptIndex, abc, abc.constants, body, isStatic, classIndex);
         int localReservedCount = body.getLocalReservedCount();
         for (int i = 0; i < code.code.size(); i++) {
-            if (Thread.currentThread().isInterrupted()) {
+            if (CancellableWorker.isInterrupted()) {
                 throw new InterruptedException();
             }
 
             localData.scopeStack.clear();
+            localData.localScopeStack.clear();
             localData.localRegs.clear();
             localData.localRegAssignmentIps.clear();
             localData.localRegs.clear();
@@ -97,10 +125,28 @@ public class AVM2DeobfuscatorGetSet extends SWFDecompilerAdapter {
         return false;
     }
 
+    /**
+     * Remove unreachable instructions.
+     *
+     * @param code AVM2 code
+     * @param body Method body
+     * @throws InterruptedException On interrupt
+     */
     protected void removeUnreachableInstructions(AVM2Code code, MethodBody body) throws InterruptedException {
         code.removeDeadCode(body);
     }
 
+    /**
+     * Create new local data.
+     *
+     * @param scriptIndex Script index
+     * @param abc ABC
+     * @param cpool Constant pool
+     * @param body Method body
+     * @param isStatic Is static
+     * @param classIndex Class index
+     * @return AVM2 local data
+     */
     protected AVM2LocalData newLocalData(int scriptIndex, ABC abc, AVM2ConstantPool cpool, MethodBody body, boolean isStatic, int classIndex) {
         AVM2LocalData localData = new AVM2LocalData();
         localData.isStatic = isStatic;
@@ -108,15 +154,27 @@ public class AVM2DeobfuscatorGetSet extends SWFDecompilerAdapter {
         localData.localRegs = new HashMap<>(body.max_regs);
         localData.localRegAssignmentIps = new HashMap<>();
         localData.scopeStack = new ScopeStack(true);
+        localData.localScopeStack = new ScopeStack(true);
+        List<MethodBody> callStack = new ArrayList<>();
+        callStack.add(body);
+        localData.callStack = callStack;
         localData.methodBody = body;
         localData.abc = abc;
         localData.localRegNames = new HashMap<>();
+        localData.localRegTypes = new HashMap<>();
         localData.scriptIndex = scriptIndex;
         localData.ip = 0;
-        localData.code = body.getCode();
+        localData.code = body.getCode();      
         return localData;
     }
 
+    /**
+     * Initialize local registers.
+     *
+     * @param localData AVM2 local data
+     * @param localReservedCount Local reserved count
+     * @param maxRegs Maximum registers
+     */
     protected void initLocalRegs(AVM2LocalData localData, int localReservedCount, int maxRegs) {
         for (int i = 0; i < localReservedCount; i++) {
             localData.localRegs.put(i, NOT_COMPILE_TIME_UNDEFINED_ITEM);
@@ -126,6 +184,16 @@ public class AVM2DeobfuscatorGetSet extends SWFDecompilerAdapter {
         }
     }
 
+    /**
+     * Execute instructions.
+     *
+     * @param body Method body
+     * @param code AVM2 code
+     * @param localData AVM2 local data
+     * @param idx Index
+     * @param endIdx End index
+     * @throws InterruptedException On interrupt
+     */
     private void executeInstructions(MethodBody body, AVM2Code code, AVM2LocalData localData, int idx, int endIdx) throws InterruptedException {
         List<GraphTargetItem> output = new ArrayList<>();
 
@@ -168,7 +236,8 @@ public class AVM2DeobfuscatorGetSet extends SWFDecompilerAdapter {
                     return;
                 }
 
-                ins.translate(localData, stack, output, Graph.SOP_USE_STATIC, "");
+                stack.setConnectedOutput(0, output, localData);        
+                ins.translate(localData, stack, output, 0, "");
             }
 
             boolean ok = false;
@@ -210,6 +279,19 @@ public class AVM2DeobfuscatorGetSet extends SWFDecompilerAdapter {
         }
     }
 
+    /**
+     * AVM2 code remove traps.
+     *
+     * @param path Path
+     * @param classIndex Class index
+     * @param isStatic Is static
+     * @param scriptIndex Script index
+     * @param abc ABC
+     * @param trait Trait
+     * @param methodInfo Method info
+     * @param body Method body
+     * @throws InterruptedException On interrupt
+     */
     @Override
     public void avm2CodeRemoveTraps(String path, int classIndex, boolean isStatic, int scriptIndex, ABC abc, Trait trait, int methodInfo, MethodBody body) throws InterruptedException {
         AVM2Code code = body.getCode();

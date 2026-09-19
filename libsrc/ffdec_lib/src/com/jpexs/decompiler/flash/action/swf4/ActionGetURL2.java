@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.swf4;
 
 import com.jpexs.decompiler.flash.BaseLocalData;
@@ -20,7 +21,9 @@ import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
+import com.jpexs.decompiler.flash.action.as2.Trait;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
+import com.jpexs.decompiler.flash.action.model.FSCommandActionItem;
 import com.jpexs.decompiler.flash.action.model.GetURL2ActionItem;
 import com.jpexs.decompiler.flash.action.model.LoadMovieActionItem;
 import com.jpexs.decompiler.flash.action.model.LoadMovieNumActionItem;
@@ -32,7 +35,9 @@ import com.jpexs.decompiler.flash.action.model.PrintAsBitmapNumActionItem;
 import com.jpexs.decompiler.flash.action.model.PrintNumActionItem;
 import com.jpexs.decompiler.flash.action.model.UnLoadMovieActionItem;
 import com.jpexs.decompiler.flash.action.model.UnLoadMovieNumActionItem;
+import com.jpexs.decompiler.flash.action.model.operations.StringAddActionItem;
 import com.jpexs.decompiler.flash.action.parser.ActionParseException;
+import com.jpexs.decompiler.flash.action.parser.pcode.ASMParsedSymbol;
 import com.jpexs.decompiler.flash.action.parser.pcode.FlasmLexer;
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
 import com.jpexs.decompiler.flash.types.annotations.Reserved;
@@ -42,39 +47,75 @@ import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SecondPassData;
 import com.jpexs.decompiler.graph.TranslateStack;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
+ * GetURL2 action - Gets a URL, stack-based.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 4)
 public class ActionGetURL2 extends Action {
 
+    /**
+     * Send variables method
+     */
     public int sendVarsMethod;
 
+    /**
+     * GET method
+     */
     public static final int GET = 1;
 
+    /**
+     * POST method
+     */
     public static final int POST = 2;
 
+    /**
+     * Load target flag
+     */
     public boolean loadTargetFlag;
 
+    /**
+     * Load variables flag
+     */
     public boolean loadVariablesFlag;
 
+    /**
+     * Reserved
+     */
     @Reserved
     public int reserved;
 
-    public ActionGetURL2(int sendVarsMethod, boolean loadVariablesFlag, boolean loadTargetFlag) {
-        super(0x9A, 1);
+    /**
+     * Constructor
+     *
+     * @param sendVarsMethod Send variables method
+     * @param loadVariablesFlag Load variables flag
+     * @param loadTargetFlag Load target flag
+     * @param charset Charset
+     */
+    public ActionGetURL2(int sendVarsMethod, boolean loadVariablesFlag, boolean loadTargetFlag, String charset) {
+        super(0x9A, 1, charset);
         this.loadTargetFlag = loadTargetFlag;
         this.loadVariablesFlag = loadVariablesFlag;
         this.sendVarsMethod = sendVarsMethod;
     }
 
-    public ActionGetURL2(int actionLength, SWFInputStream sis) throws IOException {
-        super(0x9A, actionLength);
+    /**
+     * Constructor
+     *
+     * @param actionLength Action length
+     * @param sis SWF input stream
+     * @param charset Charset
+     * @throws IOException Error reading data
+     */
+    public ActionGetURL2(int actionLength, SWFInputStream sis, String charset) throws IOException {
+        super(0x9A, actionLength, charset);
         loadVariablesFlag = sis.readUB(1, "loadVariablesFlag") == 1;
         loadTargetFlag = sis.readUB(1, "loadTargetFlag") == 1;
         reserved = (int) sis.readUB(4, "reserved");
@@ -83,7 +124,7 @@ public class ActionGetURL2 extends Action {
 
     @Override
     public String toString() {
-        return "GetURL2 " + loadVariablesFlag + " " + loadTargetFlag + " " + sendVarsMethod;
+        return "GetURL2 " + loadVariablesFlag + ", " + loadTargetFlag + ", " + sendVarsMethod;
     }
 
     @Override
@@ -104,11 +145,34 @@ public class ActionGetURL2 extends Action {
         return 1;
     }
 
-    public ActionGetURL2(FlasmLexer lexer) throws IOException, ActionParseException {
-        super(0x9A, -1);
+    /**
+     * Constructor
+     *
+     * @param lexer Lexer
+     * @param charset Charset
+     * @throws IOException On I/O error
+     * @throws ActionParseException On error parsing action
+     */
+    public ActionGetURL2(FlasmLexer lexer, String charset) throws IOException, ActionParseException {
+        super(0x9A, -1, charset);
+
+        ASMParsedSymbol symb = lexer.lex();
+        boolean sendVarsMethodLast = false;
+        if (symb.type == ASMParsedSymbol.TYPE_BOOLEAN) { //backwards compatibility. In 19.1.0 up to 20.0.0 sendVarsMethod is first
+            sendVarsMethodLast = true;
+        }
+        lexer.pushback(symb);
+        if (!sendVarsMethodLast) {
+            sendVarsMethod = (int) lexLong(lexer);
+            lexOptionalComma(lexer);
+        }
         loadVariablesFlag = lexBoolean(lexer);
+        lexOptionalComma(lexer);
         loadTargetFlag = lexBoolean(lexer);
-        sendVarsMethod = (int) lexLong(lexer);
+        if (sendVarsMethodLast) {
+            lexOptionalComma(lexer);
+            sendVarsMethod = (int) lexLong(lexer);
+        }
     }
 
     @Override
@@ -125,10 +189,10 @@ public class ActionGetURL2 extends Action {
     }
 
     @Override
-    public void translate(SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+    public void translate(Set<String> usedDeobfuscations, Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
         GraphTargetItem targetString = stack.pop();
         GraphTargetItem urlString = stack.pop();
-        Integer num = null;
+        GraphTargetItem num = null;
         if (targetString.isCompileTime()) {
             Object res = targetString.getResult();
             if (res instanceof String) {
@@ -136,49 +200,115 @@ public class ActionGetURL2 extends Action {
                 String levelPrefix = "_level";
                 if (tarStr.startsWith(levelPrefix)) {
                     try {
-                        num = Integer.valueOf(tarStr.substring(levelPrefix.length()));
+                        num = new DirectValueActionItem(Long.valueOf(tarStr.substring(levelPrefix.length())));
                     } catch (NumberFormatException nfe) {
+                        //ignored
                     }
                 }
             }
         }
+        if (num == null) {
+            if (targetString instanceof StringAddActionItem) {
+                StringAddActionItem sa = (StringAddActionItem) targetString;
+                if (sa.leftSide.isCompileTime()) {
+                    Object res = sa.leftSide.getResult();
+                    if (res instanceof String) {
+                        String tarStr = (String) res;
+                        String levelPrefix = "_level";
+                        if (tarStr.equals(levelPrefix)) {
+                            num = sa.rightSide;
+                        }
+                    }
+                }
+            }
+        }
+
         if (loadVariablesFlag) {
             if (num != null) {
-                output.add(new LoadVariablesNumActionItem(this, lineStartAction, urlString, new DirectValueActionItem(null, null, 0, (Long) (long) (int) num, new ArrayList<>()), sendVarsMethod));
+                stack.addToOutput(new LoadVariablesNumActionItem(this, lineStartAction, urlString, num, sendVarsMethod));
             } else {
-                output.add(new LoadVariablesActionItem(this, lineStartAction, urlString, targetString, sendVarsMethod));
+                stack.addToOutput(new LoadVariablesActionItem(this, lineStartAction, urlString, targetString, sendVarsMethod));
             }
         } else if (loadTargetFlag) {
-            if ((urlString instanceof DirectValueActionItem) && (urlString.getResult().equals(""))) {
-                output.add(new UnLoadMovieActionItem(this, lineStartAction, targetString));
+            if ((urlString instanceof DirectValueActionItem) && ("".equals(urlString.getResult()))) {
+                stack.addToOutput(new UnLoadMovieActionItem(this, lineStartAction, targetString));
             } else {
-                output.add(new LoadMovieActionItem(this, lineStartAction, urlString, targetString, sendVarsMethod));
+                stack.addToOutput(new LoadMovieActionItem(this, lineStartAction, urlString, targetString, sendVarsMethod));
             }
         } else {
-            String printPrefix = "print:#";
-            String printAsBitmapPrefix = "printasbitmap:#";
-            String urlStr = null;
+            final String printPrefix = "print:#";
+            final String printAsBitmapPrefix = "printasbitmap:#";
+            final String fscommandPrefix = "FSCommand:";
+            GraphTargetItem printType = null;
+            boolean doPrint = false;
+            boolean doPrintAsBitmap = false;
+            boolean doFSCommand = false;
+            boolean doUnload = false;
+
             if (urlString.isCompileTime() && (urlString.getResult() instanceof String)) {
-                urlStr = (String) urlString.getResult();
+                String urlStr = (String) urlString.getResult();
+                if ("".equals(urlStr)) {
+                    doUnload = true;
+                } else if (urlStr.startsWith(printPrefix)) {
+                    printType = new DirectValueActionItem(urlStr.substring(printPrefix.length()));
+                    doPrint = true;
+                } else if (urlStr.startsWith(printAsBitmapPrefix)) {
+                    printType = new DirectValueActionItem(urlStr.substring(printAsBitmapPrefix.length()));
+                    doPrintAsBitmap = true;
+                } else if (urlStr.startsWith(fscommandPrefix)) {
+                    urlString = new DirectValueActionItem(urlStr.substring(fscommandPrefix.length()));
+                    doFSCommand = true;
+                } else if (urlStr.equals("print:")) {
+                    printType = new DirectValueActionItem("bmovie");
+                    doPrint = true;
+                } else if (urlStr.equals("printasbitmap:")) {
+                    printType = new DirectValueActionItem("bmovie");
+                    doPrintAsBitmap = true;
+                }
+            } else if (urlString instanceof StringAddActionItem) {
+                StringAddActionItem sa = (StringAddActionItem) urlString;
+                if (sa.leftSide.isCompileTime()) {
+                    Object res = sa.leftSide.getResult();
+                    if (res instanceof String) {
+                        String urlStr = (String) res;
+                        switch (urlStr) {
+                            case printPrefix:
+                                printType = sa.rightSide;
+                                doPrint = true;
+                                urlString = null;
+                                break;
+                            case printAsBitmapPrefix:
+                                printType = sa.rightSide;
+                                doPrintAsBitmap = true;
+                                urlString = null;
+                                break;
+                            case fscommandPrefix:
+                                urlString = sa.rightSide;
+                                doFSCommand = true;
+                                break;
+                        }
+                    }
+                }
             }
 
             if (num != null) {
-                if ("".equals(urlStr)) {
-                    output.add(new UnLoadMovieNumActionItem(this, lineStartAction, new DirectValueActionItem(null, null, 0, (Long) (long) (int) num, new ArrayList<>())));
-                } else if (urlStr != null && urlStr.startsWith(printPrefix)) {
-                    output.add(new PrintNumActionItem(this, lineStartAction, new DirectValueActionItem((Long) (long) (int) num),
-                            new DirectValueActionItem(urlStr.substring(printPrefix.length()))));
-                } else if (urlStr != null && urlStr.startsWith(printAsBitmapPrefix)) {
-                    output.add(new PrintAsBitmapNumActionItem(this, lineStartAction, new DirectValueActionItem((Long) (long) (int) num), new DirectValueActionItem(urlStr.substring(printAsBitmapPrefix.length()))));
+                if (doUnload) {
+                    stack.addToOutput(new UnLoadMovieNumActionItem(this, lineStartAction, num));
+                } else if (doPrint) {
+                    stack.addToOutput(new PrintNumActionItem(this, lineStartAction, num, printType));
+                } else if (doPrintAsBitmap) {
+                    stack.addToOutput(new PrintAsBitmapNumActionItem(this, lineStartAction, num, printType));
                 } else {
-                    output.add(new LoadMovieNumActionItem(this, lineStartAction, urlString, new DirectValueActionItem(null, null, 0, (Long) (long) (int) num, new ArrayList<>()), sendVarsMethod));
+                    stack.addToOutput(new LoadMovieNumActionItem(this, lineStartAction, urlString, num, sendVarsMethod));
                 }
-            } else if (urlStr != null && urlStr.startsWith(printPrefix)) {
-                output.add(new PrintActionItem(this, lineStartAction, targetString, new DirectValueActionItem(urlStr.substring(printPrefix.length()))));
-            } else if (urlStr != null && urlStr.startsWith(printAsBitmapPrefix)) {
-                output.add(new PrintAsBitmapActionItem(this, lineStartAction, targetString, new DirectValueActionItem(urlStr.substring(printAsBitmapPrefix.length()))));
+            } else if (doPrint) {
+                stack.addToOutput(new PrintActionItem(this, lineStartAction, targetString, printType));
+            } else if (doPrintAsBitmap) {
+                stack.addToOutput(new PrintAsBitmapActionItem(this, lineStartAction, targetString, printType));
+            } else if (doFSCommand) {
+                stack.addToOutput(new FSCommandActionItem(this, lineStartAction, urlString, targetString));
             } else {
-                output.add(new GetURL2ActionItem(this, lineStartAction, urlString, targetString, sendVarsMethod));
+                stack.addToOutput(new GetURL2ActionItem(this, lineStartAction, urlString, targetString, sendVarsMethod));
             }
         }
     }

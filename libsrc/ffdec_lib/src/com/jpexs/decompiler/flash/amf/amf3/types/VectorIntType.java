@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,22 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.amf.amf3.types;
 
 import java.util.List;
 
+/**
+ * AMF3 vector of int type.
+ */
 public class VectorIntType extends AbstractVectorType<Long> {
 
+    /**
+     * Constructor.
+     * @param fixed Fixed size
+     * @param values Values
+     */
     public VectorIntType(boolean fixed, List<Long> values) {
         super(fixed, values);
     }

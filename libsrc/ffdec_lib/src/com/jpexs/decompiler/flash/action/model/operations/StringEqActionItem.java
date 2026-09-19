@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,6 +17,7 @@
 package com.jpexs.decompiler.flash.action.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.ActionGraphTargetDialect;
 import com.jpexs.decompiler.flash.action.swf4.ActionStringEquals;
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
 import com.jpexs.decompiler.graph.CompilationException;
@@ -30,13 +31,21 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * String equality.
  *
  * @author JPEXS
  */
 public class StringEqActionItem extends BinaryOpItem implements Inverted {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param leftSide Left side
+     * @param rightSide Right side
+     */
     public StringEqActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem leftSide, GraphTargetItem rightSide) {
-        super(instruction, lineStartIns, PRECEDENCE_EQUALITY, leftSide, rightSide, "eq", "String", "String");
+        super(ActionGraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_EQUALITY, leftSide, rightSide, "eq", "String", "String");
     }
 
     @Override
@@ -49,6 +58,12 @@ public class StringEqActionItem extends BinaryOpItem implements Inverted {
         return getResult(rightSide.getResult(), leftSide.getResult());
     }
 
+    /**
+     * Gets result.
+     * @param rightResult Right result
+     * @param leftResult Left result
+     * @return Result
+     */
     public static Boolean getResult(Object rightResult, Object leftResult) {
         return EcmaScript.toString(leftResult).equals(EcmaScript.toString(rightResult));
     }

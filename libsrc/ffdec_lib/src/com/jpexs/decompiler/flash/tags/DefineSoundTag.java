@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -29,20 +30,12 @@ import com.jpexs.decompiler.flash.types.sound.MP3SOUNDDATA;
 import com.jpexs.decompiler.flash.types.sound.SoundExportFormat;
 import com.jpexs.decompiler.flash.types.sound.SoundFormat;
 import com.jpexs.helpers.ByteArrayRange;
-import com.jpexs.helpers.Helper;
-import java.io.BufferedInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.UnsupportedAudioFileException;
 
 /**
+ * DefineSound tag - defines sound.
  *
  * @author JPEXS
  */
@@ -86,7 +79,7 @@ public class DefineSoundTag extends CharacterTag implements SoundTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineSoundTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -97,9 +90,9 @@ public class DefineSoundTag extends CharacterTag implements SoundTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineSoundTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -121,7 +114,7 @@ public class DefineSoundTag extends CharacterTag implements SoundTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -147,6 +140,9 @@ public class DefineSoundTag extends CharacterTag implements SoundTag {
     @Override
     public SoundExportFormat getExportFormat() {
         if (soundFormat == SoundFormat.FORMAT_MP3) {
+            if (getInitialLatency() > 0 || isMp3HigherThan160Kbps()) {
+                return SoundExportFormat.WAV;
+            }
             return SoundExportFormat.MP3;
         }
         if (soundFormat == SoundFormat.FORMAT_ADPCM) {
@@ -162,164 +158,6 @@ public class DefineSoundTag extends CharacterTag implements SoundTag {
             return SoundExportFormat.WAV;
         }
         return SoundExportFormat.FLV;
-    }
-
-    private void loadID3v2(InputStream in) {
-        int size = -1;
-        try {
-            // Read ID3v2 header (10 bytes).
-            in.mark(10);
-            size = readID3v2Header(in);
-        } catch (IOException e) {
-        } finally {
-            try {
-                // Unread ID3v2 header (10 bytes).
-                in.reset();
-            } catch (IOException e) {
-            }
-        }
-        // Load ID3v2 tags.
-        try {
-            if (size > 0) {
-                byte[] rawid3v2 = new byte[size];
-                in.read(rawid3v2, 0, rawid3v2.length);
-            }
-        } catch (IOException e) {
-        }
-    }
-
-    /**
-     * Parse ID3v2 tag header to find out size of ID3v2 frames.
-     *
-     * @param in MP3 InputStream
-     * @return size of ID3v2 frames + header
-     * @throws IOException
-     * @author JavaZOOM
-     */
-    private int readID3v2Header(InputStream in) throws IOException {
-        byte[] id3header = new byte[4];
-        int size = -10;
-        in.read(id3header, 0, 3);
-        // Look for ID3v2
-        if ((id3header[0] == 'I') && (id3header[1] == 'D') && (id3header[2] == '3')) {
-            in.read(id3header, 0, 3);
-            int majorVersion = id3header[0];
-            int revision = id3header[1];
-            in.read(id3header, 0, 4);
-            size = (int) (id3header[0] << 21) + (id3header[1] << 14) + (id3header[2] << 7) + (id3header[3]);
-        }
-        return (size + 10);
-    }
-
-    @Override
-    public boolean setSound(InputStream is, int newSoundFormat) {
-        int newSoundRate = -1;
-        boolean newSoundSize = false;
-        boolean newSoundType = false;
-        long newSoundSampleCount = -1;
-        byte[] newSoundData;
-        switch (newSoundFormat) {
-            case SoundFormat.FORMAT_UNCOMPRESSED_LITTLE_ENDIAN:
-                try (AudioInputStream audioIs = AudioSystem.getAudioInputStream(new BufferedInputStream(is))) {
-                    AudioFormat fmt = audioIs.getFormat();
-                    newSoundType = fmt.getChannels() == 2;
-                    newSoundSize = fmt.getSampleSizeInBits() == 16;
-                    newSoundSampleCount = audioIs.getFrameLength();
-                    newSoundData = Helper.readStream(audioIs);
-                    newSoundRate = (int) Math.round(fmt.getSampleRate());
-                    switch (newSoundRate) {
-                        case 5512:
-                            newSoundRate = 0;
-                            break;
-                        case 11025:
-                            newSoundRate = 1;
-                            break;
-                        case 22050:
-                            newSoundRate = 2;
-                            break;
-                        case 44100:
-                            newSoundRate = 3;
-                            break;
-                        default:
-                            return false;
-                    }
-                } catch (UnsupportedAudioFileException | IOException ex) {
-                    return false;
-                }
-                break;
-            case SoundFormat.FORMAT_MP3:
-                BufferedInputStream bis = new BufferedInputStream(is);
-                loadID3v2(bis);
-                byte[] mp3data = Helper.readStream(bis);
-
-                final int ID3_V1_LENTGH = 128;
-                final int ID3_V1_EXT_LENGTH = 227;
-
-                if (mp3data.length > ID3_V1_LENTGH) {
-                    //ID3v1
-                    if (mp3data[mp3data.length - ID3_V1_LENTGH] == 'T' && mp3data[mp3data.length - ID3_V1_LENTGH + 1] == 'A' && mp3data[mp3data.length - ID3_V1_LENTGH + 2] == 'G') {
-                        mp3data = Arrays.copyOf(mp3data, mp3data.length - ID3_V1_LENTGH);
-                        if (mp3data.length > ID3_V1_EXT_LENGTH) {
-                            //ID3v1 extended
-                            if (mp3data[mp3data.length - ID3_V1_EXT_LENGTH] == 'T' && mp3data[mp3data.length - ID3_V1_EXT_LENGTH + 1] == 'A' && mp3data[mp3data.length - ID3_V1_EXT_LENGTH + 2] == 'G' && mp3data[mp3data.length - ID3_V1_EXT_LENGTH + 3] == '+') {
-                                mp3data = Arrays.copyOf(mp3data, mp3data.length - ID3_V1_EXT_LENGTH);
-                            }
-                        }
-                    }
-                }
-                try {
-                    MP3SOUNDDATA snd = new MP3SOUNDDATA(new SWFInputStream(swf, mp3data), true);
-                    if (!snd.frames.isEmpty()) {
-                        MP3FRAME fr = snd.frames.get(0);
-                        newSoundRate = fr.getSamplingRate();
-                        switch (newSoundRate) {
-                            case 11025:
-                                newSoundRate = 1;
-                                break;
-                            case 22050:
-                                newSoundRate = 2;
-                                break;
-                            case 44100:
-                                newSoundRate = 3;
-                                break;
-                            default:
-                                return false;
-                        }
-
-                        newSoundSize = true;
-                        newSoundType = fr.isStereo();
-                        int len = snd.sampleCount();
-                        if (fr.isStereo()) {
-                            len = len / 2;
-                        }
-
-                        newSoundSampleCount = len;
-                    }
-
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    SWFOutputStream sos = new SWFOutputStream(baos, SWF.DEFAULT_VERSION);
-                    sos.writeSI16(0); //Latency - how to calculate it?
-                    sos.write(mp3data);
-                    newSoundData = baos.toByteArray();
-                } catch (IOException ex) {
-                    return false;
-                }
-                break;
-            default:
-                return false;
-        }
-        if (newSoundData != null) {
-            this.soundSize = newSoundSize;
-            this.soundRate = newSoundRate;
-            this.soundSampleCount = newSoundSampleCount;
-            this.soundData = new ByteArrayRange(newSoundData);
-            this.soundType = newSoundType;
-            this.soundFormat = newSoundFormat;
-            setModified(true);
-            return true;
-        }
-        return false;
-
     }
 
     @Override
@@ -379,5 +217,69 @@ public class DefineSoundTag extends CharacterTag implements SoundTag {
         tagInfo.addInfo("general", "samplingRate", soundFormat.samplingRate);
         tagInfo.addInfo("general", "stereo", soundFormat.stereo);
         tagInfo.addInfo("general", "sampleCount", soundSampleCount);
+    }
+
+    @Override
+    public void setSoundSize(boolean soundSize) {
+        this.soundSize = soundSize;
+    }
+
+    @Override
+    public void setSoundType(boolean soundType) {
+        this.soundType = soundType;
+    }
+
+    @Override
+    public void setSoundSampleCount(long soundSampleCount) {
+        this.soundSampleCount = soundSampleCount;
+    }
+
+    @Override
+    public void setSoundCompression(int soundCompression) {
+        this.soundFormat = soundCompression;
+    }
+
+    @Override
+    public void setSoundRate(int soundRate) {
+        this.soundRate = soundRate;
+    }
+
+    @Override
+    public String getFlaExportName() {
+        return "sound" + getCharacterId();
+    }
+
+    @Override
+    public int getInitialLatency() {
+        if (soundFormat == SoundFormat.FORMAT_MP3) {
+            SWFInputStream sis;
+            try {
+                sis = new SWFInputStream(null, soundData.getRangeData(0, 2));
+                return sis.readSI16("seekSamples");
+            } catch (IOException ex) {
+                //ignore
+            }
+        }
+        return 0;
+    }
+
+    private boolean isMp3HigherThan160Kbps() {
+        if (soundFormat != SoundFormat.FORMAT_MP3) {
+            return false;
+        }
+        try {
+            SWFInputStream sis = new SWFInputStream(swf, soundData.getRangeData());
+            MP3SOUNDDATA s = new MP3SOUNDDATA(sis, false);
+            if (!s.frames.isEmpty()) {
+                MP3FRAME frame = s.frames.get(0);
+                int bitRate = frame.getBitRate() / 1000;
+                if (bitRate > 160) {
+                    return true;
+                }
+            }
+        } catch (IOException ex) {
+            //ignore
+        }
+        return false;
     }
 }

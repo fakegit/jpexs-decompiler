@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,31 +12,57 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.flv;
 
 /**
+ * Script data value.
  *
  * @author JPEXS
  */
 public class SCRIPTDATAVALUE {
 
+    /**
+     * Type
+     */
     public int type;
 
+    /**
+     * Value
+     */
     public Object value;
 
+    /**
+     * Constructor.
+     * @param type Type
+     * @param value Value
+     */
     public SCRIPTDATAVALUE(int type, Object value) {
         this.type = type;
         this.value = value;
     }
 
+    /**
+     * Constructor.
+     * @param b Value
+     */
     public SCRIPTDATAVALUE(boolean b) {
         this.value = (Boolean) b;
         type = 1;
     }
 
+    /**
+     * Constructor.
+     * @param d Value
+     */
     public SCRIPTDATAVALUE(double d) {
         this.value = (Double) d;
         type = 0;
     }
+
+    @Override
+    public String toString() {
+        return "" + value;
+    }        
 }

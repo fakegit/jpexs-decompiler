@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -34,6 +34,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
+ * Reflection tools.
  *
  * @author JPEXS
  */
@@ -227,8 +228,10 @@ public class ReflectionTools {
         }
         try {
             return cls.getDeclaredConstructor().newInstance();
-        } catch (NoSuchMethodException | SecurityException | IllegalArgumentException | InvocationTargetException ex) {
+        } catch (NoSuchMethodException | SecurityException | IllegalArgumentException ex) {
             Logger.getLogger(ReflectionTools.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (InvocationTargetException ex) {
+            Logger.getLogger(ReflectionTools.class.getName()).log(Level.SEVERE, null, ex.getCause());
         }
         return null;
     }

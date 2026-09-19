@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.helpers;
 
 import com.jpexs.helpers.utf8.Utf8Helper;
@@ -21,7 +22,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Random;
 
 /**
- * MD5 crypt - based on passlib.hash.md5_crypt
+ * MD5 crypt - based on passlib.hash.md5_crypt.
  *
  * @author JPEXS
  */
@@ -63,6 +64,14 @@ public class MD5Crypt {
         return sb.toString();
     }
 
+    public static String cryptApache(String password, int saltLength) {
+        return crypt(password, generateSalt(saltLength), MAGIC_APACHE);
+    }
+
+    public static String cryptApache(String password, String salt) {
+        return crypt(password, salt, MAGIC_APACHE);
+    }
+
     public static String crypt(String password, int saltLength, String magic) {
         return crypt(password, generateSalt(saltLength), magic);
     }
@@ -71,16 +80,8 @@ public class MD5Crypt {
         return crypt(password, generateSalt(saltLength), MAGIC);
     }
 
-    public static String cryptApache(String password, int saltLength) {
-        return crypt(password, generateSalt(saltLength), MAGIC_APACHE);
-    }
-
     public static String crypt(String password, String salt) {
         return crypt(password, salt, MAGIC);
-    }
-
-    public static String cryptApache(String password, String salt) {
-        return crypt(password, salt, MAGIC_APACHE);
     }
 
     private static String crypt(String password, String salt, String magic) {
@@ -103,7 +104,7 @@ public class MD5Crypt {
             return null;
         }
         b.update(passwordBytes);   //Add the password to digest B
-        b.update(saltBytes);//Add the salt to digest B
+        b.update(saltBytes); //Add the salt to digest B
         b.update(passwordBytes);   //Add the password to digest B
         byte[] digest_b = b.digest();   //Finish MD5 digest B
 

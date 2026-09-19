@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,30 +21,59 @@ import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
-import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.Objects;
 
 /**
+ * Get slot.
  *
  * @author JPEXS
  */
 public class GetSlotAVM2Item extends AVM2Item {
 
+    /**
+     * Slot name
+     */
     public Multiname slotName;
 
+    /**
+     * Scope
+     */
     public GraphTargetItem scope;
 
+    /**
+     * Slot object
+     */
     public GraphTargetItem slotObject;
 
+    /**
+     * Slot index
+     */
     public int slotIndex;
 
-    public GetSlotAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem scope, GraphTargetItem slotObject, int slotIndex, Multiname slotName) {
+    /**
+     * Slot type
+     */
+    public GraphTargetItem slotType;
+
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param scope Scope
+     * @param slotObject Slot object
+     * @param slotIndex Slot index
+     * @param slotName Slot name
+     * @param slotType Slot type
+     */
+    public GetSlotAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem scope, GraphTargetItem slotObject, int slotIndex, Multiname slotName, GraphTargetItem slotType) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.slotName = slotName;
         this.scope = scope;
         this.slotObject = slotObject;
         this.slotIndex = slotIndex;
+        this.slotType = slotType;
     }
 
     @Override
@@ -64,7 +93,7 @@ public class GetSlotAVM2Item extends AVM2Item {
         if (slotName == null) {
             return slotObject.toString(localData) + ".§§slot[" + slotIndex + "]";
         }
-        return slotName.getName(localData.constantsAvm2, localData.fullyQualifiedNames, false, true);
+        return slotName.getName(localData.usedDeobfuscations, localData.abc, localData.constantsAvm2, localData.fullyQualifiedNames, false, true);
     }
 
     public GraphTextWriter getName(GraphTextWriter writer, LocalData localData) throws InterruptedException {
@@ -73,7 +102,7 @@ public class GetSlotAVM2Item extends AVM2Item {
 
     @Override
     public GraphTargetItem returnType() {
-        return TypeItem.UNBOUNDED;
+        return slotType;
     }
 
     @Override

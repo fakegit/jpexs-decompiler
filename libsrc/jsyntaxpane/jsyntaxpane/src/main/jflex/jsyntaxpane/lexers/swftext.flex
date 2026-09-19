@@ -37,11 +37,15 @@ import jsyntaxpane.TokenType;
 %}
 
 
-Parameter = [a-z0-9_]+
-Value = [^ \r\n\]]+
+Parameter = [a-z_][a-z0-9_]*
+Value = [^ \r\n\"\u00A7\]]+
 Divider = [ \r\n]+
+StringCharacter = [^\r\n\"\\]
+OctDigit          = [0-7]
+LineTerminator = \r|\n|\r\n
+OIdentifierCharacter = [^\r\n\u00A7\\]
 
-%state PARAMETER,VALUE
+%state PARAMETER,VALUE,STRING,OIDENTIFIER
 
 %%
 
@@ -71,21 +75,71 @@ Divider = [ \r\n]+
     "]"                          {
                                     yybegin(YYINITIAL);
                                     tokenStart = -1;
+                                    tokenLength = 0;
                                     return token(TokenType.OPERATOR,  -BRACKET);
                                  }
 }
 
 <VALUE> {
-    {Divider}                          {}
-    {Value}                      {  
-                                    yybegin(PARAMETER);                                    
+    {Divider}                    {}
+    {Parameter}                  {
+                                    return token(TokenType.KEYWORD); 
+                                 }
+    \"                           { yybegin(STRING);
+                                   tokenStart = yychar;
+                                   tokenLength = 1; 
+                                 }
+    "\u00A7"                     { yybegin(OIDENTIFIER);
+                                   tokenStart = yychar;
+                                   tokenLength = 1; 
+                                 }
+    {Value}                      {
                                     return token(TokenType.NUMBER);
                                  }
     "]"                          {
                                     yybegin(YYINITIAL);
                                     tokenStart = -1;
+                                    tokenLength = 0;
                                     return token(TokenType.OPERATOR,  -BRACKET);
+                                 }    
+}
+
+<STRING> {
+  \"                             {
+                                     yybegin(VALUE);
+                                     // length also includes the trailing quote
+                                     Token ret = token(TokenType.STRING, tokenStart, tokenLength + 1);
+                                     tokenStart = -1;
+                                     tokenLength = 0;
+                                     return ret;
                                  }
+
+  {StringCharacter}+             { tokenLength += yylength(); }
+
+  \\[0-3]?{OctDigit}?{OctDigit}  { tokenLength += yylength(); }
+
+  /* escape sequences */
+
+  \\.                            { tokenLength += 2; }
+  {LineTerminator}               { yybegin(PARAMETER);  }
+}
+
+<OIDENTIFIER> {
+  "\u00A7"                            {
+                                     yybegin(PARAMETER);
+                                     // length also includes the trailing quote
+                                     Token ret = token(TokenType.REGEX, tokenStart, tokenLength + 1);
+                                     tokenStart = -1;
+                                     tokenLength = 0;
+                                 }
+
+  {OIdentifierCharacter}+             { tokenLength += yylength(); }
+
+
+  /* escape sequences */
+
+  \\.                            { tokenLength += 2; }
+  {LineTerminator}               { tokenStart = -1; tokenLength = 0; yybegin(PARAMETER);  }
 }
 
 /* error fallback */

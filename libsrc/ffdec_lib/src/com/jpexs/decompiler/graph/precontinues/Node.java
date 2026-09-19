@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph.precontinues;
 
 import com.jpexs.decompiler.graph.GraphPart;
@@ -20,22 +21,49 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Node in the graph.
  *
  * @author JPEXS
  */
 public class Node {
+
+    /**
+     * Next nodes
+     */
     public List<Node> next = new ArrayList<>();
+    /**
+     * Previous nodes
+     */
     public List<Node> prev = new ArrayList<Node>();
+    /**
+     * Graph part
+     */
     public GraphPart graphPart;
+    /**
+     * Current id
+     */
     private static int CURRENT_ID = 0;
+    /**
+     * Id
+     */
     private int id;
 
+    /**
+     * Parent node
+     */
     public Node parentNode;
 
+    /**
+     * Constructor.
+     */
     public Node() {
         this.id = ++CURRENT_ID;
     }
 
+    /**
+     * Gets id.
+     * @return Id
+     */
     public int getId() {
         return id;
     }
@@ -70,7 +98,10 @@ public class Node {
         return true;
     }
 
-
+    /**
+     * Replaces previous node.
+     * @param newNode New node
+     */
     public void replacePrevs(Node newNode) {
         for (Node p : this.prev) {
             for (int i = 0; i < p.next.size(); i++) {
@@ -81,6 +112,10 @@ public class Node {
         }
     }
 
+    /**
+     * Replaces next node.
+     * @param newNode New node
+     */
     public void replaceNexts(Node newNode) {
         for (Node n : this.next) {
             for (int i = 0; i < n.prev.size(); i++) {
@@ -91,6 +126,9 @@ public class Node {
         }
     }
 
+    /**
+     * Removes node from graph.
+     */
     public void removeFromGraph() {
         for (Node p : this.prev) {
             for (int i = p.next.size() - 1; i >= 0; i--) {

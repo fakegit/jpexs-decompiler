@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -42,6 +42,7 @@ import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
+import com.jpexs.decompiler.graph.model.BreakItem;
 import com.jpexs.decompiler.graph.model.ContinueItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.ArrayList;
@@ -50,19 +51,35 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Try statement.
  *
  * @author JPEXS
  */
 public class TryActionItem extends ActionItem implements Block {
 
+    /**
+     * Try commands
+     */
     public List<GraphTargetItem> tryCommands;
 
+    /**
+     * Catch exception names
+     */
     public List<GraphTargetItem> catchExceptionNames;
 
+    /**
+     * Catch exception types
+     */
     public List<GraphTargetItem> catchExceptionTypes;
 
+    /**
+     * Catch commands
+     */
     public List<List<GraphTargetItem>> catchCommands;
 
+    /**
+     * Finally commands
+     */
     public List<GraphTargetItem> finallyCommands;
 
     @Override
@@ -96,8 +113,15 @@ public class TryActionItem extends ActionItem implements Block {
 
     }
 
-
-
+    /**
+     * Constructor.
+     *
+     * @param tryCommands Try commands
+     * @param catchExceptionNames Catch exception names
+     * @param catchExceptionTypes Catch exception types
+     * @param catchCommands Catch commands
+     * @param finallyCommands Finally commands
+     */
     public TryActionItem(List<GraphTargetItem> tryCommands, List<GraphTargetItem> catchExceptionNames, List<GraphTargetItem> catchExceptionTypes, List<List<GraphTargetItem>> catchCommands, List<GraphTargetItem> finallyCommands) {
         super(null, null, NOPRECEDENCE);
         this.tryCommands = tryCommands;
@@ -168,6 +192,40 @@ public class TryActionItem extends ActionItem implements Block {
         }
         return ret;
     }
+   
+    @Override
+    public List<BreakItem> getBreaks() {
+        List<BreakItem> ret = new ArrayList<>();
+        for (GraphTargetItem ti : tryCommands) {
+            if (ti instanceof ContinueItem) {
+                ret.add((BreakItem) ti);
+            }
+            if (ti instanceof Block) {
+                ret.addAll(((Block) ti).getBreaks());
+            }
+        }
+        if (finallyCommands != null) {
+            for (GraphTargetItem ti : finallyCommands) {
+                if (ti instanceof BreakItem) {
+                    ret.add((BreakItem) ti);
+                }
+                if (ti instanceof Block) {
+                    ret.addAll(((Block) ti).getBreaks());
+                }
+            }
+        }
+        for (List<GraphTargetItem> commands : catchCommands) {
+            for (GraphTargetItem ti : commands) {
+                if (ti instanceof ContinueItem) {
+                    ret.add((BreakItem) ti);
+                }
+                if (ti instanceof Block) {
+                    ret.addAll(((Block) ti).getBreaks());
+                }
+            }
+        }
+        return ret;
+    }
 
     @Override
     public boolean needsSemicolon() {
@@ -178,6 +236,7 @@ public class TryActionItem extends ActionItem implements Block {
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         List<GraphSourceItem> ret = new ArrayList<>();
         ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
         List<Action> tryCommandsA = asGenerator.toActionList(asGenerator.generate(localData, tryCommands));
         List<Action> finallyCommandsA = finallyCommands == null ? null : asGenerator.toActionList(asGenerator.generate(localData, finallyCommands));
         List<Action> catchCommandsA = null;
@@ -212,7 +271,7 @@ public class TryActionItem extends ActionItem implements Block {
 
                 if (!allCatched) {
                     fullCatchBody.addAll(0, GraphTargetItem.toSourceMerge(localData, generator,
-                            new ActionPush(new RegisterNumber(catchRegister)),
+                            new ActionPush(new RegisterNumber(catchRegister), charset),
                             new ActionThrow()
                     ));
                 }
@@ -236,21 +295,21 @@ public class TryActionItem extends ActionItem implements Block {
                                 new ActionDefineLocal(),
                                 ebody);
                         fullCatchBody.add(0, new ActionPop());
-                        int toFinishSize = Action.actionsToBytes(asGenerator.toActionList(fullCatchBody), false, SWF.DEFAULT_VERSION).length;
-                        ActionJump finishJump = new ActionJump(toFinishSize);
+                        int toFinishSize = Action.actionsToBytes(asGenerator.toActionList(fullCatchBody), false, asGenerator.getSwfVersion()).length;
+                        ActionJump finishJump = new ActionJump(toFinishSize, charset);
                         ifBody.add(finishJump);
                         List<Action> ifBodyA = asGenerator.toActionList(ifBody);
-                        int ifBodySize = Action.actionsToBytes(ifBodyA, false, SWF.DEFAULT_VERSION).length;
+                        int ifBodySize = Action.actionsToBytes(ifBodyA, false, asGenerator.getSwfVersion()).length;
                         fullCatchBody.addAll(0, ifBody);
                         fullCatchBody.addAll(0,
                                 GraphTargetItem.toSourceMerge(localData, generator,
                                         etype,
-                                        new ActionPush(new RegisterNumber(catchRegister)),
+                                        new ActionPush(new RegisterNumber(catchRegister), charset),
                                         new ActionCastOp(),
                                         new ActionPushDuplicate(),
-                                        new ActionPush(Null.INSTANCE),
+                                        new ActionPush(Null.INSTANCE, charset),
                                         new ActionEquals2(),
-                                        new ActionIf(ifBodySize)
+                                        new ActionIf(ifBodySize, charset)
                                 ));
 
                     }
@@ -258,15 +317,15 @@ public class TryActionItem extends ActionItem implements Block {
                 asGenerator.releaseTempRegister(localData, catchRegister);
             }
             catchCommandsA = asGenerator.toActionList(fullCatchBody);
-            catchSize = Action.actionsToBytes(catchCommandsA, false, SWF.DEFAULT_VERSION).length;
-            tryCommandsA.add(new ActionJump(catchSize));
+            catchSize = Action.actionsToBytes(catchCommandsA, false, asGenerator.getSwfVersion()).length;
+            tryCommandsA.add(new ActionJump(catchSize, charset));
         }
         int finallySize = 0;
         if (finallyCommandsA != null) {
-            finallySize = Action.actionsToBytes(finallyCommandsA, false, SWF.DEFAULT_VERSION).length;
+            finallySize = Action.actionsToBytes(finallyCommandsA, false, asGenerator.getSwfVersion()).length;
         }
-        int trySize = Action.actionsToBytes(tryCommandsA, false, SWF.DEFAULT_VERSION).length;
-        ret.add(new ActionTry(catchInRegisterFlag, finallyCommands != null, !catchCommands.isEmpty(), catchName, catchRegister, trySize, catchSize, finallySize, SWF.DEFAULT_VERSION));
+        int trySize = Action.actionsToBytes(tryCommandsA, false, asGenerator.getSwfVersion()).length;
+        ret.add(new ActionTry(catchInRegisterFlag, finallyCommands != null, !catchCommands.isEmpty(), catchName, catchRegister, trySize, catchSize, finallySize, asGenerator.getSwfVersion(), charset));
         ret.addAll(tryCommandsA);
         if (catchCommandsA != null) {
             ret.addAll(catchCommandsA);

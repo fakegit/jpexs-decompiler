@@ -29,7 +29,7 @@ import jsyntaxpane.Token;
  * right by one tab-width space character.
  *
  * Since this is also used as an abbreviation completion action,
- * Abbreviiations are processed by this event.
+ * Abbreviations are processed by this event.
  *
  * FIXME:  Move the abbreviation expansion to an ActionUtils proc
  * @author Ayman Al-Sairafi
@@ -55,7 +55,11 @@ public class IndentAction extends DefaultSyntaxAction {
 			int column = dot - lineStart;
 			int needed = tabStop - (column % tabStop);
 			if (abbrvs == null || abbrToken == null) {
-				target.replaceSelection(ActionUtils.SPACES.substring(0, needed));
+                                if (ActionUtils.usesTabs(target)) { //JPEXS
+                                    target.replaceSelection("\t");
+                                } else {
+                                    target.replaceSelection(ActionUtils.SPACES.substring(0, needed));
+                                }
 			} else {
 				String abbr = abbrToken.getString(sDoc);
 				if (abbrvs.containsKey(abbr)) {
@@ -68,7 +72,11 @@ public class IndentAction extends DefaultSyntaxAction {
 						ActionUtils.insertSimpleTemplate(target, abbr);
 					}
 				} else {
-					target.replaceSelection(ActionUtils.SPACES.substring(0, needed));
+                                        if (ActionUtils.usesTabs(target)) { //JPEXS
+                                            target.replaceSelection("\t");
+                                        } else {
+                                            target.replaceSelection(ActionUtils.SPACES.substring(0, needed));
+                                        }
 				}
 			}
 		} else {

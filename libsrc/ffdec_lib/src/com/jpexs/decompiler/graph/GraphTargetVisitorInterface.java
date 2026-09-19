@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,18 +12,31 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph;
 
 import java.util.Collection;
 
 /**
+ * Graph target visitor interface.
  *
  * @author JPEXS
  */
 public interface GraphTargetVisitorInterface {
 
-    public void visit(GraphTargetItem item);
+    /**
+     * Visits a graph target item.
+     *
+     * @param item Graph target item
+     * @return True if continue
+     */
+    public boolean visit(GraphTargetItem item);
 
+    /**
+     * Visits all graph target items.
+     *
+     * @param items Collection of graph target items
+     */
     public void visitAll(Collection<GraphTargetItem> items);
 }

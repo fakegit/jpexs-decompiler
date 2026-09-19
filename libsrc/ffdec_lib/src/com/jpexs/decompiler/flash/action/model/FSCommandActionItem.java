@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,9 +17,9 @@
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
-import com.jpexs.decompiler.flash.action.model.operations.AddActionItem;
+import com.jpexs.decompiler.flash.action.model.operations.StringAddActionItem;
 import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
-import com.jpexs.decompiler.flash.action.swf3.ActionGetURL;
+import com.jpexs.decompiler.flash.action.swf1.ActionGetURL;
 import com.jpexs.decompiler.flash.action.swf4.ActionGetURL2;
 import com.jpexs.decompiler.flash.action.swf4.ActionPush;
 import com.jpexs.decompiler.flash.ecma.Undefined;
@@ -33,30 +33,47 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * FSCommand.
  *
  * @author JPEXS
  */
 public class FSCommandActionItem extends ActionItem {
 
+    /**
+     * Command
+     */
     private final GraphTargetItem command;
 
-    public FSCommandActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem command) {
+    /**
+     * Parameter
+     */
+    private final GraphTargetItem parameter;
+
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param command Command
+     * @param parameter Parameter
+     */
+    public FSCommandActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem command, GraphTargetItem parameter) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.command = command;
+        this.parameter = parameter;
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("fscommand");
-        writer.spaceBeforeCallParenthesies(1);
+        writer.spaceBeforeCallParenthesis(1);
         writer.append("(");
         command.appendTry(writer, localData);
+        if (parameter != null) {
+            writer.append(",");
+            parameter.appendTry(writer, localData);
+        }
         return writer.append(")");
-    }
-
-    @Override
-    public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        return toSource(localData, generator, true);
     }
 
     @Override
@@ -64,13 +81,23 @@ public class FSCommandActionItem extends ActionItem {
         return toSource(localData, generator, false);
     }
 
+    @Override
+    public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+        return toSource(localData, generator, true);
+    }
 
     private List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator, boolean needsReturn) throws CompilationException {
-        ActionSourceGenerator asg = (ActionSourceGenerator) generator;
-        if ((command instanceof DirectValueActionItem) && ((DirectValueActionItem) command).isString()) {
-            return toSourceMerge(localData, generator, new ActionGetURL("FSCommand:" + ((DirectValueActionItem) command).getAsString(), ""));
+        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
+        if ((command instanceof DirectValueActionItem)
+                && ((DirectValueActionItem) command).isString()
+                && (
+                parameter == null
+                || ((parameter instanceof DirectValueActionItem) && ((DirectValueActionItem) parameter).isString())
+                )) {
+            return toSourceMerge(localData, generator, new ActionGetURL("FSCommand:" + ((DirectValueActionItem) command).getAsString(), parameter == null ? "" : ((DirectValueActionItem) parameter).getAsString(), charset));
         }
-        return toSourceMerge(localData, generator, new AddActionItem(null, null, asg.pushConstTargetItem("FSCommand:"), command, true), asg.pushConstTargetItem(""), new ActionGetURL2(1/*GET*/, false, false), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}) : null);
+        return toSourceMerge(localData, generator, new StringAddActionItem(null, null, asGenerator.pushConstTargetItem("FSCommand:"), command), parameter == null ? asGenerator.pushConstTargetItem("") : parameter, new ActionGetURL2(1/*GET*/, false, false, charset), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}, charset) : null);
     }
 
     @Override

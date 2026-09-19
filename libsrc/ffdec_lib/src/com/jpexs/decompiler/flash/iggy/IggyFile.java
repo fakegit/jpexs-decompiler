@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.iggy;
 
 import com.jpexs.decompiler.flash.iggy.streams.DataStreamInterface;
@@ -32,15 +33,15 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Iggy file.
  *
  * @author JPEXS
- *
+ * <p>
  * Based of works of somebody called eternity.
- *
  */
 public class IggyFile implements StructureInterface {
 
-    final static Logger LOGGER = Logger.getLogger(IggyFile.class.getName());
+    static final Logger LOGGER = Logger.getLogger(IggyFile.class.getName());
 
     private File originalFile;
 
@@ -164,8 +165,8 @@ public class IggyFile implements StructureInterface {
 
     public boolean updateFlashEntry() throws IOException {
 
-        byte replacementData[];
-        byte replacementIndexData[];
+        byte[] replacementData;
+        byte[] replacementIndexData;
         IggyIndexBuilder ib = new IggyIndexBuilder();
         try (DataStreamInterface stream = new TemporaryDataStream()) {
             stream.setIndexing(ib);

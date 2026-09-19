@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,10 +18,11 @@ package com.jpexs.decompiler.flash.abc.types;
 
 import com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst;
 import com.jpexs.decompiler.flash.configuration.Configuration;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
+ * Data for conversion.
  *
  * @author JPEXS
  */
@@ -29,11 +30,19 @@ public class ConvertData {
 
     public int deobfuscationMode;
 
-    public Map<TraitSlotConst, AssignedValue> assignedValues = new HashMap<>();
+    public Map<TraitSlotConst, AssignedValue> assignedValues = new LinkedHashMap<>();
 
     public boolean thisHasDefaultToPrimitive;
 
     public boolean ignoreFrameScripts;
+    
+    public boolean ignoreAccessibility;
+
+    public boolean exportEmbed;
+
+    public boolean exportEmbedFlaMode;
+
+    public String assetsDir = "/_assets/";
 
     public ConvertData() {
         deobfuscationMode = Configuration.autoDeobfuscate.get() ? 1 : 0;

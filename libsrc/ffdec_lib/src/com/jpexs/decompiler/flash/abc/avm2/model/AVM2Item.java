@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,8 +17,10 @@
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
 import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
+import com.jpexs.decompiler.flash.abc.avm2.graph.AVM2GraphTargetDialect;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instructions;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
@@ -26,16 +28,25 @@ import com.jpexs.decompiler.flash.abc.avm2.model.clauses.ExceptionAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.parser.script.AVM2SourceGenerator;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
+import com.jpexs.decompiler.flash.helpers.StringBuilderTextWriter;
+import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
+import com.jpexs.decompiler.flash.helpers.hilight.HighlightSpecialType;
 import com.jpexs.decompiler.graph.CompilationException;
+import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
+import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
+import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
+ * AVM2 item base class.
  *
  * @author JPEXS
  */
@@ -45,12 +56,27 @@ public abstract class AVM2Item extends GraphTargetItem {
 
     private AVM2Instruction lineStartIns;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param precedence Precedence
+     */
     public AVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, int precedence) {
         this(instruction, lineStartIns, precedence, null);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param precedence Precedence
+     * @param value Value
+     */
     public AVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, int precedence, GraphTargetItem value) {
-        super(instruction, lineStartIns, precedence, value);
+        super(AVM2GraphTargetDialect.INSTANCE, instruction, lineStartIns, precedence, value);
         if (instruction instanceof AVM2Instruction) {
             this.instruction = (AVM2Instruction) instruction;
         }
@@ -59,10 +85,20 @@ public abstract class AVM2Item extends GraphTargetItem {
         }
     }
 
+    /**
+     * Gets instruction.
+     *
+     * @return Instruction
+     */
     public AVM2Instruction getInstruction() {
         return instruction;
     }
 
+    /**
+     * Gets line start instruction.
+     *
+     * @return Line start instruction
+     */
     public AVM2Instruction getLineStartIns() {
         return lineStartIns;
     }
@@ -72,7 +108,18 @@ public abstract class AVM2Item extends GraphTargetItem {
         return true;
     }
 
-    protected GraphTextWriter formatProperty(GraphTextWriter writer, GraphTargetItem object, GraphTargetItem propertyName, LocalData localData) throws InterruptedException {
+    /**
+     * Formats property.
+     * @param writer Writer
+     * @param object Object
+     * @param propertyName Property name
+     * @param localData Local data
+     * @param isStatic Is static
+     * @param nullCondition Null condition - ?.
+     * @return Writer
+     * @throws InterruptedException On interrupt
+     */
+    protected GraphTextWriter formatProperty(GraphTextWriter writer, GraphTargetItem object, GraphTargetItem propertyName, LocalData localData, boolean isStatic, boolean nullCondition) throws InterruptedException {
         boolean empty = object.getThroughDuplicate() instanceof FindPropertyAVM2Item;
         if (object instanceof LocalRegAVM2Item) {
             if (((LocalRegAVM2Item) object).computedValue != null) {
@@ -83,9 +130,18 @@ public abstract class AVM2Item extends GraphTargetItem {
         }
 
         if (object.getThroughDuplicate() instanceof FindPropertyAVM2Item) {
+            //TODO: this might not be a good idea - #595,
+            //but removing this fails testNames test
             FindPropertyAVM2Item fp = (FindPropertyAVM2Item) object.getThroughDuplicate();
             if (fp.propertyName instanceof FullMultinameAVM2Item) {
+                
+                if (propertyName instanceof FullMultinameAVM2Item) {
+                    if (!((FullMultinameAVM2Item) propertyName).property) {
+                        ((FullMultinameAVM2Item) fp.propertyName).property = false; // for constructprop
+                    }
+                }
                 propertyName = fp.propertyName;
+                                
             }
         }
 
@@ -104,29 +160,95 @@ public abstract class AVM2Item extends GraphTargetItem {
             }
         }
 
-        if (empty) {
-            return propertyName.toString(writer, localData);
-        }
-        if (propertyName instanceof FullMultinameAVM2Item) {
-            if (((FullMultinameAVM2Item) propertyName).name != null) {
-                if (((FullMultinameAVM2Item) propertyName).namespace != null) {
-                    writer.append(".");
-                }
-                return propertyName.toString(writer, localData);
-            } else {
-                writer.append(".");
-                return propertyName.toString(writer, localData);
+        if (empty) {     
+            TypeItem parentType = null;
+            if (localData.classIndex > -1) {
+                DottedChain thisClass = localData.abc.instance_info.get(localData.classIndex).getName(localData.constantsAvm2).getNameWithNamespace(localData.usedDeobfuscations, localData.abc, localData.constantsAvm2, false);
+                parentType = new TypeItem(thisClass);
             }
+            ((FullMultinameAVM2Item) propertyName).appendTo(writer, localData, false, parentType, isStatic);
+            return writer;
+        }
+
+        if (propertyName instanceof FullMultinameAVM2Item) {
+
+            HighlightData data = new HighlightData();
+            int multinameIndex = ((FullMultinameAVM2Item) propertyName).multinameIndex;
+            int namespaceIndex = localData.constantsAvm2.getMultiname(multinameIndex).namespace_index;
+            GraphTargetItem returnType = object.returnType();
+            if (returnType instanceof ApplyTypeAVM2Item) {
+                ApplyTypeAVM2Item ati = (ApplyTypeAVM2Item) returnType;
+                data.propertyType = ati.object.toString();
+                data.propertySubType = ati.params.get(0).toString();
+            } else {
+                data.propertyType = returnType.toString();
+            }
+            data.namespaceIndex = namespaceIndex;
+            data.isStatic = isStatic;
+            
+            String operator = nullCondition ? "?." : ".";
+            
+            String localName = "";   
+            boolean isAttribute = false;
+            boolean isValidName = false;
+            String namespaceSuffix = "";
+            
+            if (multinameIndex >= 0  && multinameIndex < localData.constantsAvm2.getMultinameCount()) {
+                Reference<DottedChain> customNsRef = new Reference<>(null);
+                isAttribute = localData.constantsAvm2.getMultiname(multinameIndex).isAttribute();
+                localName = localData.constantsAvm2.getMultiname(multinameIndex).getNameAndCustomNamespace(new HashSet<>(), localData.abc, new ArrayList<>(), true, true, customNsRef);
+                namespaceSuffix = localData.constantsAvm2.getMultiname(multinameIndex).getNamespaceSuffix();
+                
+                if ("*".equals(localName)) {
+                    isValidName = true;
+                }
+                if (isAttribute) {
+                    isValidName = true;
+                }
+                if (!"".equals(namespaceSuffix)) {
+                    isValidName = true;
+                }
+                if (IdentifiersDeobfuscation.isValidName(true, localName)) {
+                    isValidName = true;
+                }                
+            } else {
+                isValidName = true;
+            }                      
+            
+            if (!Configuration.as3QNameObfuscatedPropsInSquareBrackets.get()) {
+                isValidName = true;
+            }
+            
+            if (isValidName) {
+                if (((FullMultinameAVM2Item) propertyName).name != null) {
+                    if (((FullMultinameAVM2Item) propertyName).namespace != null) {
+                        writer.allowWrapHere().hilightSpecial(operator, HighlightSpecialType.PROPERTY_TYPE, 0, data);
+                    }                
+                } else {
+                    writer.allowWrapHere().hilightSpecial(operator, HighlightSpecialType.PROPERTY_TYPE, 0, data);                                
+                }
+            }
+            
+            ((FullMultinameAVM2Item) propertyName).appendTo(writer, localData, true, returnType, isStatic);
+            return writer;
         } else {
-            writer.append("[");
+            writer.append("[").allowWrapHere();
             propertyName.toString(writer, localData);
             return writer.append("]");
         }
     }
 
-    public static String localRegName(HashMap<Integer, String> localRegNames, int reg) {
+    /**
+     * Gets local register name.
+     * @param swf SWF
+     * @param localRegNames Local register names
+     * @param reg Register
+     * @param usedDeobfuscations Used deobfuscations
+     * @return Local register name
+     */
+    public static String localRegName(SWF swf, HashMap<Integer, String> localRegNames, int reg, Set<String> usedDeobfuscations) {
         if (localRegNames.containsKey(reg)) {
-            return IdentifiersDeobfuscation.printIdentifier(true, localRegNames.get(reg));
+            return IdentifiersDeobfuscation.printIdentifier(swf, usedDeobfuscations, true, localRegNames.get(reg));
         } else {
             if (reg == 0) {
                 return "this";
@@ -139,6 +261,7 @@ public abstract class AVM2Item extends GraphTargetItem {
      public boolean hasReturnValue() {
      return false;
      }*/
+
     @Override
     public List<GraphSourceItem> toSourceIgnoreReturnValue(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         if (!hasReturnValue()) {
@@ -149,6 +272,12 @@ public abstract class AVM2Item extends GraphTargetItem {
         return ret;
     }
 
+    /**
+     * Creates instruction.
+     * @param instructionCode Instruction code
+     * @param operands Operands
+     * @return Instruction
+     */
     public static AVM2Instruction ins(int instructionCode, Integer... operands) {
         InstructionDefinition def = AVM2Code.instructionSet[instructionCode];
         List<Integer> ops = new ArrayList<>();
@@ -165,11 +294,23 @@ public abstract class AVM2Item extends GraphTargetItem {
         return new AVM2Instruction(0, def, opArr);
     }
 
+    /**
+     * Gets free register.
+     * @param localData Local data
+     * @param generator Generator
+     * @return Free register
+     */
     public static int getFreeRegister(SourceGeneratorLocalData localData, SourceGenerator generator) {
         AVM2SourceGenerator g = (AVM2SourceGenerator) generator;
         return g.getFreeRegister(localData);
     }
 
+    /**
+     * Kills register.
+     * @param localData Local data
+     * @param generator Generator
+     * @param regNumber Register number
+     */
     public static void killRegister(SourceGeneratorLocalData localData, SourceGenerator generator, int regNumber) {
         AVM2SourceGenerator g = (AVM2SourceGenerator) generator;
         g.killRegister(localData, regNumber);
@@ -203,6 +344,11 @@ public abstract class AVM2Item extends GraphTargetItem {
         return true;
     }
 
+    /**
+     * Whether target must stay intact. A special case.
+     * @param target Target
+     * @return Whether target must stay intact
+     */
     public static boolean mustStayIntact1(GraphTargetItem target) {
         target = target.getNotCoerced();
         if (target instanceof ExceptionAVM2Item) {
@@ -211,6 +357,11 @@ public abstract class AVM2Item extends GraphTargetItem {
         return false;
     }
 
+    /**
+     * Whether target must stay intact. Version 2. A special case.
+     * @param target Target
+     * @return Whether target must stay intact. Version 2.
+     */
     public static boolean mustStayIntact2(GraphTargetItem target) {
         target = target.getNotCoerced();
         if (target instanceof NextValueAVM2Item) {

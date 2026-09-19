@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Sign extend value.
  *
  * @author JPEXS
  */
@@ -37,6 +38,14 @@ public class AlchemySignExtendAVM2Item extends AVM2Item {
 
     private final int size;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     * @param size Size
+     */
     public AlchemySignExtendAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value, int size) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY, value);
         this.size = size;

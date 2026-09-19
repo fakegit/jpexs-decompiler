@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,6 +20,7 @@ import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.exporters.commonshape.Point;
 import com.jpexs.decompiler.flash.tags.base.ImageTag;
+import com.jpexs.decompiler.flash.tags.base.ShapeTag;
 import com.jpexs.decompiler.flash.types.ColorTransform;
 import com.jpexs.decompiler.flash.types.FILLSTYLE;
 import com.jpexs.decompiler.flash.types.GRADIENT;
@@ -31,58 +32,133 @@ import com.jpexs.decompiler.flash.types.RGBA;
 import com.jpexs.decompiler.flash.types.SHAPE;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.SerializableImage;
-import java.awt.Color;
 
 /**
+ * Canvas shape exporter.
  *
  * @author JPEXS
  */
 public class CanvasShapeExporter extends ShapeExporterBase {
 
+    /**
+     * Draw command M
+     */
     protected static final String DRAW_COMMAND_M = "M";
 
+    /**
+     * Draw command L
+     */
     protected static final String DRAW_COMMAND_L = "L";
 
+    /**
+     * Draw command Q
+     */
     protected static final String DRAW_COMMAND_Q = "Q";
 
+    /**
+     * Current draw command
+     */
     protected String currentDrawCommand = "";
 
+    /**
+     * Path data
+     */
     protected StringBuilder pathData = new StringBuilder();
 
+    /**
+     * Shape data
+     */
     protected StringBuilder shapeData = new StringBuilder();
 
+    /**
+     * Stroke data
+     */
     protected StringBuilder strokeData = new StringBuilder();
 
+    /**
+     * Fill data
+     */
     protected StringBuilder fillData = new StringBuilder();
 
+    /**
+     * Delta X
+     */
     protected double deltaX = 0;
 
+    /**
+     * Delta Y
+     */
     protected double deltaY = 0;
 
+    /**
+     * Fill matrix
+     */
     protected Matrix fillMatrix = null;
 
-    protected String lastRadColor = null;
+    /**
+     * Last gradient color
+     */
+    protected String lastGradColor = null;
 
+    /**
+     * SWF
+     */
     protected SWF swf;
 
+    /**
+     * Repeat count
+     */
     protected int repeatCnt = 0;
 
+    /**
+     * Unit divisor
+     */
     protected double unitDivisor;
 
+    /**
+     * Basic fill
+     */
     protected RGB basicFill;
 
+    /**
+     * Line fill data
+     */
     protected StringBuilder lineFillData = null;
 
-    protected String lineLastRadColor = null;
+    /**
+     * Line last gradient color
+     */
+    protected String lineLastGradColor = null;
 
+    /**
+     * Line fill matrix
+     */
     protected Matrix lineFillMatrix = null;
 
+    /**
+     * Line repeat count
+     */
     protected int lineRepeatCnt = 0;
 
+    /**
+     * Fill width
+     */
     protected int fillWidth = 0;
 
+    /**
+     * Fill height
+     */
     protected int fillHeight = 0;
 
+    /**
+     * Aliased fill
+     */
+    protected boolean aliasedFill = false;
+
+    /**
+     * Gets JS prefix.
+     * @return JS prefix
+     */
     public static String getJsPrefix() {
         return "<script>var canvas=document.getElementById(\"myCanvas\");\r\n"
                 + "var ctx=canvas.getContext(\"2d\");\r\n"
@@ -90,6 +166,12 @@ public class CanvasShapeExporter extends ShapeExporterBase {
                 + "var ctrans = new cxform(0,0,0,0,255,255,255,255);\r\n";
     }
 
+    /**
+     * Gets HTML prefix.
+     * @param width Width
+     * @param height Height
+     * @return HTML prefix
+     */
     public static String getHtmlPrefix(int width, int height) {
         return "<!DOCTYPE html>\r\n"
                 + "<html>\r\n"
@@ -121,10 +203,18 @@ public class CanvasShapeExporter extends ShapeExporterBase {
 
     }
 
+    /**
+     * Gets JS suffix.
+     * @return JS suffix
+     */
     public static String getJsSuffix() {
         return "</script>\r\n";
     }
 
+    /**
+     * Gets HTML suffix.
+     * @return HTML suffix
+     */
     public static String getHtmlSuffix() {
         return "</body>\r\n"
                 + "</html>";
@@ -138,6 +228,13 @@ public class CanvasShapeExporter extends ShapeExporterBase {
                 + "\tctx.restore();\r\n}\r\n\tdrawFrame();\r\n";
     }
 
+    /**
+     * Gets HTML.
+     * @param needed Needed
+     * @param id ID
+     * @param rect Rectangle
+     * @return HTML
+     */
     public String getHtml(String needed, String id, RECT rect) {
         int width = (int) (rect.getWidth() / unitDivisor);
         int height = (int) (rect.getHeight() / unitDivisor);
@@ -145,12 +242,28 @@ public class CanvasShapeExporter extends ShapeExporterBase {
         return getHtmlPrefix(width, height) + getJsPrefix() + needed + getDrawJs(width, height, id, rect) + getJsSuffix() + getHtmlSuffix();
     }
 
+    /**
+     * Gets shape data.
+     * @return Shape data
+     */
     public String getShapeData() {
         return shapeData.toString();
     }
 
-    public CanvasShapeExporter(RGB basicFill, double unitDivisor, SWF swf, SHAPE shape, ColorTransform colorTransform, int deltaX, int deltaY) {
-        super(swf, shape, colorTransform);
+    /**
+     * Constructor.
+     * @param windingRule Winding rule
+     * @param shapeNum Shape number
+     * @param basicFill Basic fill
+     * @param unitDivisor Unit divisor
+     * @param swf SWF
+     * @param shape Shape
+     * @param colorTransform Color transform
+     * @param deltaX Delta X
+     * @param deltaY Delta Y
+     */
+    public CanvasShapeExporter(int windingRule, int shapeNum, RGB basicFill, double unitDivisor, SWF swf, SHAPE shape, ColorTransform colorTransform, int deltaX, int deltaY) {
+        super(windingRule, shapeNum, swf, shape, colorTransform);
         this.swf = swf;
         this.unitDivisor = unitDivisor;
         this.basicFill = basicFill;
@@ -169,6 +282,7 @@ public class CanvasShapeExporter extends ShapeExporterBase {
 
     @Override
     public void beginFills() {
+        aliasedFill = false;
     }
 
     @Override
@@ -232,17 +346,27 @@ public class CanvasShapeExporter extends ShapeExporterBase {
             }
             for (GRADRECORD r : gradientRecords) {
                 fillData.append("\tgrd.addColorStop(").append(pos + (oneHeight * (revert ? 255 - r.ratio : r.ratio) / 255.0)).append(",").append(color(r.color)).append(");\r\n");
-                lastRadColor = color(r.color);
+                lastGradColor = color(r.color);
             }
             pos += oneHeight;
         }
         fillData.append("\tctx.fillStyle = grd;\r\n");
     }
 
+    /**
+     * Color.
+     * @param color Color
+     * @return Color
+     */
     public static String color(int color) {
         return color(new RGBA(color));
     }
 
+    /**
+     * Color.
+     * @param rgb RGB
+     * @return Color
+     */
     public static String color(RGB rgb) {
         if ((rgb instanceof RGBA) && (((RGBA) rgb).alpha < 255)) {
             RGBA rgba = (RGBA) rgb;
@@ -277,7 +401,7 @@ public class CanvasShapeExporter extends ShapeExporterBase {
             }
         }
 
-        fillData.append("\tctx.fillStyle=").append(color(Color.RED.getRGB())).append(";\r\n");
+        fillData.append("\tctx.fillStyle=").append(color(SWF.ERROR_COLOR.getRGB())).append(";\r\n");
     }
 
     @Override
@@ -286,7 +410,7 @@ public class CanvasShapeExporter extends ShapeExporterBase {
     }
 
     @Override
-    public void lineStyle(double thickness, RGB color, boolean pixelHinting, String scaleMode, int startCaps, int endCaps, int joints, float miterLimit) {
+    public void lineStyle(double thickness, RGB color, boolean pixelHinting, String scaleMode, int startCaps, int endCaps, int joints, float miterLimit, boolean noClose) {
         finalizePath();
         thickness /= SWF.unitDivisor;
         strokeData.append("\tvar scaleMode = \"").append(scaleMode).append("\";\r\n");
@@ -354,7 +478,7 @@ public class CanvasShapeExporter extends ShapeExporterBase {
             }
             for (GRADRECORD r : gradientRecords) {
                 lineFillData.append("\tgrd.addColorStop(").append(Double.toString(pos + (oneHeight * (revert ? 255 - r.ratio : r.ratio) / 255.0))).append(",").append(color(r.color)).append(");\r\n");
-                lineLastRadColor = color(r.color);
+                lineLastGradColor = color(r.color);
             }
             pos += oneHeight;
         }
@@ -415,11 +539,15 @@ public class CanvasShapeExporter extends ShapeExporterBase {
                 .append(Helper.doubleStr(anchorY / unitDivisor)).append(" ");
     }
 
+    /**
+     * Finalizes path.
+     */
     protected void finalizePath() {
         if (pathData != null && pathData.length() > 0) {
             shapeData.append("\tvar pathData=\"").append(pathData.toString().trim()).append("\";\r\n");
             String drawStroke = "\tdrawPath(ctx,pathData,true,scaleMode);\r\n";
-            String drawFill = "\tdrawPath(ctx,pathData,false);\r\n";;
+            String drawFill = "\tdrawPath(ctx,pathData,false);\r\n";
+            ;
             pathData = new StringBuilder();
             if (lineFillData != null) {
                 StringBuilder preLineFillData = new StringBuilder();
@@ -434,8 +562,8 @@ public class CanvasShapeExporter extends ShapeExporterBase {
                 preLineFillData.append("\tenhanceContext(lfctx);\r\n");
                 preLineFillData.append("\tlfctx.applyTransforms(ctx._matrix);\r\n");
                 preLineFillData.append("\tctx = lfctx;");
-                if (lineLastRadColor != null) {
-                    preLineFillData.append("\tctx.fillStyle=").append(lineLastRadColor).append(";\r\n\tctx.fill(\"evenodd\");\r\n");
+                if (lineLastGradColor != null) {
+                    preLineFillData.append("\tctx.fillStyle=").append(lineLastGradColor).append(";\r\n\tctx.fill(\"").append(windingRule == ShapeTag.WIND_NONZERO ? "nonzero" : "evenodd").append("\");\r\n");
                 }
 
                 if (lineFillMatrix != null) {
@@ -471,8 +599,8 @@ public class CanvasShapeExporter extends ShapeExporterBase {
             }
             if (fillMatrix != null) {
                 pathData.append(drawFill);
-                if (lastRadColor != null) {
-                    pathData.append("\tctx.fillStyle=").append(lastRadColor).append(";\r\n\tctx.fill(\"evenodd\");\r\n");
+                if (lastGradColor != null) {
+                    pathData.append("\tctx.fillStyle=").append(lastGradColor).append(";\r\n\tctx.fill(\"").append(windingRule == ShapeTag.WIND_NONZERO ? "nonzero" : "evenodd").append("\");\r\n");
                 }
                 pathData.append("\tctx.save();\r\n");
                 pathData.append("\tctx.clip();\r\n");
@@ -482,7 +610,7 @@ public class CanvasShapeExporter extends ShapeExporterBase {
                         .append(",").append(Helper.doubleStr(fillMatrix.scaleY / unitDivisor))
                         .append(",").append(Helper.doubleStr((fillMatrix.translateX + deltaX) / unitDivisor))
                         .append(",").append(Helper.doubleStr((fillMatrix.translateY + deltaY) / unitDivisor)).append(");\r\n");
-                if (fillWidth > 0) {//repeating bitmap glitch fix
+                if (fillWidth > 0) { //repeating bitmap glitch fix
                     //make bitmap 1px wider
                     double s_w = (fillWidth + 1) / (double) fillWidth;
                     double s_h = (fillHeight + 1) / (double) fillHeight;
@@ -495,7 +623,7 @@ public class CanvasShapeExporter extends ShapeExporterBase {
                 shapeData.append(pathData);
             } else {
                 if (fillData != null && fillData.length() > 0) {
-                    pathData.append(drawFill).append("\tctx.fill(\"evenodd\");\r\n");
+                    pathData.append(drawFill).append("\tctx.fill(\"").append(windingRule == ShapeTag.WIND_NONZERO ? "nonzero" : "evenodd").append("\");\r\n");
                 }
                 shapeData.append(fillData).append(pathData);
             }
@@ -512,11 +640,11 @@ public class CanvasShapeExporter extends ShapeExporterBase {
         fillData = new StringBuilder();
         strokeData = new StringBuilder();
         fillMatrix = null;
-        lastRadColor = null;
+        lastGradColor = null;
 
         lineRepeatCnt = 0;
         lineFillData = null;
-        lineLastRadColor = null;
+        lineLastGradColor = null;
         lineFillMatrix = null;
 
         fillWidth = 0;

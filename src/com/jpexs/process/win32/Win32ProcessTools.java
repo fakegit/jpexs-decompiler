@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,27 +16,27 @@
  */
 package com.jpexs.process.win32;
 
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.Advapi32;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.BITMAP;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.BaseTSD;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.Gdi32;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.ICONINFO;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.Kernel32;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.MEMORY_BASIC_INFORMATION;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.PROCESSENTRY32;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.Psapi;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.SHFILEINFO;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.Shell32;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.User32;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.WinBase;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.WinDef;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.WinNT;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.WinNT.HANDLE;
 import com.jpexs.helpers.ProgressListener;
 import com.jpexs.process.ProcessTools;
 import com.sun.jna.Memory;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
-import com.sun.jna.platform.win32.Advapi32;
-import com.sun.jna.platform.win32.BITMAP;
-import com.sun.jna.platform.win32.BaseTSD;
-import com.sun.jna.platform.win32.Gdi32;
-import com.sun.jna.platform.win32.ICONINFO;
-import com.sun.jna.platform.win32.Kernel32;
-import com.sun.jna.platform.win32.MEMORY_BASIC_INFORMATION;
-import com.sun.jna.platform.win32.PROCESSENTRY32;
-import com.sun.jna.platform.win32.Psapi;
-import com.sun.jna.platform.win32.SHFILEINFO;
-import com.sun.jna.platform.win32.Shell32;
-import com.sun.jna.platform.win32.User32;
-import com.sun.jna.platform.win32.WinBase;
-import com.sun.jna.platform.win32.WinDef;
-import com.sun.jna.platform.win32.WinNT;
-import com.sun.jna.platform.win32.WinNT.HANDLE;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.NativeLongByReference;
 import com.sun.jna.ptr.PointerByReference;
@@ -52,15 +52,12 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- *
  * @author JPEXS
  */
 public class Win32ProcessTools extends ProcessTools {
 
     private static long pointerToAddress(Pointer p) {
-        String s = p.toString();
-        s = s.replace("native@0x", "");
-        return Long.parseLong(s, 16);
+        return Pointer.nativeValue(p);
     }
 
     public static List<MEMORY_BASIC_INFORMATION> getPageRanges(WinNT.HANDLE hOtherProcess) {
@@ -73,7 +70,7 @@ public class Win32ProcessTools extends ProcessTools {
             mbi = new MEMORY_BASIC_INFORMATION();
             BaseTSD.SIZE_T t = Kernel32.INSTANCE.VirtualQueryEx(hOtherProcess, lpMem, mbi, new BaseTSD.SIZE_T(mbi.size()));
             if (t.longValue() == 0) {
-                Logger.getLogger(Win32ProcessTools.class.getName()).log(Level.SEVERE, "Cannot get page ranges. Last error:{0}", Kernel32.INSTANCE.GetLastError());
+                //Logger.getLogger(Win32ProcessTools.class.getName()).log(Level.SEVERE, "Cannot get page ranges. Last error:{0}", Kernel32.INSTANCE.GetLastError());
                 break;
             }
             ret.add(mbi);
@@ -336,6 +333,7 @@ public class Win32ProcessTools extends ProcessTools {
                         Logger.getLogger(Win32ProcessTools.class.getName()).log(Level.SEVERE, "Can't get EXE path");
                     }
                 } catch (Exception | UnsatisfiedLinkError e) {
+                    //ignored
                 }
 
                 try {
@@ -344,6 +342,7 @@ public class Win32ProcessTools extends ProcessTools {
                         Logger.getLogger(Win32ProcessTools.class.getName()).log(Level.SEVERE, "Can't get EXE path");
                     }
                 } catch (Exception | UnsatisfiedLinkError e) {
+                    //ignored
                 }
                 i = 0;
                 for (; i < outputnames.length; i++) {

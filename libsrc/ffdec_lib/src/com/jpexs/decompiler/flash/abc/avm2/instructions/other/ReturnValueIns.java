@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,11 +29,15 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.List;
 
 /**
+ * returnvalue instruction - return value from function.
  *
  * @author JPEXS
  */
 public class ReturnValueIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public ReturnValueIns() {
         super(0x48, "returnvalue", new int[]{}, true);
     }
@@ -51,7 +55,7 @@ public class ReturnValueIns extends InstructionDefinition {
         if (value instanceof SetLocalAVM2Item) {
             value = value.value;
         }
-        output.add(new ReturnValueAVM2Item(ins, localData.lineStartInstruction, value));
+        stack.addToOutput(new ReturnValueAVM2Item(ins, localData.lineStartInstruction, value));
     }
 
     @Override

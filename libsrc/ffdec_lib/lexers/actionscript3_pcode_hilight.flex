@@ -47,7 +47,7 @@ package com.jpexs.decompiler.flash.exporters.script.graphviz;
         return yychar;
     }
 
-    private static final byte PARAN     = 1;
+    private static final byte PAREN     = 1;
     private static final byte BRACKET   = 2;
     private static final byte LESSGREATER   = 3;
 %}
@@ -70,11 +70,11 @@ Label = {Identifier}:
 
 
 /* integer literals */
-NumberLiteral = 0 | -?[1-9][0-9]*
+NumberLiteral = (0 | -?[1-9][0-9]*) [ui]?
 PositiveNumberLiteral = 0 | [1-9][0-9]*
 
 /* floating point literals */        
-FloatLiteral = -?({FLit1}|{FLit2}|{FLit3}) {Exponent}?
+FloatLiteral = -?({FLit1}|{FLit2}|{FLit3}) {Exponent}? [mdf]?
 
 FLit1    = [0-9]+ \. [0-9]* 
 FLit2    = \. [0-9]+ 
@@ -163,9 +163,10 @@ ExceptionTarget = "exceptiontarget "{PositiveNumberLiteral}":"
   "MultinameL"                 |
   "MultinameLA"                |
   "TypeName"                   |
+  "Unknown"                    |
   "null"                       {  return token(TokenType.KEYWORD2);}
-  "("                          {  return token(TokenType.OPERATOR,PARAN); }
-  ")"                          {  return token(TokenType.OPERATOR,-PARAN); }
+  "("                          {  return token(TokenType.OPERATOR,PAREN); }
+  ")"                          {  return token(TokenType.OPERATOR,-PAREN); }
   "["                          {  return token(TokenType.OPERATOR,BRACKET); }
   "]"                          {  return token(TokenType.OPERATOR,-BRACKET); }
   "<"                          {  return token(TokenType.OPERATOR,LESSGREATER); }
@@ -181,8 +182,11 @@ ExceptionTarget = "exceptiontarget "{PositiveNumberLiteral}":"
   ":"                          {  return token(TokenType.OPERATOR); }
 
 
+  /* Flag - old alias for "NATIVE" */
+  "EXPLICIT"                   {  return token(TokenType.KEYWORD2);}
+
   /*Flags*/
-  "EXPLICIT"                   |
+  "NATIVE"                     |
   "HAS_OPTIONAL"               |
   "HAS_PARAM_NAMES"            |
   "IGNORE_REST"                |
@@ -218,6 +222,19 @@ ExceptionTarget = "exceptiontarget "{PositiveNumberLiteral}":"
   "setter"                      |
   "class"                       |
   "function"                    {  return token(TokenType.KEYWORD2);}
+
+
+  "Number"                      |
+  "int"                         |
+  "uint"                        |
+  "NumberContext"               |
+  "CEILING"                     |
+  "UP"                          |
+  "HALF_UP"                     |
+  "HALF_EVEN"                   |
+  "HALF_DOWN"                   |
+  "DOWN"                        |
+  "FLOOR"                       {  return token(TokenType.KEYWORD2);  }
 
   /* string literal */
   \"                             {

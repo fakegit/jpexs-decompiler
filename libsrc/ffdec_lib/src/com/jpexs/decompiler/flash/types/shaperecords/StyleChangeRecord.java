@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,9 +12,11 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types.shaperecords;
 
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.types.BasicType;
 import com.jpexs.decompiler.flash.types.FILLSTYLEARRAY;
@@ -25,6 +27,7 @@ import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import java.util.Set;
 
 /**
+ * Style change record.
  *
  * @author JPEXS
  */
@@ -82,9 +85,9 @@ public final class StyleChangeRecord extends SHAPERECORD implements Cloneable {
     public int numLineBits;
 
     @Override
-    public void getNeededCharacters(Set<Integer> needed) {
+    public void getNeededCharacters(Set<Integer> needed, Set<String> neededClasses, SWF swf) {
         if (stateNewStyles) {
-            fillStyles.getNeededCharacters(needed);
+            fillStyles.getNeededCharacters(needed, neededClasses, swf);
         }
     }
 
@@ -146,4 +149,81 @@ public final class StyleChangeRecord extends SHAPERECORD implements Cloneable {
     public void calculateBits() {
         moveBits = SWFOutputStream.getNeededBitsS(moveDeltaX, moveDeltaY);
     }
+
+    @Override
+    public boolean isTooLarge() {
+        if (!stateMoveTo) {
+            return false;
+        }
+        calculateBits();
+        return !SWFOutputStream.fitsInUB(5, moveBits);
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 5;
+        hash = 59 * hash + (this.stateNewStyles ? 1 : 0);
+        hash = 59 * hash + (this.stateLineStyle ? 1 : 0);
+        hash = 59 * hash + (this.stateFillStyle1 ? 1 : 0);
+        hash = 59 * hash + (this.stateFillStyle0 ? 1 : 0);
+        hash = 59 * hash + (this.stateMoveTo ? 1 : 0);
+        hash = 59 * hash + this.moveDeltaX;
+        hash = 59 * hash + this.moveDeltaY;
+        hash = 59 * hash + this.fillStyle0;
+        hash = 59 * hash + this.fillStyle1;
+        hash = 59 * hash + this.lineStyle;
+        /*hash = 59 * hash + Objects.hashCode(this.fillStyles);
+        hash = 59 * hash + Objects.hashCode(this.lineStyles);*/
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final StyleChangeRecord other = (StyleChangeRecord) obj;
+        if (this.stateNewStyles != other.stateNewStyles) {
+            return false;
+        }
+        if (this.stateLineStyle != other.stateLineStyle) {
+            return false;
+        }
+        if (this.stateFillStyle1 != other.stateFillStyle1) {
+            return false;
+        }
+        if (this.stateFillStyle0 != other.stateFillStyle0) {
+            return false;
+        }
+        if (this.stateMoveTo != other.stateMoveTo) {
+            return false;
+        }
+        if (this.moveDeltaX != other.moveDeltaX) {
+            return false;
+        }
+        if (this.moveDeltaY != other.moveDeltaY) {
+            return false;
+        }
+        if (this.fillStyle0 != other.fillStyle0) {
+            return false;
+        }
+        if (this.fillStyle1 != other.fillStyle1) {
+            return false;
+        }
+        if (this.lineStyle != other.lineStyle) {
+            return false;
+        }
+        /*if (!Objects.equals(this.fillStyles, other.fillStyles)) {
+            return false;
+        }
+        return Objects.equals(this.lineStyles, other.lineStyles);*/
+        return true;
+    }
+
 }

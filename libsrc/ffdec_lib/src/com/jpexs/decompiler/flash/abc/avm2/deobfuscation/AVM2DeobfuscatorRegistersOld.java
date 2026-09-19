@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,6 +22,7 @@ import com.jpexs.decompiler.flash.abc.AVM2LocalData;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.construction.NewFunctionIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.debug.DebugIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.jumps.JumpIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.localregs.GetLocalTypeIns;
@@ -42,9 +43,11 @@ import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateException;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.helpers.CancellableWorker;
 import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -52,15 +55,28 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- *
  * AVM2 Deobfuscator removing single assigned local registers.
- *
+ * <p>
  * Example: var a = true; var b = false; ... if(a){ ...ok }else{ not executed }
  *
  * @author JPEXS
  */
 public class AVM2DeobfuscatorRegistersOld extends AVM2DeobfuscatorSimpleOld {
 
+
+    /**
+     * Constructor.
+     */
+    public AVM2DeobfuscatorRegistersOld() {
+
+    }
+
+    /**
+     * Gets all register ids.
+     *
+     * @param code AVM2 code
+     * @return Set of register ids
+     */
     private Set<Integer> getRegisters(AVM2Code code) {
         Set<Integer> regs = new HashSet<>();
         for (AVM2Instruction ins : code.code) {
@@ -85,6 +101,19 @@ public class AVM2DeobfuscatorRegistersOld extends AVM2DeobfuscatorSimpleOld {
         return regs;
     }
 
+    /**
+     * Removes single assigned local registers.
+     *
+     * @param path Path
+     * @param classIndex Class index
+     * @param isStatic Is static
+     * @param scriptIndex Script index
+     * @param abc ABC
+     * @param trait Trait
+     * @param methodInfo Method info
+     * @param body Method body
+     * @throws InterruptedException On interrupt
+     */
     @Override
     public void avm2CodeRemoveTraps(String path, int classIndex, boolean isStatic, int scriptIndex, ABC abc, Trait trait, int methodInfo, MethodBody body) throws InterruptedException {
         //System.err.println("regdeo:" + path);
@@ -98,6 +127,11 @@ public class AVM2DeobfuscatorRegistersOld extends AVM2DeobfuscatorSimpleOld {
             ignoredRegs.add(i);
         }
 
+        // Without branches or removable function literals, deobfuscation cannot
+        // discard a later assignment. Avoid speculative copies of the entire
+        // method for registers that are already known to need a rollback.
+        ignoredRegs.addAll(getRepeatedlyAssignedRegisters(body));
+
         int setReg = 0;
         List<Integer> listedRegs = new ArrayList<>();
         List<MethodBody> listedLastBodies = new ArrayList<>();
@@ -105,7 +139,7 @@ public class AVM2DeobfuscatorRegistersOld extends AVM2DeobfuscatorSimpleOld {
         Reference<AVM2Instruction> assignmentRef = new Reference<>(null);
 
         while (setReg > -1) {
-            if (Thread.currentThread().isInterrupted()) {
+            if (CancellableWorker.isInterrupted()) {
                 throw new InterruptedException();
             }
 
@@ -152,6 +186,49 @@ public class AVM2DeobfuscatorRegistersOld extends AVM2DeobfuscatorSimpleOld {
         originalBody.setCode(body.getCode());
     }
 
+    /**
+     * Finds registers that cannot be inlined in straight-line code.
+     * Control-flow changes must retain the speculative algorithm: an assignment
+     * in a dead branch may disappear after constant folding.
+     *
+     * @param body Method body
+     * @return Registers with repeated assignments, or an empty set for control flow
+     */
+    static Set<Integer> getRepeatedlyAssignedRegisters(MethodBody body) {
+        Set<Integer> assigned = new HashSet<>();
+        Set<Integer> repeated = new HashSet<>();
+        if (body.exceptions.length != 0) {
+            return repeated;
+        }
+        for (AVM2Instruction ins : body.getCode().code) {
+            if (ins.isBranch() || ins.definition instanceof JumpIns
+                    || ins.definition instanceof NewFunctionIns) {
+                return new HashSet<>();
+            }
+            if (ins.definition instanceof SetLocalTypeIns) {
+                int reg = ((SetLocalTypeIns) ins.definition).getRegisterId(ins);
+                if (!assigned.add(reg)) {
+                    repeated.add(reg);
+                }
+            }
+        }
+        return repeated;
+    }
+
+    /**
+     * Gets first register with setter.
+     *
+     * @param assignment Assignment
+     * @param classIndex Class index
+     * @param isStatic Is static
+     * @param scriptIndex Script index
+     * @param abc ABC
+     * @param body Method body
+     * @param ignoredRegisters Ignored registers
+     * @param ignoredGets Ignored gets
+     * @return Register id
+     * @throws InterruptedException On interrupt
+     */
     private int getFirstRegisterSetter(Reference<AVM2Instruction> assignment, int classIndex, boolean isStatic, int scriptIndex, ABC abc, MethodBody body, Set<Integer> ignoredRegisters, Set<Integer> ignoredGets) throws InterruptedException {
         AVM2Code code = body.getCode();
 
@@ -159,31 +236,79 @@ public class AVM2DeobfuscatorRegistersOld extends AVM2DeobfuscatorSimpleOld {
             return -1;
         }
 
-        Set<Integer> visited = new HashSet<>();
-        return visitCode(assignment, visited, new TranslateStack("deo"), classIndex, isStatic, body, scriptIndex, abc, code, 0, code.code.size() - 1, ignoredRegisters, ignoredGets);
+        BitSet visited = new BitSet(code.code.size());
+        
+        TranslateStack stack = new TranslateStack("deo");
+        stack.doNoPushItemsToOutput = true;
+        
+        return visitCode(assignment, visited, stack, classIndex, isStatic, body, scriptIndex, abc, code, 0, code.code.size() - 1, ignoredRegisters, ignoredGets);
     }
 
+    /**
+     * Exception target ip pair.
+     */
     private class ExceptionTargetIpPair {
 
+        /**
+         * Exception.
+         */
         private final ABCException exception;
+        /**
+         * Target ip.
+         */
         private final int targetIp;
 
+        /**
+         * Constructs a new instance of ExceptionTargetIpPair.
+         *
+         * @param exception Exception
+         * @param targetIp Target ip
+         */
         public ExceptionTargetIpPair(ABCException exception, int targetIp) {
             this.exception = exception;
             this.targetIp = targetIp;
         }
 
+        /**
+         * Gets exception.
+         *
+         * @return Exception
+         */
         public ABCException getException() {
             return exception;
         }
 
+        /**
+         * Gets target ip.
+         *
+         * @return Target ip
+         */
         public int getTargetIp() {
             return targetIp;
         }
 
     }
 
-    private int visitCode(Reference<AVM2Instruction> assignment, Set<Integer> visited, TranslateStack stack, int classIndex, boolean isStatic, MethodBody body, int scriptIndex, ABC abc, AVM2Code code, int idx, int endIdx, Set<Integer> ignored, Set<Integer> ignoredGets) throws InterruptedException {
+    /**
+     * Visits code.
+     *
+     * @param assignment Assignment
+     * @param visited Visited
+     * @param stack Stack
+     * @param classIndex Class index
+     * @param isStatic Is static
+     * @param body Method body
+     * @param scriptIndex Script index
+     * @param abc ABC
+     * @param code AVM2 code
+     * @param idx Index
+     * @param endIdx End index
+     * @param ignored Ignored
+     * @param ignoredGets Ignored gets
+     * @return Register id
+     * @throws InterruptedException On interrupt
+     */
+    private int visitCode(Reference<AVM2Instruction> assignment, BitSet visited, TranslateStack stack, int classIndex, boolean isStatic, MethodBody body, int scriptIndex, ABC abc, AVM2Code code, int idx, int endIdx, Set<Integer> ignored, Set<Integer> ignoredGets) throws InterruptedException {
 
         Map<Integer, List<ExceptionTargetIpPair>> exceptionStartToTargets = new HashMap<>();
         for (ABCException ex : body.exceptions) {
@@ -206,21 +331,21 @@ public class AVM2DeobfuscatorRegistersOld extends AVM2DeobfuscatorSimpleOld {
         toVisitStacks.add(stack);
         outer:
         while (!toVisit.isEmpty()) {
-            if (Thread.currentThread().isInterrupted()) {
+            if (CancellableWorker.isInterrupted()) {
                 throw new InterruptedException();
             }
 
             idx = toVisit.remove(0);
-            stack = toVisitStacks.remove(0);
+            stack = toVisitStacks.remove(0);                        
 
             while (true) {
                 if (idx > endIdx) {
                     break;
                 }
-                if (visited.contains(idx)) {
+                if (visited.get(idx)) {
                     break;
                 }
-                visited.add(idx);
+                visited.set(idx);
 
                 if (exceptionStartToTargets.containsKey(idx)) {
                     for (ExceptionTargetIpPair pair : exceptionStartToTargets.get(idx)) {
@@ -240,8 +365,21 @@ public class AVM2DeobfuscatorRegistersOld extends AVM2DeobfuscatorSimpleOld {
                 if (stack.size() < requiredStackSize) {
                     continue outer;
                 }
+                
+                if (ins.definition instanceof ReturnValueIns) {
+                    break;
+                }
 
-                ins.translate(localData, stack, output, Graph.SOP_USE_STATIC, "");
+                if (ins.definition instanceof ThrowIns) {
+                    break;
+                }
+
+                if (ins.definition instanceof ReturnVoidIns) {
+                    break;
+                }
+                
+                stack.setConnectedOutput(0, output, localData);                
+                ins.translate(localData, stack, output, 0, "");                                
                 if (def instanceof SetLocalTypeIns) {
                     int regId = ((SetLocalTypeIns) def).getRegisterId(ins);
                     if (!ignored.contains(regId)) {
@@ -273,7 +411,7 @@ public class AVM2DeobfuscatorRegistersOld extends AVM2DeobfuscatorSimpleOld {
                 if (ins.definition instanceof JumpIns) {
 
                     long address = ins.getTargetAddress();
-                    idx = code.adr2pos(address);//code.indexOf(code.getByAddress(address));
+                    idx = code.adr2pos(address);
                     if (idx == -1) {
                         throw new TranslateException("Jump target not found: " + address);
                     }
@@ -298,7 +436,7 @@ public class AVM2DeobfuscatorRegistersOld extends AVM2DeobfuscatorSimpleOld {
                         }
 
                         @Override
-                        public List<GraphTargetItem> translatePart(GraphPart part, BaseLocalData localData, TranslateStack stack, int start, int end, int staticOperation, String path) throws InterruptedException {
+                        public void translatePart(List<GraphTargetItem> output, Graph graph, GraphPart part, BaseLocalData localData, TranslateStack stack, int start, int end, int staticOperation, String path) throws InterruptedException {
                             throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
                         }
 
@@ -308,15 +446,14 @@ public class AVM2DeobfuscatorRegistersOld extends AVM2DeobfuscatorSimpleOld {
                         }
 
                         @Override
-                        public long pos2adr(int pos) {
-                            return code.pos2adr(pos);
-                        }
-
-                        @Override
                         public int adr2pos(long adr, boolean nearest) {
                             return code.adr2pos(adr, nearest);
                         }
 
+                        @Override
+                        public long pos2adr(int pos) {
+                            return code.pos2adr(pos);
+                        }
 
                         @Override
                         public Set<Long> getImportantAddresses() {
@@ -332,7 +469,7 @@ public class AVM2DeobfuscatorRegistersOld extends AVM2DeobfuscatorSimpleOld {
                     for (int n = 1; n < branches.size(); n++) {
                         //visitCode(visited, (TranslateStack) stack.clone(), classIndex, isStatic, body, scriptIndex, abc, code, branches.get(n), endIdx, result);
                         int nidx = branches.get(n);
-                        if (visited.contains(nidx)) {
+                        if (visited.get(nidx)) {
                             continue;
                         }
                         toVisit.add(nidx);
@@ -346,19 +483,7 @@ public class AVM2DeobfuscatorRegistersOld extends AVM2DeobfuscatorSimpleOld {
                  throw new TranslateException("If target not found: " + address);
                  }
                  visitCode(visited, (TranslateStack) stack.clone(), classIndex, isStatic, body, scriptIndex, abc, code, newIdx, endIdx, result);
-                 }*/
-
-                if (ins.definition instanceof ReturnValueIns) {
-                    break;
-                }
-
-                if (ins.definition instanceof ThrowIns) {
-                    break;
-                }
-
-                if (ins.definition instanceof ReturnVoidIns) {
-                    break;
-                }
+                 }*/               
             }
         }
         return -1;

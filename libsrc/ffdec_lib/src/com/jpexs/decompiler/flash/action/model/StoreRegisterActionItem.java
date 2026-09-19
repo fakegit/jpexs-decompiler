@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,8 +18,10 @@ package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.swf4.RegisterNumber;
 import com.jpexs.decompiler.flash.action.swf5.ActionStoreRegister;
+import com.jpexs.decompiler.flash.ecma.Undefined;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
 import com.jpexs.decompiler.graph.CompilationException;
@@ -32,23 +34,43 @@ import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
+ * Store value to a register.
  *
  * @author JPEXS
  */
 public class StoreRegisterActionItem extends ActionItem implements SetTypeActionItem {
 
+    /**
+     * Register number
+     */
     public RegisterNumber register;
 
+    /**
+     * Define
+     */
     public boolean define = false;
 
+    /**
+     * Temporary
+     */
     public boolean temporary = false;
 
+    /**
+     * Compound value
+     */
     public GraphTargetItem compoundValue;
 
+    /**
+     * Compound operator
+     */
     public String compoundOperator;
+
+    /**
+     * Temp register
+     */
+    private int tempRegister = -1;
 
     @Override
     public GraphPart getFirstPart() {
@@ -59,8 +81,6 @@ public class StoreRegisterActionItem extends ActionItem implements SetTypeAction
     public void setValue(GraphTargetItem value) {
         this.value = value;
     }
-
-    private int tempRegister = -1;
 
     @Override
     public int getTempRegister() {
@@ -77,8 +97,17 @@ public class StoreRegisterActionItem extends ActionItem implements SetTypeAction
         return value;
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param register Register number
+     * @param value Value
+     * @param define Define
+     */
     public StoreRegisterActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, RegisterNumber register, GraphTargetItem value, boolean define) {
-        super(instruction, lineStartIns, PRECEDENCE_ASSIGMENT, value);
+        super(instruction, lineStartIns, PRECEDENCE_ASSIGNMENT, value);
         this.register = register;
         this.define = define;
     }
@@ -97,7 +126,7 @@ public class StoreRegisterActionItem extends ActionItem implements SetTypeAction
                 srcData.declaredType = DottedChain.ALL;
                 writer.append("var ");
             }
-            writer.append(IdentifiersDeobfuscation.printIdentifier(false, register.translate()));
+            writer.append(IdentifiersDeobfuscation.printIdentifier(localData.swf, localData.usedDeobfuscations, false, register.translate()));
 
             if (compoundOperator != null) {
                 writer.append(" ");
@@ -105,8 +134,10 @@ public class StoreRegisterActionItem extends ActionItem implements SetTypeAction
                 writer.append("= ");
                 return compoundValue.toString(writer, localData);
             }
-            writer.append(" = ");
-            value.toString(writer, localData);
+            if (value != null && !(value instanceof DirectValueActionItem && (((DirectValueActionItem) value).value == Undefined.INSTANCE))) {
+                writer.append(" = ");
+                value.toString(writer, localData);
+            }
         }
         return writer;
     }
@@ -125,7 +156,9 @@ public class StoreRegisterActionItem extends ActionItem implements SetTypeAction
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        return toSourceMerge(localData, generator, value, new ActionStoreRegister(register.number));
+        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
+        return toSourceMerge(localData, generator, value, new ActionStoreRegister(register.number, charset));
     }
 
     @Override
@@ -133,6 +166,8 @@ public class StoreRegisterActionItem extends ActionItem implements SetTypeAction
         return true;
     }
 
+    /*
+    NOT COMPILE TIME! This causes problems in simplifyExpressions, etc.
     @Override
     public boolean isCompileTime(Set<GraphTargetItem> dependencies) {
         if (dependencies.contains(value)) {
@@ -141,7 +176,7 @@ public class StoreRegisterActionItem extends ActionItem implements SetTypeAction
         dependencies.add(value);
         return value.isCompileTime(dependencies);
     }
-
+     */
     @Override
     public Object getResult() {
         return value.getResult();

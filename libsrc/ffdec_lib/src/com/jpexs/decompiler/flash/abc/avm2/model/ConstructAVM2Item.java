@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,24 +16,42 @@
  */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
+import com.jpexs.decompiler.flash.abc.types.Multiname;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
+import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.model.LocalData;
+import com.jpexs.helpers.Helper;
 import java.util.List;
 import java.util.Objects;
 
 /**
+ * Construct object.
  *
  * @author JPEXS
  */
 public class ConstructAVM2Item extends AVM2Item {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
+    /**
+     * Arguments
+     */
     public List<GraphTargetItem> args;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     * @param args Arguments
+     */
     public ConstructAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, List<GraphTargetItem> args) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.object = object;
@@ -53,21 +71,61 @@ public class ConstructAVM2Item extends AVM2Item {
             return object.toString(writer, localData);
         }
         writer.append("new ");
-        if (object.getPrecedence() > getPrecedence()) {
-            writer.append("(");
+
+        boolean objectIsCall = (object instanceof CallAVM2Item)
+                || (object instanceof CallPropertyAVM2Item)
+                || (object instanceof CallMethodAVM2Item)
+                || (object instanceof CallStaticAVM2Item)
+                || (object instanceof CallSuperAVM2Item);
+
+        boolean isGetDefinition = false;
+        if (object instanceof GetPropertyAVM2Item) {
+            GetPropertyAVM2Item getProperty = (GetPropertyAVM2Item) object;
+            if (getProperty.propertyName instanceof FullMultinameAVM2Item) {
+                FullMultinameAVM2Item fm = (FullMultinameAVM2Item) getProperty.propertyName;
+                if (fm.multinameIndex > 0) {
+                    Multiname m = localData.abc.constants.getMultiname(fm.multinameIndex);
+                    if (m.kind == Multiname.MULTINAMEL) {
+                        if (m.getNamespaceSet(localData.abc.constants).namespaces.length == 1) {
+                            isGetDefinition = true;
+                            writer.append("(");
+                            if (localData.fullyQualifiedNames.contains(DottedChain.parseNoSuffix("flash.utils.getDefinitionByName"))) {
+                                writer.append("flash.utils.getDefinitionByName");
+                            } else {
+                                writer.append("getDefinitionByName");
+                            }
+                            writer.append("(");
+                            String nname = m.getSingleNamespace(localData.abc.constants).getName(localData.abc.constants).toRawString();
+                            if (!nname.isEmpty()) {
+                                writer.append("\"");
+                                writer.append(Helper.escapeActionScriptString(nname));                        
+                                writer.append("\"+\".\"+");                    
+                            }
+                            fm.name.appendTo(writer, localData);
+                            writer.append("))");
+                        }
+                    }
+                }
+            }
         }
-        object.toString(writer, localData);
-        if (object.getPrecedence() > getPrecedence()) {
-            writer.append(")");
+        
+        if (!isGetDefinition) {
+            if (object.getPrecedence() > getPrecedence() || objectIsCall) {
+                writer.append("(");
+            }
+            object.toString(writer, localData);
+            if (object.getPrecedence() > getPrecedence() || objectIsCall) {
+                writer.append(")");
+            }
         }
-        writer.spaceBeforeCallParenthesies(args.size());
+        writer.spaceBeforeCallParenthesis(args.size());
         if (object instanceof InitVectorAVM2Item) {
             return writer;
         }
         writer.append("(");
         for (int a = 0; a < args.size(); a++) {
             if (a > 0) {
-                writer.append(",");
+                writer.allowWrapHere().append(",");
             }
             args.get(a).toString(writer, localData);
         }

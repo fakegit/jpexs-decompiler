@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,21 +12,35 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph;
 
 import java.io.Serializable;
 
 /**
+ * Graph source item with a position.
  *
  * @author JPEXS
  */
 public class GraphSourceItemPos implements Serializable {
 
+    /**
+     * Source item
+     */
     public GraphSourceItem item;
 
+    /**
+     * Position
+     */
     public int pos;
 
+    /**
+     * Constructs a GraphSourceItemPos
+     *
+     * @param item Source item
+     * @param pos Position
+     */
     public GraphSourceItemPos(GraphSourceItem item, int pos) {
         this.item = item;
         this.pos = pos;

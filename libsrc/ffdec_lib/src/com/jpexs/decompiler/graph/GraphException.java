@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,19 +12,38 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph;
 
 /**
+ * Exception thrown in the graph.
  *
  * @author JPEXS
  */
 public class GraphException {
 
+    /**
+     * Start IP of thrown block
+     */
     public int start;
+    /**
+     * End IP of thrown block
+     */
     public int end;
+
+    /**
+     * Target IP to go when exception is thrown
+     */
     public int target;
 
+    /**
+     * Constructs a new exception
+     *
+     * @param start Start IP
+     * @param end End IP
+     * @param target Target IP
+     */
     public GraphException(int start, int end, int target) {
         this.start = start;
         this.end = end;

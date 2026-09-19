@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,19 +23,26 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
 import com.jpexs.decompiler.flash.abc.avm2.model.UnparsedAVM2Item;
 import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.decompiler.graph.model.DuplicateSourceItem;
 import com.jpexs.decompiler.graph.model.LocalData;
+import com.jpexs.decompiler.graph.model.SetTemporaryItem;
 import java.util.HashSet;
 import java.util.List;
 
 /**
+ * newclass instruction - Create a new class.
  *
  * @author JPEXS
  */
 public class NewClassIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public NewClassIns() {
         super(0x58, "newclass", new int[]{AVM2Code.DAT_CLASS_INDEX}, true);
     }
@@ -44,10 +51,23 @@ public class NewClassIns extends InstructionDefinition {
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) throws InterruptedException {
         int clsIndex = ins.operands[0];
         HighlightedTextWriter writer = new HighlightedTextWriter(Configuration.getCodeFormatting(), false);
-        stack.pop().toString(writer, LocalData.create(localData.abc, localData.localRegNames, localData.fullyQualifiedNames, new HashSet<>()));
+        GraphTargetItem obj = stack.pop();
+        
+        if (obj instanceof DuplicateSourceItem) {
+            DuplicateSourceItem ds = (DuplicateSourceItem) obj;
+            if (!output.isEmpty() && output.get(output.size() - 1) instanceof SetTemporaryItem) {
+                SetTemporaryItem st = (SetTemporaryItem) output.get(output.size() - 1);
+                if (ds.tempIndex == st.tempIndex) {
+                    output.remove(output.size() - 1);
+                    stack.moveToStack(output);
+                }
+            }
+        }                
+        obj.toString(writer, LocalData.create(localData.callStack /*??*/, localData.abcIndex, localData.abc, localData.localRegNames, localData.fullyQualifiedNames, new HashSet<>(), ScriptExportMode.AS, localData.swfVersion, localData.usedDeobfuscations, clsIndex));
+        writer.finishHilights();
         String baseType = writer.toString();
         ABC abc = localData.abc;
-        stack.push(new UnparsedAVM2Item(ins, localData.lineStartInstruction, "§§newclass(" + abc.constants.getMultiname(abc.instance_info.get(clsIndex).name_index).getName(localData.getConstants(), localData.fullyQualifiedNames, false, true) + "," + baseType + ")"));
+        stack.push(new UnparsedAVM2Item(ins, localData.lineStartInstruction, "§§newclass(" + abc.constants.getMultiname(abc.instance_info.get(clsIndex).name_index).getName(localData.usedDeobfuscations, localData.abc, localData.getConstants(), localData.fullyQualifiedNames, false, true) + "," + baseType + ")"));
     }
 
     @Override

@@ -15,12 +15,14 @@ package jsyntaxpane;
 
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.Toolkit;
+import java.awt.geom.Rectangle2D;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.logging.Level;
@@ -31,6 +33,9 @@ import javax.swing.text.Element;
 import javax.swing.text.PlainView;
 import javax.swing.text.Position;
 import javax.swing.text.Segment;
+import javax.swing.text.TabExpander;
+import javax.swing.text.Utilities;
+import javax.swing.text.View;
 import javax.swing.text.ViewFactory;
 import jsyntaxpane.util.Configuration;
 
@@ -70,7 +75,7 @@ public class SyntaxView extends PlainView {
         Color saveColor = graphics.getColor();
         SyntaxDocument doc = (SyntaxDocument) getDocument();
         Segment segment = getLineBuffer();
-        // Draw the right margin first, if needed.  This way the text overalys
+        // Draw the right margin first, if needed.  This way the text overlays
         // the margin
         if (rightMarginColumn > 0) {
             int m_x = rightMarginColumn * graphics.getFontMetrics().charWidth('m');
@@ -97,7 +102,7 @@ public class SyntaxView extends PlainView {
                 int s = t.start;
                 // ... unless the token starts before p0:
                 if (s < p0) {
-                    // token is before what is requested. adgust the length and s
+                    // token is before what is requested. adjust the length and s
                     l -= (p0 - s);
                     s = p0;
                 }
@@ -194,8 +199,14 @@ public class SyntaxView extends PlainView {
         int p0 = line.getStartOffset();
         Segment s = new Segment();
         doc.getText(p0, pos - p0, s);
-        int xOffs = UniTools.getTabbedTextWidth(s, metrics, tabBase, this,p0);
-
+        Graphics g = getContainer().getGraphics();
+        int xOffs = g == null ? 0 : UniTools.getTabbedTextWidth(g, s, tabBase, this,p0);
+        //System.err.println("calling Utilities.getTabbedTextWidth from normal: x = " + tabBase + ", startOffset = "+(p0));                    
+        /*int xOffs2 = Utilities.getTabbedTextWidth(s, metrics, tabBase, this,p0);
+        System.err.println("result = " + xOffs2);
+        System.err.println("UniTools.getTabbedTextWidth = " +xOffs);
+        System.err.println("Utilities.getTabbedTextWidth = " +xOffs2);
+*/
         // fill in the results and return
         lineArea.x += xOffs;
         lineArea.width = 1;
@@ -214,11 +225,11 @@ public class SyntaxView extends PlainView {
         int x = (int) fx;
         int y = (int) fy;
         if (y < alloc.y) {
-            // above the area covered by this icon, so the the position
+            // above the area covered by this icon, so the position
             // is assumed to be the start of the coverage for this view.
             return getStartOffset();
         } else if (y > alloc.y + alloc.height) {
-            // below the area covered by this icon, so the the position
+            // below the area covered by this icon, so the position
             // is assumed to be the end of the coverage for this view.
             return getEndOffset() - 1;
         } else {
@@ -256,7 +267,8 @@ public class SyntaxView extends PlainView {
                     Segment s = new Segment();
                     doc.getText(p0, p1 - p0, s);
                     int tabBase = alloc.x;
-                    int offs = p0 + UniTools.getTabbedTextOffset(s, metrics,
+                    Graphics g = getContainer().getGraphics();
+                    int offs = g == null ? 0 : p0 + UniTools.getTabbedTextOffset(g, s, metrics,
                                                                   tabBase, x, this, p0);
                     //SegmentCache.releaseSharedSegment(s);
                     return offs;
@@ -267,4 +279,7 @@ public class SyntaxView extends PlainView {
             }
         }
     }
+    
+    
+    
 }

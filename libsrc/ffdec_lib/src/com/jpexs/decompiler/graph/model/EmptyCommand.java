@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,15 +17,24 @@
 package com.jpexs.decompiler.graph.model;
 
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TypeItem;
 
 /**
+ * Empty command.
  *
  * @author JPEXS
  */
 public class EmptyCommand extends GraphTargetItem {
 
+    /**
+     * @param dialect Dialect
+     */
+    public EmptyCommand(GraphTargetDialect dialect) {
+        super(dialect);
+    }
+       
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         return writer;
@@ -40,5 +49,5 @@ public class EmptyCommand extends GraphTargetItem {
     public GraphTargetItem returnType() {
         return TypeItem.UNBOUNDED;
     }
-    
+
 }

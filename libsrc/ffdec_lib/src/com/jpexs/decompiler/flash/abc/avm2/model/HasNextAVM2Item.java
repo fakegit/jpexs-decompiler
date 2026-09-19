@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -30,15 +30,30 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Determine if the given object has any more properties.
  *
  * @author JPEXS
  */
 public class HasNextAVM2Item extends AVM2Item {
 
+    /**
+     * Index
+     */
     public GraphTargetItem index;
 
+    /**
+     * Object
+     */
     public GraphTargetItem obj;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param index Index
+     * @param obj Object
+     */
     public HasNextAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem index, GraphTargetItem obj) {
         super(instruction, lineStartIns, NOPRECEDENCE);
         this.index = index;

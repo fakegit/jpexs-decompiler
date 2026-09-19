@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,6 +31,7 @@ import com.jpexs.decompiler.graph.GraphPart;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SimpleValue;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.List;
@@ -38,19 +39,35 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Set variable.
  *
  * @author JPEXS
  */
 public class SetVariableActionItem extends ActionItem implements SetTypeActionItem {
 
+    /**
+     * Name
+     */
     public GraphTargetItem name;
 
+    /**
+     * Temp register
+     */
     private int tempRegister = -1;
 
+    /**
+     * Compound value
+     */
     public GraphTargetItem compoundValue;
 
+    /**
+     * Compound operator
+     */
     public String compoundOperator;
 
+    /**
+     * Force use set
+     */
     public boolean forceUseSet = false;
 
     @Override
@@ -78,8 +95,16 @@ public class SetVariableActionItem extends ActionItem implements SetTypeActionIt
         return value;
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param name Name
+     * @param value Value
+     */
     public SetVariableActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem name, GraphTargetItem value) {
-        super(instruction, lineStartIns, PRECEDENCE_ASSIGMENT, value);
+        super(instruction, lineStartIns, PRECEDENCE_ASSIGNMENT, value);
         this.name = name;
     }
 
@@ -105,7 +130,7 @@ public class SetVariableActionItem extends ActionItem implements SetTypeActionIt
             //TODO: handle result needed better, without identifierdeobfuscation
             HighlightData srcData = getSrcData();
             srcData.localName = name.toStringNoQuotes(localData);
-            writer.append(IdentifiersDeobfuscation.printIdentifier(false, name.toStringNoQuotes(localData)));
+            writer.append(IdentifiersDeobfuscation.printIdentifier(localData.swf, localData.usedDeobfuscations, false, name.toStringNoQuotes(localData)));
             if (compoundOperator != null) {
                 writer.append(" ");
                 writer.append(compoundOperator);
@@ -116,7 +141,7 @@ public class SetVariableActionItem extends ActionItem implements SetTypeActionIt
             return value.toString(writer, localData);
         } else {
             writer.append("set");
-            writer.spaceBeforeCallParenthesies(2);
+            writer.spaceBeforeCallParenthesis(2);
             writer.append("(");
             name.toString(writer, localData);
             writer.append(",");
@@ -144,7 +169,9 @@ public class SetVariableActionItem extends ActionItem implements SetTypeActionIt
         if (dependencies.contains(value)) {
             return false;
         }
-        dependencies.add(value);
+        if (!((value instanceof SimpleValue) && ((SimpleValue) value).isSimpleValue())) {
+            dependencies.add(value);
+        }
         return value.isCompileTime(dependencies);
     }
 
@@ -156,13 +183,14 @@ public class SetVariableActionItem extends ActionItem implements SetTypeActionIt
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
 
         if (forceUseSet) {
-            return toSourceMerge(localData, generator, name, value, new ActionSetVariable(), new ActionPush(Undefined.INSTANCE));
+            return toSourceMerge(localData, generator, name, value, new ActionSetVariable(), new ActionPush(Undefined.INSTANCE, charset));
         }
         int tmpReg = asGenerator.getTempRegister(localData);
         try {
-            return toSourceMerge(localData, generator, name, value, new ActionStoreRegister(tmpReg), new ActionSetVariable(), new ActionPush(new RegisterNumber(tmpReg)));
+            return toSourceMerge(localData, generator, name, value, new ActionStoreRegister(tmpReg, charset), new ActionSetVariable(), new ActionPush(new RegisterNumber(tmpReg), charset));
         } finally {
             asGenerator.releaseTempRegister(localData, tmpReg);
         }

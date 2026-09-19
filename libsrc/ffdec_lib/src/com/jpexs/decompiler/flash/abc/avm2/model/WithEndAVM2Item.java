@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,13 +25,23 @@ import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.Objects;
 
 /**
+ * With end marker.
  *
  * @author JPEXS
  */
 public class WithEndAVM2Item extends AVM2Item {
 
+    /**
+     * Scope.
+     */
     public GraphTargetItem scope;
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param scope Scope
+     */
     public WithEndAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem scope) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.scope = scope;

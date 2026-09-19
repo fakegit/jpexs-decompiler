@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,12 +12,14 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.exporters.shape.PathExporter;
 import com.jpexs.decompiler.flash.tags.base.NeedsCharacters;
+import com.jpexs.decompiler.flash.tags.base.ShapeTag;
 import com.jpexs.decompiler.flash.types.annotations.SWFArray;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.shaperecords.EndShapeRecord;
@@ -31,26 +33,45 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * Shape.
  *
  * @author JPEXS
  */
 public class SHAPE implements NeedsCharacters, Serializable {
 
+    /**
+     * Number of fill bits
+     */
     @SWFType(value = BasicType.UB, count = 4)
     public int numFillBits;
 
+    /**
+     * Number of line bits
+     */
     @SWFType(value = BasicType.UB, count = 4)
     public int numLineBits;
 
+    /**
+     * Shape records
+     */
     @SWFArray(value = "record")
     public List<SHAPERECORD> shapeRecords;
 
-    private Shape cachedOutline;
+    private transient Shape cachedOutline;
+    private transient Shape fastCachedOutline;
+
+    /**
+     * Constructor.
+     */
+    public SHAPE() {
+        shapeRecords = new ArrayList<>();
+        shapeRecords.add(new EndShapeRecord());
+    }
 
     @Override
-    public void getNeededCharacters(Set<Integer> needed) {
+    public void getNeededCharacters(Set<Integer> needed, Set<String> neededClasses, SWF swf) {
         for (SHAPERECORD r : shapeRecords) {
-            r.getNeededCharacters(needed);
+            r.getNeededCharacters(needed, neededClasses, swf);
         }
     }
 
@@ -72,36 +93,94 @@ public class SHAPE implements NeedsCharacters, Serializable {
         return modified;
     }
 
-    public RECT getBounds() {
-        return SHAPERECORD.getBounds(shapeRecords);
+    /**
+     * Get bounds of shape.
+     * @param shapeNum Version of DefineShape, 2 for DefineShape2 etc.
+     * @return Bounds of shape
+     */
+    public RECT getBounds(int shapeNum) {
+        LINESTYLEARRAY lsa = new LINESTYLEARRAY();
+        lsa.lineStyles = new LINESTYLE[0];
+        lsa.lineStyles2 = new LINESTYLE2[0];
+        return SHAPERECORD.getBounds(shapeRecords, lsa, shapeNum, false);
     }
 
-    public Shape getOutline(SWF swf, boolean stroked) {
+    /**
+     * Get edge bounds of shape.
+     * @return Edge bounds of shape
+     */
+    public RECT getEdgeBounds() {
+        return SHAPERECORD.getBounds(shapeRecords, null, 1, true);
+    }
+    
+    /**
+     * Clears cached outline.
+     */
+    public void clearCachedOutline() {
+        cachedOutline = null;
+        fastCachedOutline = null;
+    }
+
+    /**
+     * Get outline of shape.
+     * @param fast When the shape is large, can approximate to rectangles
+     * instead of being slow.
+     * @param shapeNum Version of DefineShape, 2 for DefineShape2 etc.
+     * @param swf SWF
+     * @param stroked If stroked
+     * @return Outline
+     */
+    public Shape getOutline(boolean fast, int shapeNum, SWF swf, boolean stroked) {
         if (cachedOutline != null) {
             return cachedOutline;
         }
+        if (fast && fastCachedOutline != null) {
+            return fastCachedOutline;
+        }
 
         List<GeneralPath> strokes = new ArrayList<>();
-        List<GeneralPath> paths = PathExporter.export(swf, this, strokes);
+        List<GeneralPath> paths = PathExporter.export(ShapeTag.WIND_EVEN_ODD, shapeNum, swf, this, strokes);
+
+        boolean large = shapeRecords.size() > 500;
+
+        if (!large) {
+            fast = false;
+        }
 
         Area area = new Area();
         for (GeneralPath path : paths) {
-            area.add(new Area(path));
+            area.add(new Area(fast ? path.getBounds2D() : path));
         }
         if (stroked) {
             for (GeneralPath path : strokes) {
-                area.add(new Area(path));
+                area.add(new Area(fast ? path.getBounds2D() : path));
             }
         }
 
-        cachedOutline = area;
+        if (fast) {
+            fastCachedOutline = area;
+        } else {
+            fastCachedOutline = null;
+            cachedOutline = area;
+        }
         return area;
     }
 
+    /**
+     * Resizes shape.
+     * @param multiplier Multiplier
+     * @return Resized shape
+     */
     public SHAPE resize(double multiplier) {
         return resize(multiplier, multiplier);
     }
 
+    /**
+     * Resizes shape.
+     * @param multiplierX Multiplier X
+     * @param multiplierY Multiplier Y
+     * @return Resized shape
+     */
     public SHAPE resize(double multiplierX, double multiplierY) {
         SHAPE ret = new SHAPE();
         ret.numFillBits = numFillBits;
@@ -116,10 +195,19 @@ public class SHAPE implements NeedsCharacters, Serializable {
         return ret;
     }
 
+    /**
+     * Creates empty shape.
+     * @param shapeNum Version of DefineShape, 2 for DefineShape2 etc.
+     * @return Empty shape
+     */
     public static SHAPE createEmpty(int shapeNum) {
         SHAPE ret = new SHAPE();
         ret.shapeRecords = new ArrayList<>();
         ret.shapeRecords.add(new EndShapeRecord());
         return ret;
+    }
+    
+    public int getMaxStrokeWidth(int shapeNum) {
+        return SHAPERECORD.getMaxStrokeWidth(shapeRecords, null, shapeNum);
     }
 }

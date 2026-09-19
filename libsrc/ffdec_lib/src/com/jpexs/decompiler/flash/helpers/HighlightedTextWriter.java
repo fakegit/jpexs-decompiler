@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.helpers;
 
 import com.jpexs.decompiler.flash.configuration.Configuration;
@@ -20,10 +21,9 @@ import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightSpecialType;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightType;
 import com.jpexs.decompiler.flash.helpers.hilight.Highlighting;
+import com.jpexs.decompiler.flash.helpers.hilight.HighlightingList;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.helpers.Helper;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Stack;
 
 /**
@@ -49,21 +49,58 @@ public class HighlightedTextWriter extends GraphTextWriter {
 
     private final Stack<Highlighting> hilightStack = new Stack<>();
 
-    public List<Highlighting> traitHilights = new ArrayList<>();
+    /**
+     * Trait hilights
+     */
+    public HighlightingList traitHilights = new HighlightingList();
 
-    public List<Highlighting> classHilights = new ArrayList<>();
+    /**
+     * Class hilights
+     */
+    public HighlightingList classHilights = new HighlightingList();
 
-    public List<Highlighting> methodHilights = new ArrayList<>();
+    /**
+     * Method hilights
+     */
+    public HighlightingList methodHilights = new HighlightingList();
 
-    public List<Highlighting> instructionHilights = new ArrayList<>();
+    /**
+     * Instruction hilights
+     */
+    public HighlightingList instructionHilights = new HighlightingList();
 
-    public List<Highlighting> specialHilights = new ArrayList<>();
+    /**
+     * Special hilights
+     */
+    public HighlightingList specialHilights = new HighlightingList();
 
+    /**
+     * Finish hilights.
+     */
+    public void finishHilights() {
+        traitHilights.finish();
+        classHilights.finish();
+        methodHilights.finish();
+        instructionHilights.finish();
+        specialHilights.finish();
+    }
+
+    /**
+     * Constructor.
+     * @param formatting Code formatting
+     * @param hilight If true, text will be highlighted
+     */
     public HighlightedTextWriter(CodeFormatting formatting, boolean hilight) {
         super(formatting);
         this.hilight = hilight;
     }
 
+    /**
+     * Constructor.
+     * @param formatting Code formatting
+     * @param hilight If true, text will be highlighted
+     * @param indent Indent
+     */
     public HighlightedTextWriter(CodeFormatting formatting, boolean hilight, int indent) {
         super(formatting);
         this.hilight = hilight;
@@ -78,10 +115,10 @@ public class HighlightedTextWriter extends GraphTextWriter {
     /**
      * Highlights specified text as instruction by adding special tags
      *
-     * @param src
-     * @param startLineItem
+     * @param src Source item
+     * @param startLineItem Start line item
      * @param pos Offset of instruction
-     * @param data
+     * @param data Data
      * @return HighlightedTextWriter
      */
     @Override
@@ -108,9 +145,10 @@ public class HighlightedTextWriter extends GraphTextWriter {
      * @return HighlightedTextWriter
      */
     @Override
-    public HighlightedTextWriter startMethod(long index) {
+    public HighlightedTextWriter startMethod(long index, String name) {
         HighlightData data = new HighlightData();
         data.index = index;
+        data.localName = name;
         return start(data, HighlightType.METHOD);
     }
 
@@ -186,12 +224,8 @@ public class HighlightedTextWriter extends GraphTextWriter {
     }
 
     @Override
-    public HighlightedTextWriter append(String str) {
-        return appendWithData(str, null);
-    }
-
-    @Override
-    public HighlightedTextWriter appendWithData(String str, HighlightData data) {
+    public HighlightedTextWriter appendWithData(String str, HighlightData data) {     
+        addLineLength(str.length());
         Highlighting h = null;
         if (!offsets.empty()) {
             GraphSourceItemPosition itemPos = offsets.peek();
@@ -224,7 +258,14 @@ public class HighlightedTextWriter extends GraphTextWriter {
     }
 
     @Override
+    public HighlightedTextWriter append(String str) {
+        addLineLength(str.length());
+        return appendWithData(str, null);
+    }
+
+    @Override
     public HighlightedTextWriter append(String str, long offset, long fileOffset) {
+        addLineLength(str.length());
         Highlighting h = null;
         if (hilight) {
             HighlightData data = new HighlightData();
@@ -242,12 +283,14 @@ public class HighlightedTextWriter extends GraphTextWriter {
 
     @Override
     public HighlightedTextWriter appendNoHilight(int i) {
+        addLineLength(Integer.toString(i).length());
         appendNoHilight(Integer.toString(i));
         return this;
     }
 
     @Override
     public HighlightedTextWriter appendNoHilight(String str) {
+        addLineLength(str.length());
         appendToSb(str);
         return this;
     }
@@ -269,6 +312,7 @@ public class HighlightedTextWriter extends GraphTextWriter {
         appendToSb(formatting.newLineChars);
         newLine = true;
         newLineCount++;
+        lineLength = 0;
         return this;
     }
 
@@ -368,5 +412,17 @@ public class HighlightedTextWriter extends GraphTextWriter {
         for (int i = 0; i < indent; i++) {
             appendNoHilight(formatting.indentString);
         }
+    }
+
+    @Override
+    public GraphTextWriter addCurrentMethodData(HighlightData data) {
+        for (int i = hilightStack.size() - 1; i >= 0; i--) {
+            Highlighting h = hilightStack.get(i);
+            if (h.type == HighlightType.METHOD) {
+                h.getProperties().merge(data);
+                break;
+            }
+        }
+        return this;
     }
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -30,13 +30,20 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Cast.
  *
  * @author JPEXS
  */
 public class CastOpActionItem extends ActionItem {
 
+    /**
+     * Constructor
+     */
     public GraphTargetItem constructor;
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
     @Override
@@ -45,6 +52,14 @@ public class CastOpActionItem extends ActionItem {
         visitor.visit(object);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param constructor Constructor
+     * @param object Object
+     */
     public CastOpActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem constructor, GraphTargetItem object) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.constructor = constructor;

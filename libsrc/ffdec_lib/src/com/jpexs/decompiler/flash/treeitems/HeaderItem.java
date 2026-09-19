@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,19 +12,27 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.treeitems;
 
 import com.jpexs.decompiler.flash.SWF;
 
 /**
+ * SWF header TreeItem
  *
  * @author JPEXS
  */
 public class HeaderItem implements TreeItem {
 
+    /**
+     * SWF
+     */
     private final SWF swf;
 
+    /**
+     * Name for toString
+     */
     private final String name;
 
     public HeaderItem(SWF swf, String name) {
@@ -32,8 +40,13 @@ public class HeaderItem implements TreeItem {
         this.name = name;
     }
 
+    /**
+     * Gets openable.
+     *
+     * @return Openable
+     */
     @Override
-    public SWF getSwf() {
+    public Openable getOpenable() {
         return swf;
     }
 
@@ -42,8 +55,13 @@ public class HeaderItem implements TreeItem {
         return name;
     }
 
+    /**
+     * Gets modified flag.
+     *
+     * @return Modified flag
+     */
     @Override
     public boolean isModified() {
-        return false; //??
+        return swf.isHeaderModified();
     }
 }

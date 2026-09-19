@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,19 +25,26 @@ import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
-import com.jpexs.decompiler.graph.model.BinaryOpItem;
-import com.jpexs.decompiler.graph.model.CompoundableBinaryOp;
+import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
-import com.jpexs.decompiler.graph.model.UnboundedTypeItem;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Bitwise XOR.
  *
  * @author JPEXS
  */
-public class BitXorActionItem extends BinaryOpItem implements CompoundableBinaryOp {
+public class BitXorActionItem extends BitwiseBinaryOpActionItem {
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param leftSide Left side
+     * @param rightSide Right side
+     */
     public BitXorActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem leftSide, GraphTargetItem rightSide) {
         super(instruction, lineStartIns, PRECEDENCE_BITWISEXOR, leftSide, rightSide, "^", "int", "int");
     }
@@ -47,6 +54,13 @@ public class BitXorActionItem extends BinaryOpItem implements CompoundableBinary
         return getResult(rightSide.getResult(), leftSide.getResult());
     }
 
+    /**
+     * Gets result.
+     *
+     * @param rightResult Right result
+     * @param leftResult Left result
+     * @return Result
+     */
     public static long getResult(Object rightResult, Object leftResult) {
         return EcmaScript.toInt32(leftResult) ^ EcmaScript.toInt32(rightResult);
     }
@@ -75,7 +89,7 @@ public class BitXorActionItem extends BinaryOpItem implements CompoundableBinary
 
     @Override
     public GraphTargetItem returnType() {
-        return new UnboundedTypeItem();
+        return TypeItem.UNBOUNDED;
     }
 
     @Override

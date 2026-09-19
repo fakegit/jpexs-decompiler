@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -30,7 +31,7 @@ import com.jpexs.helpers.MD5Crypt;
 import java.io.IOException;
 
 /**
- * Marks the file is not importable for editing
+ * EnableDebugger tag - Marks the file is not importable for editing.
  *
  * @author JPEXS
  */
@@ -54,7 +55,7 @@ public final class EnableDebuggerTag extends Tag implements PasswordTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public EnableDebuggerTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -65,9 +66,9 @@ public final class EnableDebuggerTag extends Tag implements PasswordTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public EnableDebuggerTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -92,7 +93,7 @@ public final class EnableDebuggerTag extends Tag implements PasswordTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {

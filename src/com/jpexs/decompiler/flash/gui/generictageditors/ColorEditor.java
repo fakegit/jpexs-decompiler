@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,37 +17,40 @@
 package com.jpexs.decompiler.flash.gui.generictageditors;
 
 import com.jpexs.decompiler.flash.gui.AppStrings;
+import com.jpexs.decompiler.flash.gui.FocusablePanel;
+import com.jpexs.decompiler.flash.gui.ViewMessages;
 import com.jpexs.decompiler.flash.types.ARGB;
 import com.jpexs.decompiler.flash.types.RGB;
 import com.jpexs.decompiler.flash.types.RGBA;
+import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.ReflectionTools;
+import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.FocusAdapter;
-import java.awt.event.FocusEvent;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JColorChooser;
 import javax.swing.JDialog;
-import javax.swing.JPanel;
 import javax.swing.JSlider;
 import javax.swing.JSpinner;
 import javax.swing.border.BevelBorder;
 import javax.swing.colorchooser.AbstractColorChooserPanel;
 
 /**
- *
  * @author JPEXS
  */
-public class ColorEditor extends JPanel implements GenericTagEditor, ActionListener {
+public class ColorEditor extends FocusablePanel implements GenericTagEditor, ActionListener {
 
     private final Object obj;
 
@@ -71,6 +74,8 @@ public class ColorEditor extends JPanel implements GenericTagEditor, ActionListe
 
     private final JButton buttonChange;
 
+    private final List<ChangeListener> changeListeners = new ArrayList<>();
+
     public int getColorType() {
         return colorType;
     }
@@ -87,7 +92,7 @@ public class ColorEditor extends JPanel implements GenericTagEditor, ActionListe
         this.type = type;
         this.fieldName = fieldName;
 
-        setLayout(new FlowLayout());
+        setLayout(new BorderLayout());
 
         buttonChange = new JButton("") {
 
@@ -108,7 +113,8 @@ public class ColorEditor extends JPanel implements GenericTagEditor, ActionListe
         Dimension colorDim = new Dimension(16, 16);
         buttonChange.setSize(colorDim);
         buttonChange.setPreferredSize(colorDim);
-        add(buttonChange);
+        add(buttonChange, BorderLayout.WEST);
+        setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 0));
         reset();
     }
 
@@ -143,26 +149,24 @@ public class ColorEditor extends JPanel implements GenericTagEditor, ActionListe
     }
 
     @Override
-    public void save() {
-        Object val = getChangedValue();
+    public boolean save() {
         try {
-            ReflectionTools.setValue(obj, field, index, val);
-        } catch (IllegalAccessException ex) {
+            Object oldValue = ReflectionTools.getValue(obj, field, index);
+            Object newValue = getChangedValue();
+            if (Objects.equals(oldValue, newValue)) {
+                return false;
+            }
+
+            ReflectionTools.setValue(obj, field, index, newValue);
+        } catch (IllegalArgumentException | IllegalAccessException ex) {
             // ignore
         }
+        return true;
     }
 
     @Override
     public void addChangeListener(final ChangeListener l) {
-        final GenericTagEditor t = this;
-        addFocusListener(new FocusAdapter() {
-
-            @Override
-            public void focusLost(FocusEvent e) {
-                l.change(t);
-            }
-
-        });
+        changeListeners.add(l);
     }
 
     @Override
@@ -193,54 +197,75 @@ public class ColorEditor extends JPanel implements GenericTagEditor, ActionListe
     }
 
     private static Color noTransparencyColorChooser(Component component, String title, Color initialColor) throws Exception {
-        final JColorChooser pane = new JColorChooser(initialColor != null
-                ? initialColor : Color.white);
 
-        AbstractColorChooserPanel[] colorPanels = pane.getChooserPanels();
-        for (int i = 1; i < colorPanels.length; i++) {
-            AbstractColorChooserPanel cp = colorPanels[i];
-
-            Field f = cp.getClass().getDeclaredField("panel");
-            f.setAccessible(true);
-
-            Object colorPanel = f.get(cp);
-            Field f2 = colorPanel.getClass().getDeclaredField("spinners");
-            f2.setAccessible(true);
-            Object spinners = f2.get(colorPanel);
-
-            Object transpSlispinner = Array.get(spinners, 3);
-            if (i == colorPanels.length - 1) {
-                transpSlispinner = Array.get(spinners, 4);
-            }
-            Field f3 = transpSlispinner.getClass().getDeclaredField("slider");
-            f3.setAccessible(true);
-            JSlider slider = (JSlider) f3.get(transpSlispinner);
-            slider.setEnabled(false);
-            Field f4 = transpSlispinner.getClass().getDeclaredField("spinner");
-            f4.setAccessible(true);
-            JSpinner spinner = (JSpinner) f4.get(transpSlispinner);
-            spinner.setEnabled(false);
-        }
         final Color[] col = new Color[]{initialColor};
 
-        JDialog dialog = JColorChooser.createDialog(component, title, true, pane, new ActionListener() {
-
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                col[0] = pane.getColor();
+        if (Helper.getJavaVersion() >= 9) {
+            //To properly compile on Java 8, reflection is needed...
+            Method showDialog = JColorChooser.class.getDeclaredMethod("showDialog", Component.class, String.class, Color.class, boolean.class);
+            Color c = (Color) showDialog.invoke(null, component, title, initialColor, false);
+            if (c != null) {
+                col[0] = c;
             }
-        }, null);
+        } else {
+            final JColorChooser pane = new JColorChooser(initialColor != null
+                    ? initialColor : Color.white);
 
-        dialog.setVisible(true);
+            AbstractColorChooserPanel[] colorPanels = pane.getChooserPanels();
+            for (int i = 1; i < colorPanels.length; i++) {
+                AbstractColorChooserPanel cp = colorPanels[i];
+
+                Field f = cp.getClass().getDeclaredField("panel");
+                f.setAccessible(true);
+
+                Object colorPanel = f.get(cp);
+                Field f2 = colorPanel.getClass().getDeclaredField("spinners");
+                f2.setAccessible(true);
+                Object spinners = f2.get(colorPanel);
+
+                Object transpSlispinner = Array.get(spinners, 3);
+                if (i == colorPanels.length - 1) {
+                    transpSlispinner = Array.get(spinners, 4);
+                }
+                Field f3 = transpSlispinner.getClass().getDeclaredField("slider");
+                f3.setAccessible(true);
+                JSlider slider = (JSlider) f3.get(transpSlispinner);
+                slider.setEnabled(false);
+                Field f4 = transpSlispinner.getClass().getDeclaredField("spinner");
+                f4.setAccessible(true);
+                JSpinner spinner = (JSpinner) f4.get(transpSlispinner);
+                spinner.setEnabled(false);
+            }
+
+            JDialog dialog = JColorChooser.createDialog(component, title, true, pane, new ActionListener() {
+
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    col[0] = pane.getColor();
+                }
+            }, null);
+            dialog.setVisible(true);
+        }
+
         return col[0];
+    }
 
+    JDialog chooserDialog = null;
+
+    private void colorCancelPerformed(ActionEvent e) {
+        chooserDialog.setVisible(false);
+    }
+
+    private void colorOkPerformed(ActionEvent e) {
+        chooserDialog.setVisible(false);
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
 
-        Color newColor;
-        if (colorType == COLOR_TYPE_RGB) {
+        Color newColor = ViewMessages.showColorDialog(this, color, colorType == COLOR_TYPE_RGBA);
+
+        /*if (colorType == COLOR_TYPE_RGB) {
             try {
                 newColor = noTransparencyColorChooser(null, AppStrings.translate("dialog.selectcolor.title"), color);
             } catch (Exception ex) {
@@ -248,11 +273,15 @@ public class ColorEditor extends JPanel implements GenericTagEditor, ActionListe
             }
         } else {
             newColor = JColorChooser.showDialog(null, AppStrings.translate("dialog.selectcolor.title"), color);
-        }
+        }*/
         if (newColor != null) {
             color = newColor;
             buttonChange.setBackground(color);
             repaint();
+            List<ChangeListener> listeners2 = new ArrayList<>(changeListeners);
+            for (ChangeListener l : listeners2) {
+                l.change(this);
+            }
         }
     }
 
@@ -260,5 +289,15 @@ public class ColorEditor extends JPanel implements GenericTagEditor, ActionListe
     public String getReadOnlyValue() {
         int h = System.identityHashCode(this);
         return "<cite style=\"background-color:rgb(" + color.getRed() + "," + color.getGreen() + "," + color.getBlue() + ");\">&nbsp;&nbsp;&nbsp;&nbsp;</cite> " + getChangedValue().toString();
+    }
+
+    @Override
+    public Object getObject() {
+        return obj;
+    }
+
+    @Override
+    public void setValueNormalizer(ValueNormalizer normalizer) {
+
     }
 }

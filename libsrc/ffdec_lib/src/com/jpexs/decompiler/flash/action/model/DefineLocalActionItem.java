@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,6 +20,7 @@ import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.swf5.ActionDefineLocal;
 import com.jpexs.decompiler.flash.action.swf5.ActionDefineLocal2;
+import com.jpexs.decompiler.flash.ecma.Undefined;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
 import com.jpexs.decompiler.graph.CompilationException;
@@ -33,13 +34,20 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Define local variable.
  *
  * @author JPEXS
  */
 public class DefineLocalActionItem extends ActionItem implements SetTypeActionItem {
 
+    /**
+     * name
+     */
     public GraphTargetItem name;
 
+    /**
+     * Temp register
+     */
     private int tempRegister = -1;
 
     @Override
@@ -70,6 +78,14 @@ public class DefineLocalActionItem extends ActionItem implements SetTypeActionIt
         return value;
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param name Name
+     * @param value Value
+     */
     public DefineLocalActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem name, GraphTargetItem value) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY, value);
         this.name = name;
@@ -85,11 +101,11 @@ public class DefineLocalActionItem extends ActionItem implements SetTypeActionIt
         srcData.declaration = true;
         if (((name instanceof DirectValueActionItem)) && (((DirectValueActionItem) name).isString()) && (!IdentifiersDeobfuscation.isValidName(false, ((DirectValueActionItem) name).toStringNoQuotes(localData),
                 "this", "super", "true", "false", "NaN", "null", "newline", "Infinity", "undefined", "get", "set", "each"))) {
-            IdentifiersDeobfuscation.appendObfuscatedIdentifier(((DirectValueActionItem) name).toStringNoQuotes(localData), writer);
+            IdentifiersDeobfuscation.appendObfuscatedIdentifier(localData.swf, localData.usedDeobfuscations, ((DirectValueActionItem) name).toStringNoQuotes(localData), writer);
         } else {
             stripQuotes(name, localData, writer);
         }
-        if (value == null) {
+        if (value == null || ((value instanceof DirectValueActionItem) && ((DirectValueActionItem) value).value == Undefined.INSTANCE)) {
             return writer;
         }
         writer.append(" = ");
@@ -111,7 +127,7 @@ public class DefineLocalActionItem extends ActionItem implements SetTypeActionIt
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        if (value == null) {
+        if (value == null || (value instanceof DirectValueActionItem && ((DirectValueActionItem) value).value == Undefined.INSTANCE)) {
             return toSourceMerge(localData, generator, name, new ActionDefineLocal2());
         } else {
             return toSourceMerge(localData, generator, name, value, new ActionDefineLocal());

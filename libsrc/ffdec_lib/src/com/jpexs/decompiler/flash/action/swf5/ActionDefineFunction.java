@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,6 +23,7 @@ import com.jpexs.decompiler.flash.action.ActionList;
 import com.jpexs.decompiler.flash.action.ActionScriptFunction;
 import com.jpexs.decompiler.flash.action.ActionScriptObject;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
+import com.jpexs.decompiler.flash.action.as2.Trait;
 import com.jpexs.decompiler.flash.action.model.FunctionActionItem;
 import com.jpexs.decompiler.flash.action.parser.ActionParseException;
 import com.jpexs.decompiler.flash.action.parser.pcode.FlasmLexer;
@@ -40,28 +41,45 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
+ * DefineFunction action - Defines a function.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 5)
 public class ActionDefineFunction extends Action implements GraphSourceItemContainer {
 
+    /**
+     * Function name
+     */
     public String functionName;
 
+    /**
+     * Replaced function name
+     */
     public String replacedFunctionName;
 
+    /**
+     * Parameter names
+     */
     public List<String> paramNames = new ArrayList<>();
 
+    /**
+     * Replaced parameter names
+     */
     public List<String> replacedParamNames;
 
-    //public List<Action> code;
-    public int codeSize;
+    /**
+     * Code size
+     */
+    public int codeSize;  
 
-    private int version;
-
+    /**
+     * Constant pool
+     */
     public List<String> constantPool;
 
     @Override
@@ -73,17 +91,30 @@ public class ActionDefineFunction extends Action implements GraphSourceItemConta
         return true;
     }
 
-    public ActionDefineFunction(String functionName, List<String> paramNames, int codeSize, int version) {
-        super(0x9B, 0);
+    /**
+     * Constructor.
+     *
+     * @param functionName Function name
+     * @param paramNames Parameter names
+     * @param codeSize Code size
+     * @param charset Charset
+     */
+    public ActionDefineFunction(String functionName, List<String> paramNames, int codeSize, String charset) {
+        super(0x9B, 0, charset);
         this.functionName = functionName;
         this.codeSize = codeSize;
-        this.version = version;
         this.paramNames = paramNames;
     }
 
-    public ActionDefineFunction(int actionLength, SWFInputStream sis, int version) throws IOException {
-        super(0x9B, actionLength);
-        this.version = version;
+    /**
+     * Constructor.
+     *
+     * @param actionLength Action length
+     * @param sis SWF input stream
+     * @throws IOException On I/O error
+     */
+    public ActionDefineFunction(int actionLength, SWFInputStream sis) throws IOException {
+        super(0x9B, actionLength, sis.getCharset());
         functionName = sis.readString("functionName");
         int numParams = sis.readUI16("numParams");
         for (int i = 0; i < numParams; i++) {
@@ -92,11 +123,21 @@ public class ActionDefineFunction extends Action implements GraphSourceItemConta
         codeSize = sis.readUI16("codeSize");
     }
 
-    public ActionDefineFunction(FlasmLexer lexer) throws IOException, ActionParseException {
-        super(0x9B, -1);
+    /**
+     * Constructor.
+     *
+     * @param lexer Flasm lexer
+     * @param charset Charset
+     * @throws IOException On I/O error
+     * @throws ActionParseException On action parse error
+     */
+    public ActionDefineFunction(FlasmLexer lexer, String charset) throws IOException, ActionParseException {
+        super(0x9B, -1, charset);
         functionName = lexString(lexer);
+        lexOptionalComma(lexer);
         int numParams = (int) lexLong(lexer);
         for (int i = 0; i < numParams; i++) {
+            lexOptionalComma(lexer);
             paramNames.add(lexString(lexer));
         }
         lexBlockOpen(lexer);
@@ -133,17 +174,18 @@ public class ActionDefineFunction extends Action implements GraphSourceItemConta
     }
 
     @Override
-    public String getASMSource(ActionList container, Set<Long> knownAddreses, ScriptExportMode exportMode) {
+    public String getASMSource(ActionList container, Set<Long> knownAddresses, ScriptExportMode exportMode) {
         StringBuilder paramStr = new StringBuilder();
         for (int i = 0; i < paramNames.size(); i++) {
+            paramStr.append(", ");
             paramStr.append("\"").append(Helper.escapeActionScriptString(paramNames.get(i))).append("\" ");
         }
 
-        return "DefineFunction \"" + Helper.escapeActionScriptString(functionName) + "\" " + paramNames.size() + " " + paramStr + " {" + (codeSize == 0 ? "\r\n}" : "");// + "\r\n" +Action.actionsToString(getAddress() + getHeaderLength(),getItems(container) , knownAddreses, constantPool, version, hex, getFileAddress() + hdrSize) + "}";
+        return "DefineFunction \"" + Helper.escapeActionScriptString(functionName) + "\", " + paramNames.size() + paramStr + " {";
     }
 
     @Override
-    public GraphTextWriter getASMSourceReplaced(ActionList container, Set<Long> knownAddreses, ScriptExportMode exportMode, GraphTextWriter writer) {
+    public GraphTextWriter getASMSourceReplaced(ActionList container, Set<Long> knownAddresses, ScriptExportMode exportMode, GraphTextWriter writer) {
         List<String> oldParamNames = paramNames;
         if (replacedParamNames != null) {
             paramNames = replacedParamNames;
@@ -152,7 +194,7 @@ public class ActionDefineFunction extends Action implements GraphSourceItemConta
         if (replacedFunctionName != null) {
             functionName = replacedFunctionName;
         }
-        String ret = getASMSource(container, knownAddreses, exportMode);
+        String ret = getASMSource(container, knownAddresses, exportMode);
         paramNames = oldParamNames;
         functionName = oldFunctionName;
         writer.appendNoHilight(ret);
@@ -161,7 +203,7 @@ public class ActionDefineFunction extends Action implements GraphSourceItemConta
     }
 
     @Override
-    public void translate(SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+    public void translate(Set<String> usedDeobfuscations, Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
     }
 
     @Override
@@ -178,7 +220,7 @@ public class ActionDefineFunction extends Action implements GraphSourceItemConta
                 funcList.add((FunctionActionItem) val);
             }
         }
-        FunctionActionItem fti = new FunctionActionItem(this, lineStartItem, functionName, paramNames, getRegNames(), content.get(0), constantPool, 1, new ArrayList<>(), funcList, false /*actually unknown*/);
+        FunctionActionItem fti = new FunctionActionItem(this, lineStartItem, functionName, paramNames, getRegNames(), content.get(0), constantPool, 1, new ArrayList<>(), funcList, false /*actually unknown*/, new ArrayList<>(), null);
         //ActionGraph.translateViaGraph(regNames, variables, functions, code, version)
         stack.push(fti);
         functions.put(functionName, fti);

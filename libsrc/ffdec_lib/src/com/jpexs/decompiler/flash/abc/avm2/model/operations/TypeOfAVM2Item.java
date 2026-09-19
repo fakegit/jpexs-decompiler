@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,10 +12,12 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.abc.avm2.graph.AVM2GraphTargetDialect;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instructions;
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
@@ -23,20 +25,28 @@ import com.jpexs.decompiler.flash.ecma.EcmaType;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SimpleValue;
 import com.jpexs.decompiler.graph.SourceGenerator;
+import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.UnaryOpItem;
-import com.jpexs.decompiler.graph.model.UnboundedTypeItem;
 import java.util.List;
 import java.util.Set;
 
 /**
+ * Get type of value.
  *
  * @author JPEXS
  */
 public class TypeOfAVM2Item extends UnaryOpItem {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     */
     public TypeOfAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value) {
-        super(instruction, lineStartIns, PRECEDENCE_UNARY, value, "typeof ", "");
+        super(AVM2GraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_UNARY, value, "typeof ", "");
     }
 
     @Override
@@ -44,7 +54,9 @@ public class TypeOfAVM2Item extends UnaryOpItem {
         if (dependencies.contains(value)) {
             return false;
         }
-        dependencies.add(value);
+        if (!((value instanceof SimpleValue) && ((SimpleValue) value).isSimpleValue())) {
+            dependencies.add(value);
+        }
         return value.isCompileTime(dependencies);
     }
 
@@ -80,6 +92,7 @@ public class TypeOfAVM2Item extends UnaryOpItem {
 
     @Override
     public GraphTargetItem returnType() {
-        return new UnboundedTypeItem();
+        return TypeItem.STRING;
+        //return TypeItem.UNBOUNDED;
     }
 }

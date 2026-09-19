@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.fastavm2;
 
 import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
@@ -32,19 +33,37 @@ import java.util.Map;
 import java.util.Set;
 
 /**
+ * Fast AVM2 instruction list.
  *
  * @author JPEXS
  */
 public class FastAVM2List implements Collection<AVM2InstructionItem> {
 
+    /**
+     * Size of the list
+     */
     private int size;
 
+    /**
+     * First item
+     */
     private AVM2InstructionItem firstItem;
 
+    /**
+     * Map of instructions to items
+     */
     private final Map<AVM2Instruction, AVM2InstructionItem> actionItemMap;
 
+    /**
+     * Set of items
+     */
     private final Set<AVM2InstructionItem> actionItemSet;
 
+    /**
+     * Constructs a new FastAVM2List from a method body
+     *
+     * @param body Method body
+     */
     public FastAVM2List(MethodBody body) {
         // exceptions todo
         AVM2Code avm2code = body.getCode();
@@ -56,20 +75,28 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         }
 
         size = code.size();
-//        getContainerLastActions(avm2code, actionItemMap);
         getJumps(avm2code, actionItemMap);
     }
 
+    /**
+     * Inserts item before another item
+     *
+     * @param item Item to insert before
+     * @param action Action to insert
+     * @return New item
+     */
     public final AVM2InstructionItem insertItemBefore(AVM2InstructionItem item, AVM2Instruction action) {
         AVM2InstructionItem newItem = new AVM2InstructionItem(action);
         return insertItemBefore(item, newItem);
     }
 
-    public final AVM2InstructionItem insertItemAfter(AVM2InstructionItem item, AVM2Instruction action) {
-        AVM2InstructionItem newItem = new AVM2InstructionItem(action);
-        return insertItemAfter(item, newItem);
-    }
-
+    /**
+     * Inserts item before another item
+     *
+     * @param item Item to insert before
+     * @param newItem New item
+     * @return New item
+     */
     public final AVM2InstructionItem insertItemBefore(AVM2InstructionItem item, AVM2InstructionItem newItem) {
         insertItemAfter(item.prev, newItem);
         if (item == firstItem) {
@@ -79,6 +106,25 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         return newItem;
     }
 
+    /**
+     * Inserts item after another item
+     *
+     * @param item Item to insert after
+     * @param action Action to insert
+     * @return New item
+     */
+    public final AVM2InstructionItem insertItemAfter(AVM2InstructionItem item, AVM2Instruction action) {
+        AVM2InstructionItem newItem = new AVM2InstructionItem(action);
+        return insertItemAfter(item, newItem);
+    }
+
+    /**
+     * Inserts item after another item
+     *
+     * @param item Item to insert after
+     * @param newItem New item
+     * @return New item
+     */
     public final AVM2InstructionItem insertItemAfter(AVM2InstructionItem item, AVM2InstructionItem newItem) {
         if (item == null && firstItem == null) {
             firstItem = newItem;
@@ -103,6 +149,12 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         return newItem;
     }
 
+    /**
+     * Removes item
+     *
+     * @param item Item to remove
+     * @return Next item
+     */
     public AVM2InstructionItem removeItem(AVM2InstructionItem item) {
         AVM2InstructionItem next = null;
         if (item == firstItem) {
@@ -143,6 +195,12 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         return next;
     }
 
+    /**
+     * Removes item.
+     *
+     * @param index Index of item to remove
+     * @param count Number of items to remove
+     */
     public void removeItem(int index, int count) {
         FastAVM2ListIterator iterator = new FastAVM2ListIterator(this, index);
         for (int i = 0; i < count; i++) {
@@ -151,11 +209,23 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         }
     }
 
+    /**
+     * Gets item at index
+     *
+     * @param index Index
+     * @return Item
+     */
     public AVM2InstructionItem get(int index) {
         FastAVM2ListIterator iterator = new FastAVM2ListIterator(this, index);
         return iterator.next();
     }
 
+    /**
+     * Replace jump targets.
+     *
+     * @param target Target
+     * @param newTarget New target
+     */
     public void replaceJumpTargets(AVM2InstructionItem target, AVM2InstructionItem newTarget) {
         if (target.jumpsHere != null) {
             for (AVM2InstructionItem item : new ArrayList<>(target.jumpsHere)) {
@@ -164,42 +234,14 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         }
     }
 
-//    private void getContainerLastActions(AVM2Code actions, Map<AVM2Instruction, AVM2InstructionItem> actionItemMap) {
-//        AVM2InstructionItem item = firstItem;
-//        if (item == null) {
-//            return;
-//        }
-//
-//        do {
-//            AVM2Instruction action = item.ins;
-//            if (action instanceof GraphSourceItemContainer) {
-//                item.setContainerLastInstructions(getContainerLastActions(actions, action, actionItemMap));
-//            }
-//
-//            item = item.next;
-//        } while (item != firstItem);
-//    }
-//    private List<AVM2InstructionItem> getContainerLastActions(AVM2Code actions, AVM2Instruction action, Map<AVM2Instruction, AVM2InstructionItem> actionItemMap) {
-//        GraphSourceItemContainer container = (GraphSourceItemContainer) action;
-//        List<Long> sizes = container.getContainerSizes();
-//        long endAddress = action.getAddress() + container.getHeaderSize();
-//        List<AVM2InstructionItem> lasts = new ArrayList<>(sizes.size());
-//        for (long size : sizes) {
-//            endAddress += size;
-//            long lastActionAddress = getNearAddress(actions.code, endAddress - 1, false);
-//            AVM2Instruction lastAction = null;
-//            if (lastActionAddress != -1) {
-//                lastAction = actions.getByAddress(lastActionAddress);
-//            }
-//
-//            if (lastAction != null) {
-//                lasts.add(actionItemMap.get(lastAction));
-//            } else {
-//                lasts.add(null);
-//            }
-//        }
-//        return lasts;
-//    }
+    /**
+     * Gets nerby address.
+     *
+     * @param instructions Instructions
+     * @param address Address
+     * @param next Next
+     * @return Nearby address
+     */
     private long getNearAddress(List<AVM2Instruction> instructions, long address, boolean next) {
         int min = 0;
         int max = instructions.size() - 1;
@@ -221,6 +263,12 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
                 : (max >= 0 ? instructions.get(max).getAddress() : -1);
     }
 
+    /**
+     * Gets jumps.
+     *
+     * @param actions Actions
+     * @param actionItemMap Action item map
+     */
     private void getJumps(AVM2Code actions, Map<AVM2Instruction, AVM2InstructionItem> actionItemMap) {
         AVM2InstructionItem item = firstItem;
         if (item == null) {
@@ -244,6 +292,9 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Updates action addresses and lengths.
+     */
     private void updateActionAddressesAndLengths() {
         AVM2InstructionItem item = firstItem;
         if (item == null) {
@@ -259,6 +310,9 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Updates jumps.
+     */
     private void updateJumps() {
         AVM2InstructionItem item = firstItem;
         if (item == null) {
@@ -285,6 +339,9 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Updates container sizes.
+     */
     private void updateContainerSizes() {
         AVM2InstructionItem item = firstItem;
         if (item == null) {
@@ -309,6 +366,12 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Gets container.
+     *
+     * @param item Item
+     * @return Container
+     */
     public AVM2InstructionItem getContainer(AVM2InstructionItem item) {
         while (!(item.ins instanceof GraphSourceItemContainer) && item != firstItem) {
             item = item.prev;
@@ -321,6 +384,9 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         return null;
     }
 
+    /**
+     * Removes zero jumps.
+     */
     public void removeZeroJumps() {
         AVM2InstructionItem item = firstItem;
         if (item == null) {
@@ -340,6 +406,9 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Removes unreachable actions.
+     */
     public void removeUnreachableActions() {
         AVM2InstructionItem item = firstItem;
         if (item == null) {
@@ -358,6 +427,9 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Removes included actions.
+     */
     public void removeIncludedActions() {
         AVM2InstructionItem item = firstItem;
         if (item == null) {
@@ -374,6 +446,13 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Gets unreachable action count.
+     *
+     * @param jump Jump
+     * @param jumpTarget Jump target
+     * @return Unreachable action count
+     */
     public int getUnreachableActionCount(AVM2InstructionItem jump, AVM2InstructionItem jumpTarget) {
         AVM2InstructionItem item = firstItem;
         if (item == null) {
@@ -395,6 +474,9 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         return count;
     }
 
+    /**
+     * Clears reachable flags.
+     */
     private void clearReachableFlags() {
         AVM2InstructionItem item = firstItem;
         if (item == null) {
@@ -407,6 +489,11 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Sets excluded flags.
+     *
+     * @param value Value
+     */
     public void setExcludedFlags(boolean value) {
         AVM2InstructionItem item = firstItem;
         if (item == null) {
@@ -419,6 +506,12 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Updates reachable flags.
+     *
+     * @param jump Jump
+     * @param jumpTarget Jump target
+     */
     private void updateReachableFlags(AVM2InstructionItem jump, AVM2InstructionItem jumpTarget) {
         if (firstItem == null) {
             return;
@@ -482,6 +575,11 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         }
     }
 
+    /**
+     * Updates actions.
+     *
+     * @param body Method body
+     */
     public void updateActions(MethodBody body) {
         AVM2Code result = new AVM2Code(size);
         AVM2InstructionItem item = firstItem;
@@ -502,28 +600,59 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         updateContainerSizes();
     }
 
+    /**
+     * Gets first item.
+     *
+     * @return First item
+     */
     public AVM2InstructionItem first() {
         return firstItem;
     }
 
+    /**
+     * Gets last item.
+     *
+     * @return Last item
+     */
     public AVM2InstructionItem last() {
         return firstItem == null ? null : firstItem.prev;
     }
 
+    /**
+     * Converts to method body.
+     *
+     * @param body Method body
+     */
     public void toMethodBody(MethodBody body) {
         updateActions(body);
     }
 
+    /**
+     * Gets size.
+     *
+     * @return Size
+     */
     @Override
     public int size() {
         return size;
     }
 
+    /**
+     * Checks if empty.
+     *
+     * @return Whether empty
+     */
     @Override
     public boolean isEmpty() {
         return size == 0;
     }
 
+    /**
+     * Checks if contains.
+     *
+     * @param o element whose presence in this collection is to be tested
+     * @return Whether contains
+     */
     @Override
     public boolean contains(Object o) {
         if (o instanceof AVM2InstructionItem) {
@@ -535,11 +664,21 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         return false;
     }
 
+    /**
+     * Gets iterator.
+     *
+     * @return Iterator
+     */
     @Override
     public FastAVM2ListIterator iterator() {
         return new FastAVM2ListIterator(this);
     }
 
+    /**
+     * Converts to array.
+     *
+     * @return Array
+     */
     @Override
     public Object[] toArray() {
         Object[] result = new Object[size];
@@ -558,33 +697,54 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         return null;
     }
 
+    /**
+     * Converts to array.
+     *
+     * @param value the array into which the elements of this collection are to be
+     * stored, if it is big enough; otherwise, a new array of the same runtime
+     * type is allocated for this purpose.
+     * @param <T> Type
+     * @return Array
+     */
     @Override
     @SuppressWarnings("unchecked")
-    public <T> T[] toArray(T[] a) {
-        if (a.length != size) {
-            a = (T[]) new AVM2InstructionItem[size];
+    public <T> T[] toArray(T[] value) {
+        if (value.length != size) {
+            value = (T[]) new AVM2InstructionItem[size];
         }
 
         AVM2InstructionItem item = firstItem;
         if (item == null) {
-            return a;
+            return value;
         }
 
         int i = 0;
         do {
-            a[i] = (T) item;
+            value[i] = (T) item;
             item = item.next;
             i++;
         } while (item != firstItem);
         return null;
     }
 
+    /**
+     * Adds an element to this collection.
+     *
+     * @param e element whose presence in this collection is to be ensured
+     * @return Whether added
+     */
     @Override
     public boolean add(AVM2InstructionItem e) {
         insertItemAfter(null, e);
         return true;
     }
 
+    /**
+     * Removes a single instance of the specified element from this collection,
+     *
+     * @param o element to be removed from this collection, if present
+     * @return Whether removed
+     */
     @Override
     public boolean remove(Object o) {
         AVM2InstructionItem item = null;
@@ -602,6 +762,13 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         return true;
     }
 
+    /**
+     * Checks whether this collection contains all of the elements in the
+     * specified collection.
+     *
+     * @param c collection to be checked for containment in this collection
+     * @return Whether contains all
+     */
     @Override
     public boolean containsAll(Collection<?> c) {
         for (Object c1 : c) {
@@ -613,6 +780,12 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         return true;
     }
 
+    /**
+     * Adds all of the elements in the specified collection to this collection.
+     *
+     * @param c collection containing elements to be added to this collection
+     * @return Whether added all
+     */
     @Override
     public boolean addAll(Collection<? extends AVM2InstructionItem> c) {
         for (AVM2InstructionItem c1 : c) {
@@ -622,6 +795,14 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         return true;
     }
 
+    /**
+     * Removes all of this collection's elements that are also contained in the
+     * specified collection.
+     *
+     * @param c collection containing elements to be removed from this
+     * collection
+     * @return Whether removed all
+     */
     @Override
     public boolean removeAll(Collection<?> c) {
         boolean result = false;
@@ -632,6 +813,13 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         return result;
     }
 
+    /**
+     * Retains only the elements in this collection that are contained in the
+     * specified collection.
+     *
+     * @param c collection containing elements to be retained in this collection
+     * @return Whether retained all
+     */
     @Override
     public boolean retainAll(Collection<?> c) {
         AVM2InstructionItem item = firstItem;
@@ -652,6 +840,9 @@ public class FastAVM2List implements Collection<AVM2InstructionItem> {
         return modified;
     }
 
+    /**
+     * Clears this collection.
+     */
     @Override
     public void clear() {
         firstItem = null;

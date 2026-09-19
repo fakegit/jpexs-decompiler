@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.morphshape;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -34,15 +35,25 @@ import java.awt.Color;
 import org.w3c.dom.Element;
 
 /**
+ * SVG morph shape exporter.
  *
  * @author JPEXS, Claus Wahlers
  */
 public class SVGMorphShapeExporter extends DefaultSVGMorphShapeExporter {
 
+    /**
+     * Path
+     */
     protected Element path;
 
+    /**
+     * Id
+     */
     protected int id;
 
+    /**
+     * Last pattern id
+     */
     protected int lastPatternId;
 
     private final Color defaultColor;
@@ -50,13 +61,32 @@ public class SVGMorphShapeExporter extends DefaultSVGMorphShapeExporter {
     private final SWF swf;
 
     private final SVGExporter exporter;
+    
+    /**
+     * Duration in seconds
+     */
+    private final double duration;    
 
-    public SVGMorphShapeExporter(SWF swf, SHAPE shape, SHAPE endShape, int id, SVGExporter exporter, Color defaultColor, ColorTransform colorTransform, double zoom) {
-        super(shape, endShape, colorTransform, zoom);
+    /**
+     * Constructor.
+     * @param morphShapeNum Morph shape number (1 = DefineMorphShape, 2 = DefineMorphShape2)
+     * @param swf SWF
+     * @param shape Shape
+     * @param endShape End shape
+     * @param id Id
+     * @param exporter SVG exporter
+     * @param defaultColor Default color
+     * @param colorTransform Color transform
+     * @param zoom Zoom
+     * @param duration Duration in seconds
+     */
+    public SVGMorphShapeExporter(int morphShapeNum, SWF swf, SHAPE shape, SHAPE endShape, int id, SVGExporter exporter, Color defaultColor, ColorTransform colorTransform, double zoom, double duration) {
+        super(morphShapeNum, shape, endShape, colorTransform, zoom);
         this.swf = swf;
         this.id = id;
         this.defaultColor = defaultColor;
         this.exporter = exporter;
+        this.duration = duration;
     }
 
     @Override
@@ -88,7 +118,7 @@ public class SVGMorphShapeExporter extends DefaultSVGMorphShapeExporter {
         Element gradient = (type == FILLSTYLE.LINEAR_GRADIENT)
                 ? exporter.createElement("linearGradient")
                 : exporter.createElement("radialGradient");
-        populateGradientElement(gradient, type, gradientRecords, gradientRecordsEnd, matrix, matrixEnd, spreadMethod, interpolationMethod, focalPointRatio);
+        populateGradientElement(gradient, type, gradientRecords, gradientRecordsEnd, matrix, matrixEnd, spreadMethod, interpolationMethod, focalPointRatio, focalPointRatioEnd);
         int id = exporter.gradients.indexOf(gradient);
         if (id < 0) {
             // todo: filter same gradients
@@ -105,6 +135,16 @@ public class SVGMorphShapeExporter extends DefaultSVGMorphShapeExporter {
     @Override
     public void beginBitmapFill(int bitmapId, Matrix matrix, Matrix matrixEnd, boolean repeat, boolean smooth, ColorTransform colorTransform) {
         finalizePath();
+        String patternId = getPattern(bitmapId, matrix, matrixEnd, smooth);
+        path.setAttribute("ffdec:fill-bitmapId", "" + bitmapId);
+        if (patternId != null) {
+            path.setAttribute("style", "fill:url(#" + patternId + ")");
+            return;
+        }
+        path.setAttribute("fill", "#ff0000");
+    }
+
+    public String getPattern(int bitmapId, Matrix matrix, Matrix matrixEnd, boolean smooth) {
         ImageTag image = swf.getImage(bitmapId);
         if (image != null) {
             SerializableImage img = image.getImageCached();
@@ -118,9 +158,8 @@ public class SVGMorphShapeExporter extends DefaultSVGMorphShapeExporter {
                 lastPatternId++;
                 String patternId = "PatternID_" + id + "_" + lastPatternId;
                 ImageFormat format = image.getImageFormat();
-                byte[] imageData = Helper.readStream(image.getImageData());
+                byte[] imageData = Helper.readStream(image.getConvertedImageData());
                 String base64ImgData = Helper.byteArrayToBase64String(imageData);
-                path.setAttribute("style", "fill:url(#" + patternId + ")");
                 Element pattern = exporter.createElement("pattern");
                 pattern.setAttribute("id", patternId);
                 pattern.setAttribute("patternUnits", "userSpaceOnUse");
@@ -128,6 +167,7 @@ public class SVGMorphShapeExporter extends DefaultSVGMorphShapeExporter {
                 pattern.setAttribute("width", "" + width);
                 pattern.setAttribute("height", "" + height);
                 pattern.setAttribute("viewBox", "0 0 " + width + " " + height);
+                pattern.setAttribute("ffdec:smoothed", smooth ? "true" : "false");
                 if (matrix != null) {
                     matrix = matrix.clone();
                     matrix.rotateSkew0 *= zoom / SWF.unitDivisor;
@@ -147,12 +187,14 @@ public class SVGMorphShapeExporter extends DefaultSVGMorphShapeExporter {
                 imageElement.setAttribute("xlink:href", "data:image/" + format + ";base64," + base64ImgData);
                 pattern.appendChild(imageElement);
                 exporter.addToGroup(pattern);
+                return patternId;
             }
         }
+        return null;
     }
 
     @Override
-    public void lineStyle(double thickness, double thicknessEnd, RGB color, RGB colorEnd, boolean pixelHinting, String scaleMode, int startCaps, int endCaps, int joints, float miterLimit) {
+    public void lineStyle(double thickness, double thicknessEnd, RGB color, RGB colorEnd, boolean pixelHinting, String scaleMode, int startCaps, int endCaps, int joints, float miterLimit, boolean noClose) {
         finalizePath();
         thickness *= zoom / SWF.unitDivisor;
         thicknessEnd *= zoom / SWF.unitDivisor;
@@ -161,7 +203,7 @@ public class SVGMorphShapeExporter extends DefaultSVGMorphShapeExporter {
             path.setAttribute("stroke", color.toHexRGB());
             path.appendChild(createAnimateElement("stroke", color.toHexRGB(), colorEnd.toHexRGB()));
         }
-        path.setAttribute("stroke-width", Double.toString(thickness == 0 ? 1 : thickness));
+        path.setAttribute("stroke-width", Double.toString(thickness));
         path.appendChild(createAnimateElement("stroke-width", thickness, thicknessEnd));
 
         if (color instanceof RGBA) {
@@ -205,7 +247,7 @@ public class SVGMorphShapeExporter extends DefaultSVGMorphShapeExporter {
         Element gradient = (type == FILLSTYLE.LINEAR_GRADIENT)
                 ? exporter.createElement("linearGradient")
                 : exporter.createElement("radialGradient");
-        populateGradientElement(gradient, type, gradientRecords, gradientRecordsEnd, matrix, matrixEnd, spreadMethod, interpolationMethod, focalPointRatio);
+        populateGradientElement(gradient, type, gradientRecords, gradientRecordsEnd, matrix, matrixEnd, spreadMethod, interpolationMethod, focalPointRatio, focalPointRatioEnd);
         int id = exporter.gradients.indexOf(gradient);
         if (id < 0) {
             // todo: filter same gradients
@@ -220,7 +262,7 @@ public class SVGMorphShapeExporter extends DefaultSVGMorphShapeExporter {
 
     private Element createAnimateElement(String attributeName, Object startValue, Object endValue) {
         Element animate = exporter.createElement("animate");
-        animate.setAttribute("dur", "2s"); // todo
+        animate.setAttribute("dur", "" + duration + "s");
         animate.setAttribute("repeatCount", "indefinite");
         animate.setAttribute("attributeName", attributeName);
         animate.setAttribute("values", startValue + ";" + endValue);
@@ -401,7 +443,20 @@ public class SVGMorphShapeExporter extends DefaultSVGMorphShapeExporter {
          element.appendChild(animateSkewX);*/
     }
 
-    protected void populateGradientElement(Element gradient, int type, GRADRECORD[] gradientRecords, GRADRECORD[] gradientRecordsEnd, Matrix matrix, Matrix matrixEnd, int spreadMethod, int interpolationMethod, float focalPointRatio) {
+    /**
+     * Populates gradient element.
+     * @param gradient Element
+     * @param type Type
+     * @param gradientRecords Gradient records
+     * @param gradientRecordsEnd Gradient records end
+     * @param matrix Matrix
+     * @param matrixEnd Matrix end
+     * @param spreadMethod Spread method
+     * @param interpolationMethod Interpolation method
+     * @param focalPointRatio Focal point ratio
+     * @param focalPointRatioEnd Focal point ratio end
+     */
+    protected void populateGradientElement(Element gradient, int type, GRADRECORD[] gradientRecords, GRADRECORD[] gradientRecordsEnd, Matrix matrix, Matrix matrixEnd, int spreadMethod, int interpolationMethod, float focalPointRatio, float focalPointRatioEnd) {
         gradient.setAttribute("gradientUnits", "userSpaceOnUse");
         if (type == FILLSTYLE.LINEAR_GRADIENT) {
             gradient.setAttribute("x1", "-819.2");
@@ -413,6 +468,9 @@ public class SVGMorphShapeExporter extends DefaultSVGMorphShapeExporter {
             if (focalPointRatio != 0) {
                 gradient.setAttribute("fx", Double.toString(819.2 * focalPointRatio));
                 gradient.setAttribute("fy", "0");
+            }
+            if (focalPointRatio != 0 || focalPointRatioEnd != 0) {
+                gradient.appendChild(createAnimateElement("fx", Double.toString(819.2 * focalPointRatio), Double.toString(819.2 * focalPointRatioEnd)));
             }
         }
         switch (spreadMethod) {
@@ -456,6 +514,25 @@ public class SVGMorphShapeExporter extends DefaultSVGMorphShapeExporter {
         }
     }
 
+    @Override
+    public void lineBitmapStyle(int bitmapId, Matrix matrix, Matrix matrixEnd, boolean repeat, boolean smooth, ColorTransform colorTransform) {
+        path.removeAttribute("stroke-opacity");
+
+        String patternId = getPattern(bitmapId, matrix, matrixEnd, smooth);
+        path.setAttribute("ffdec:stroke-bitmapId", "" + bitmapId);
+
+        if (patternId != null) {
+            path.setAttribute("style", "stroke:url(#" + patternId + ")");
+            return;
+        }
+        path.setAttribute("stroke", "#ff0000");
+    }
+
+    /**
+     * Rounds pixels to 400.
+     * @param pixels Pixels
+     * @return Rounded pixels
+     */
     protected double roundPixels400(double pixels) {
         return Math.round(pixels * 10000) / 10000.0;
     }

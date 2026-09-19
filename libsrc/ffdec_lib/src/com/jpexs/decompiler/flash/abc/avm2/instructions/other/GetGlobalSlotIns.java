@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,18 +23,27 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
 import com.jpexs.decompiler.flash.abc.avm2.model.GetSlotAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.GlobalAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.NewActivationAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.parser.script.AbcIndexing;
 import com.jpexs.decompiler.flash.abc.types.Multiname;
+import com.jpexs.decompiler.flash.abc.types.traits.Trait;
+import com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.helpers.Reference;
 import java.util.List;
 
 /**
+ * getglobalslot instruction - get global slot value.
  *
  * @author JPEXS
  */
 public class GetGlobalSlotIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public GetGlobalSlotIns() {
         super(0x6e, "getglobalslot", new int[]{AVM2Code.DAT_SLOT_INDEX}, false);
     }
@@ -45,7 +54,19 @@ public class GetGlobalSlotIns extends InstructionDefinition {
         GraphTargetItem obj = new GlobalAVM2Item(ins, localData.lineStartInstruction);
         Reference<GraphTargetItem> realObj = new Reference<>(null);
         Multiname slotname = InstructionDefinition.searchSlotName(slotIndex, localData, obj, realObj);
-        stack.push(new GetSlotAVM2Item(ins, localData.lineStartInstruction, obj, obj, slotIndex, slotname));
+        GraphTargetItem slotType = TypeItem.UNBOUNDED;
+        if (obj instanceof NewActivationAVM2Item) {
+            for (Trait t : localData.methodBody.traits.traits) {
+                if (t instanceof TraitSlotConst) {
+                    TraitSlotConst tsc = (TraitSlotConst) t;
+                    if (tsc.slot_id == slotIndex) {
+                        slotType = AbcIndexing.multinameToType(localData.usedDeobfuscations, tsc.type_index, localData.abc, localData.abc.constants);
+                        break;
+                    }
+                }
+            }
+        }
+        stack.push(new GetSlotAVM2Item(ins, localData.lineStartInstruction, obj, obj, slotIndex, slotname, slotType));
     }
 
     @Override

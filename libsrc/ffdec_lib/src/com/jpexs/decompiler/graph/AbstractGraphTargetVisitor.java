@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,20 +12,39 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph;
 
 import java.util.Collection;
 
 /**
+ * Abstract graph target visitor.
  *
  * @author JPEXS
  */
 public abstract class AbstractGraphTargetVisitor implements GraphTargetVisitorInterface {
 
-    @Override
-    public abstract void visit(GraphTargetItem item);
+    /**
+     * Constructs new AbstractGraphTargetVisitor
+     */
+    public AbstractGraphTargetVisitor() {
+    }
 
+    /**
+     * Visits a graph target item.
+     *
+     * @param item Graph target item
+     * @return True if continue
+     */
+    @Override
+    public abstract boolean visit(GraphTargetItem item);
+
+    /**
+     * Visits all graph target items.
+     *
+     * @param items Collection of graph target items
+     */
     @Override
     public final void visitAll(Collection<GraphTargetItem> items) {
         for (GraphTargetItem item : items) {

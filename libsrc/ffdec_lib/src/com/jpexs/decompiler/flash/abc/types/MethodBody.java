@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,9 +22,11 @@ import com.jpexs.decompiler.flash.abc.ABCInputStream;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
 import com.jpexs.decompiler.flash.abc.avm2.CodeStats;
-import com.jpexs.decompiler.flash.abc.avm2.UnknownInstructionCode;
+import com.jpexs.decompiler.flash.abc.avm2.UnknownInstructionCodeException;
+import com.jpexs.decompiler.flash.abc.avm2.deobfuscation.AVM2DeobfuscatorPushFalseIfFalse;
 import com.jpexs.decompiler.flash.abc.avm2.deobfuscation.DeobfuscationLevel;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
+import com.jpexs.decompiler.flash.abc.avm2.parser.script.AbcIndexing;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.abc.types.traits.Traits;
 import com.jpexs.decompiler.flash.configuration.Configuration;
@@ -59,46 +61,95 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Method body of a method in ABC file.
  *
  * @author JPEXS
  */
 public final class MethodBody implements Cloneable {
 
+    /**
+     * Logger
+     */
     private static final Logger logger = Logger.getLogger(MethodBody.class.getName());
 
+    /**
+     * Used for debugging - decompile only fixed method
+     */
     private static final String DEBUG_FIXED = null;
 
+    /**
+     * Method body is deleted
+     */
     @Internal
     public boolean deleted;
 
+    /**
+     * Debug mode
+     */
     @Internal
     boolean debugMode = false;
 
+    /**
+     * Method info index
+     */
     public int method_info;
 
+    /**
+     * Maximum stack size
+     */
     public int max_stack;
 
+    /**
+     * Maximum number of registers
+     */
     public int max_regs;
 
+    /**
+     * Initial scope depth
+     */
     public int init_scope_depth;
 
+    /**
+     * Maximum scope depth
+     */
     public int max_scope_depth;
 
+    /**
+     * Code bytes
+     */
     @SWFField
     private byte[] codeBytes;
 
+    /**
+     * AVM2 code
+     */
     private AVM2Code code;
 
+    /**
+     * Exceptions
+     */
     public ABCException[] exceptions;
 
+    /**
+     * Traits
+     */
     public Traits traits;
 
+    /**
+     * Converted items
+     */
     @Internal
     public transient List<GraphTargetItem> convertedItems;
 
+    /**
+     * Convert exception
+     */
     @Internal
     public transient Throwable convertException;
 
+    /**
+     * ABC file
+     */
     @Internal
     private ABC abc;
 
@@ -108,6 +159,9 @@ public final class MethodBody implements Cloneable {
     @Internal
     private transient MethodBody lastConvertedBody = null;
 
+    /**
+     * Constructs a new MethodBody with empty traits, code bytes and exceptions.
+     */
     public MethodBody() {
         this.traits = new Traits();
         this.codeBytes = SWFInputStream.BYTE_ARRAY_EMPTY;
@@ -115,10 +169,24 @@ public final class MethodBody implements Cloneable {
         this.abc = null;
     }
 
+    /**
+     * Sets the ABC file.
+     *
+     * @param abc ABC file
+     */
     public void setAbc(ABC abc) {
         this.abc = abc;
     }
 
+    /**
+     * Constructs a new MethodBody with given ABC file, traits, code bytes and
+     * exceptions.
+     *
+     * @param abc ABC file
+     * @param traits Traits
+     * @param codeBytes Code bytes
+     * @param exceptions Exceptions
+     */
     public MethodBody(ABC abc, Traits traits, byte[] codeBytes, ABCException[] exceptions) {
         this.traits = traits;
         this.codeBytes = codeBytes;
@@ -126,15 +194,28 @@ public final class MethodBody implements Cloneable {
         this.abc = abc;
     }
 
-    public synchronized void setCodeBytes(byte codeBytes[]) {
+    /**
+     * Sets the code bytes.
+     *
+     * @param codeBytes Code bytes
+     */
+    public synchronized void setCodeBytes(byte[] codeBytes) {
         this.codeBytes = codeBytes;
         this.code = null;
     }
 
+    /**
+     * Sets the modified flag.
+     */
     public void setModified() {
         this.codeBytes = null;
     }
 
+    /**
+     * Gets the code bytes.
+     *
+     * @return Code bytes
+     */
     public synchronized byte[] getCodeBytes() {
         if (codeBytes != null) {
             return codeBytes;
@@ -143,14 +224,21 @@ public final class MethodBody implements Cloneable {
         }
     }
 
+    /**
+     * Gets the AVM2 code.
+     *
+     * @return AVM2 code
+     */
     public synchronized AVM2Code getCode() {
         if (code == null) {
             AVM2Code avm2Code;
             try {
                 ABCInputStream ais = new ABCInputStream(new MemoryInputStream(codeBytes));
                 avm2Code = new AVM2Code(ais, this);
-                avm2Code.removeWrongIndices(abc.constants);
-            } catch (UnknownInstructionCode | IOException ex) {
+                if (abc != null) {
+                    avm2Code.removeWrongIndices(abc.constants);
+                }
+            } catch (UnknownInstructionCodeException | IOException ex) {
                 avm2Code = new AVM2Code();
                 logger.log(Level.SEVERE, null, ex);
             }
@@ -160,44 +248,79 @@ public final class MethodBody implements Cloneable {
         return code;
     }
 
+    /**
+     * Sets the AVM2 code.
+     *
+     * @param code AVM2 code
+     */
     public void setCode(AVM2Code code) {
         this.code = code;
         this.codeBytes = null;
     }
 
+    /**
+     * Marks offsets.
+     */
     public void markOffsets() {
         getCode().markOffsets();
     }
 
-    @Override
-    public String toString() {
-        String s = "";
-        s += "method_info=" + method_info + " max_stack=" + max_stack + " max_regs=" + max_regs + " scope_depth=" + init_scope_depth + " max_scope=" + max_scope_depth;
-        s += "\r\nCode:\r\n" + getCode().toString();
-        return s;
-    }
-
+    /**
+     * Removes dead code.
+     *
+     * @param constants Constant pool
+     * @param trait Trait
+     * @param info Method info
+     * @return Number of removed instructions
+     * @throws InterruptedException On interrupt
+     */
     public int removeDeadCode(AVM2ConstantPool constants, Trait trait, MethodInfo info) throws InterruptedException {
         return getCode().removeDeadCode(this);
     }
 
+    /**
+     * Removes traps - deobfuscation.
+     *
+     * @param abc ABC file
+     * @param trait Trait
+     * @param scriptIndex Script index
+     * @param classIndex Class index
+     * @param isStatic Is static
+     * @param path Path
+     * @return Number of removed instructions
+     * @throws InterruptedException On interrupt
+     */
     public int removeTraps(ABC abc, Trait trait, int scriptIndex, int classIndex, boolean isStatic, String path) throws InterruptedException {
 
         return getCode().removeTraps(trait, method_info, this, abc, scriptIndex, classIndex, isStatic, path);
     }
 
+    /**
+     * Deobfuscates the method body.
+     *
+     * @param level Deobfuscation level
+     * @param trait Trait
+     * @param scriptIndex Script index
+     * @param classIndex Class index
+     * @param isStatic Is static
+     * @param path Path
+     * @throws InterruptedException On interrupt
+     */
     public void deobfuscate(DeobfuscationLevel level, Trait trait, int scriptIndex, int classIndex, boolean isStatic, String path) throws InterruptedException {
         if (level == DeobfuscationLevel.LEVEL_REMOVE_DEAD_CODE) {
             removeDeadCode(abc.constants, trait, abc.method_info.get(method_info));
         } else if (level == DeobfuscationLevel.LEVEL_REMOVE_TRAPS) {
-            removeTraps(abc, trait, scriptIndex, classIndex, isStatic, path);
-        } else if (level == DeobfuscationLevel.LEVEL_RESTORE_CONTROL_FLOW) {
             removeTraps(abc, trait, scriptIndex, classIndex, isStatic, path);
         }
 
         ((Tag) abc.parentTag).setModified(true);
     }
 
+    /**
+     * Removes instruction.
+     *
+     * @param pos Position
+     */
     public void removeInstruction(int pos) {
         getCode().removeInstruction(pos, this);
     }
@@ -207,11 +330,23 @@ public final class MethodBody implements Cloneable {
      * newinstruction is jump, the offset operand must be handled properly by
      * caller.
      *
-     * @param pos
-     * @param instruction
+     * @param pos Position
+     * @param instruction Instruction
      */
     public void replaceInstruction(int pos, AVM2Instruction instruction) {
         getCode().replaceInstruction(pos, instruction, this);
+    }
+
+    /**
+     * Inserts all instructions at specified point. Handles offsets properly.
+     *
+     * @param pos Position in the list
+     * @param list List of instructions
+     */
+    public void insertAll(int pos, List<AVM2Instruction> list) {
+        for (AVM2Instruction ins : list) {
+            insertInstruction(pos++, ins);
+        }
     }
 
     /**
@@ -224,12 +359,6 @@ public final class MethodBody implements Cloneable {
      */
     public void insertInstruction(int pos, AVM2Instruction instruction) {
         getCode().insertInstruction(pos, instruction, this);
-    }
-
-    public void insertAll(int pos, List<AVM2Instruction> list) {
-        for (AVM2Instruction ins : list) {
-            insertInstruction(pos++, ins);
-        }
     }
 
     /**
@@ -246,6 +375,11 @@ public final class MethodBody implements Cloneable {
         getCode().insertInstruction(pos, instruction, mapOffsetsAfterIns, this);
     }
 
+    /**
+     * Get number of local registers reserved for this method.
+     *
+     * @return Number of local registers reserved for this method
+     */
     public int getLocalReservedCount() {
         MethodInfo methodInfo = abc.method_info.get(this.method_info);
         int pos = methodInfo.param_types.length + 1;
@@ -258,6 +392,12 @@ public final class MethodBody implements Cloneable {
         return pos;
     }
 
+    /**
+     * Get local register names.
+     *
+     * @param abc ABC file
+     * @return Local register names
+     */
     public HashMap<Integer, String> getLocalRegNames(ABC abc) {
         HashMap<Integer, String> ret = new HashMap<>();
         for (int i = 1; i <= abc.method_info.get(this.method_info).param_types.length; i++) {
@@ -278,7 +418,7 @@ public final class MethodBody implements Cloneable {
         }
 
         if (Configuration.getLocalNamesFromDebugInfo.get()) {
-            Map<Integer, String> debugRegNames = getCode().getLocalRegNamesFromDebug(abc);
+            Map<Integer, String> debugRegNames = getCode().getLocalRegNamesFromDebug(abc, max_regs);
             for (int k : debugRegNames.keySet()) {
                 ret.put(k, debugRegNames.get(k));
             }
@@ -286,7 +426,33 @@ public final class MethodBody implements Cloneable {
         return ret;
     }
 
-    public void convert(final ConvertData convertData, final String path, ScriptExportMode exportMode, final boolean isStatic, final int methodIndex, final int scriptIndex, final int classIndex, final ABC abc, final Trait trait, final ScopeStack scopeStack, final int initializerType, final NulWriter writer, final List<DottedChain> fullyQualifiedNames, final List<Traits> initTraits, boolean firstLevel, Set<Integer> seenMethods) throws InterruptedException {
+    /**
+     * Converts the method body.
+     *
+     * @param swfVersion SWF version
+     * @param callStack Call stack
+     * @param abcIndex ABC indexing
+     * @param convertData Convert data
+     * @param path Path
+     * @param exportMode Export mode
+     * @param isStatic Is static
+     * @param methodIndex Method index
+     * @param scriptIndex Script index
+     * @param classIndex Class index
+     * @param abc ABC file
+     * @param trait Trait
+     * @param scopeStack Scope stack
+     * @param initializerType Initializer type
+     * @param writer Writer
+     * @param fullyQualifiedNames Fully qualified names
+     * @param initTraits Initial traits
+     * @param firstLevel First level
+     * @param seenMethods Seen methods
+     * @param initTraitClasses Class ids which traits to init
+     * @param usedDeobfuscations Used deobfuscations
+     * @throws InterruptedException On interrupt
+     */
+    public void convert(int swfVersion, List<MethodBody> callStack, AbcIndexing abcIndex, final ConvertData convertData, final String path, ScriptExportMode exportMode, final boolean isStatic, final int methodIndex, final int scriptIndex, final int classIndex, final ABC abc, final Trait trait, final ScopeStack scopeStack, final int initializerType, final NulWriter writer, final List<DottedChain> fullyQualifiedNames, Traits initTraits, boolean firstLevel, Set<Integer> seenMethods, List<Integer> initTraitClasses, Set<String> usedDeobfuscations) throws InterruptedException {
         seenMethods.add(this.method_info);
         if (debugMode) {
             System.err.println("Decompiling " + path);
@@ -309,10 +475,10 @@ public final class MethodBody implements Cloneable {
                             HashMap<Integer, String> localRegNames = getLocalRegNames(abc);
                             List<GraphTargetItem> convertedItems1;
                             try (Statistics s = new Statistics("AVM2Code.toGraphTargetItems")) {
-                                convertedItems1 = converted.getCode().toGraphTargetItems(convertData.thisHasDefaultToPrimitive, convertData, path, methodIndex, isStatic, scriptIndex, classIndex, abc, converted, localRegNames, scopeStack, initializerType, fullyQualifiedNames, initTraits, Graph.SOP_USE_STATIC, new HashMap<>(), converted.getCode().visitCode(converted));
+                                convertedItems1 = converted.getCode().toGraphTargetItems(usedDeobfuscations, swfVersion, callStack, abcIndex, convertData.thisHasDefaultToPrimitive, convertData, path, methodIndex, isStatic, scriptIndex, classIndex, abc, converted, localRegNames, scopeStack, initializerType, fullyQualifiedNames, initTraits, 0, new HashMap<>(), initTraitClasses); //converted.getCode().visitCode(converted)
                             }
                             try (Statistics s = new Statistics("Graph.graphToString")) {
-                                Graph.graphToString(convertedItems1, writer, LocalData.create(abc, localRegNames, fullyQualifiedNames, seenMethods));
+                                Graph.graphToString(convertedItems1, writer, LocalData.create(callStack, abcIndex, abc, localRegNames, fullyQualifiedNames, seenMethods, exportMode, swfVersion, usedDeobfuscations, classIndex));
                             }
                             convertedItems = convertedItems1;
                         }
@@ -320,7 +486,7 @@ public final class MethodBody implements Cloneable {
                     }
                 };
                 if (firstLevel) {
-                    CancellableWorker.call(callable, timeout, TimeUnit.SECONDS);
+                    CancellableWorker.call("script.methodbody.convert", callable, timeout, TimeUnit.SECONDS);
                 } else {
                     callable.call();
                 }
@@ -344,7 +510,38 @@ public final class MethodBody implements Cloneable {
         }
     }
 
-    public GraphTextWriter toString(final String path, ScriptExportMode exportMode, final ABC abc, final Trait trait, final GraphTextWriter writer, final List<DottedChain> fullyQualifiedNames, Set<Integer> seenMethods) throws InterruptedException {
+    /**
+     * Returns a string representation of this MethodBody.
+     *
+     * @return String representation of this MethodBody
+     */
+    @Override
+    public String toString() {
+        String s = "";
+        s += "method_info=" + method_info + " max_stack=" + max_stack + " max_regs=" + max_regs + " scope_depth=" + init_scope_depth + " max_scope=" + max_scope_depth;
+        s += "\r\nCode:\r\n" + getCode().toString();
+        return s;
+    }
+
+    /**
+     * Returns a string representation of this MethodBody.
+     *
+     * @param usedDeobfuscations Used deobfuscations
+     * @param swfVersion SWF version
+     * @param callStack Call stack
+     * @param abcIndex ABC indexing
+     * @param path Path
+     * @param exportMode Export mode
+     * @param abc ABC file
+     * @param trait Trait
+     * @param writer Writer
+     * @param fullyQualifiedNames Fully qualified names
+     * @param seenMethods Seen methods      
+     * @param classIndex Class index
+     * @return Writer
+     * @throws InterruptedException On interrupt
+     */
+    public GraphTextWriter toString(Set<String> usedDeobfuscations, int swfVersion, List<MethodBody> callStack, AbcIndexing abcIndex, final String path, ScriptExportMode exportMode, final ABC abc, final Trait trait, final GraphTextWriter writer, final List<DottedChain> fullyQualifiedNames, Set<Integer> seenMethods, int classIndex) throws InterruptedException {
         seenMethods.add(method_info);
 
         if (exportMode != ScriptExportMode.AS) {
@@ -369,7 +566,13 @@ public final class MethodBody implements Cloneable {
                         writer.appendNoHilight(this.method_info);
                         writer.newLine();
                     }
-                    Graph.graphToString(convertedItems, writer, LocalData.create(abc, localRegNames, fullyQualifiedNames, seenMethods));
+                    List<DottedChain> fullyQualifiedNames2 = new ArrayList<>(fullyQualifiedNames);
+                    for (Trait t : traits.traits) {
+                        DottedChain tname = DottedChain.parseWithSuffix(t.getName(abc).getName(usedDeobfuscations, abc, abc.constants, new ArrayList<>(), false, true));
+                        fullyQualifiedNames2.remove(tname);
+                    }
+                    
+                    Graph.graphToString(convertedItems, writer, LocalData.create(callStack, abcIndex, abc, localRegNames, fullyQualifiedNames2, seenMethods, exportMode, swfVersion, usedDeobfuscations, classIndex));
                     //writer.endMethod();
                 } else if (convertException instanceof TimeoutException) {
                     // exception was logged in convert method
@@ -383,6 +586,19 @@ public final class MethodBody implements Cloneable {
         return writer;
     }
 
+    /**
+     * Converts the method body. Can use previously converted method body.
+     *
+     * @param deobfuscate Deobfuscate
+     * @param path Path
+     * @param isStatic Is static
+     * @param scriptIndex Script index
+     * @param classIndex Class index
+     * @param abc ABC file
+     * @param trait Trait
+     * @return Method body
+     * @throws InterruptedException On interrupt
+     */
     public MethodBody convertMethodBodyCanUseLast(boolean deobfuscate, String path, boolean isStatic, int scriptIndex, int classIndex, ABC abc, Trait trait) throws InterruptedException {
         if (lastConvertedBody != null) {
             return lastConvertedBody;
@@ -390,10 +606,26 @@ public final class MethodBody implements Cloneable {
         return convertMethodBody(deobfuscate, path, isStatic, scriptIndex, classIndex, abc, trait);
     }
 
+    /**
+     * Clears the last converted method body.
+     */
     public void clearLastConverted() {
         this.lastConvertedBody = null;
     }
 
+    /**
+     * Converts the method body.
+     *
+     * @param deobfuscate Deobfuscate
+     * @param path Path
+     * @param isStatic Is static
+     * @param scriptIndex Script index
+     * @param classIndex Class index
+     * @param abc ABC file
+     * @param trait Trait
+     * @return Method body
+     * @throws InterruptedException On interrupt
+     */
     public MethodBody convertMethodBody(boolean deobfuscate, String path, boolean isStatic, int scriptIndex, int classIndex, ABC abc, Trait trait) throws InterruptedException {
         MethodBody body = clone();
         AVM2Code code = body.getCode();
@@ -403,6 +635,7 @@ public final class MethodBody implements Cloneable {
         if (deobfuscate) {
             try {
                 code.removeTraps(trait, method_info, body, abc, scriptIndex, classIndex, isStatic, path);
+                code.removeLabelsAndDebugLine(body);
             } catch (ThreadDeath | InterruptedException ex) {
                 throw ex;
             } catch (Throwable ex) {
@@ -413,21 +646,39 @@ public final class MethodBody implements Cloneable {
                 code.fixJumps(path, body);
                 return body;
             }
+        } else {
+            //This needs to be done otherwise some switch testcases fail. (Flex)
+            try (Statistics s = new Statistics("AVM2DeobfuscatorPushFalseIfFalse")) {
+                new AVM2DeobfuscatorPushFalseIfFalse().avm2CodeRemoveTraps(path, classIndex, isStatic, scriptIndex, abc, trait, method_info, body);
+            }
         }
 
         lastConvertedBody = body;
         return body;
     }
 
-    public String toSource(int scriptIndex, Set<Integer> seenMethods) {
+    /**
+     * Converts the method body to high-level source code.
+     *
+     * @param usedDeobfuscations Used deobfuscations
+     * @param swfVersion SWF version
+     * @param callStack Call stack
+     * @param abcIndex ABC indexing
+     * @param scriptIndex Script index
+     * @param seenMethods Seen methods
+     * @param classIndex Class index
+     * @return High-level source code
+     */
+    public String toSource(Set<String> usedDeobfuscations, int swfVersion, List<MethodBody> callStack, AbcIndexing abcIndex, int scriptIndex, Set<Integer> seenMethods, int classIndex) {
         ConvertData convertData = new ConvertData();
         convertData.deobfuscationMode = 0;
         try {
-            convert(convertData, "", ScriptExportMode.AS, false, method_info, 0, 0, abc, null, new ScopeStack(), 0, new NulWriter(), new ArrayList<>(), new ArrayList<>(), true, seenMethods);
+            convert(swfVersion, callStack, abcIndex, convertData, "", ScriptExportMode.AS, false, method_info, 0, 0, abc, null, new ScopeStack(), 0, new NulWriter(), new ArrayList<>(), new Traits(), true, seenMethods, new ArrayList<>(), usedDeobfuscations);
             HighlightedTextWriter writer = new HighlightedTextWriter(Configuration.getCodeFormatting(), false);
             writer.indent().indent().indent();
-            toString("", ScriptExportMode.AS, abc, null, writer, new ArrayList<>(), seenMethods);
+            toString(usedDeobfuscations, swfVersion, callStack, abcIndex, "", ScriptExportMode.AS, abc, null, writer, new ArrayList<>(), seenMethods, classIndex);
             writer.unindent().unindent().unindent();
+            writer.finishHilights();
             return writer.toString();
         } catch (InterruptedException ex) {
             logger.log(Level.SEVERE, null, ex);
@@ -436,11 +687,22 @@ public final class MethodBody implements Cloneable {
         return null;
     }
 
+    /**
+     * Clones this MethodBody.
+     *
+     * @return Cloned MethodBody
+     */
     @Override
     public MethodBody clone() {
         return clone(false);
     }
 
+    /**
+     * Clones this MethodBody.
+     *
+     * @param deepTraits Deep traits
+     * @return Cloned MethodBody
+     */
     public MethodBody clone(boolean deepTraits) {
         try {
             MethodBody ret = (MethodBody) super.clone();
@@ -467,6 +729,14 @@ public final class MethodBody implements Cloneable {
         }
     }
 
+    /**
+     * Auto fills the statistics (max stack, max scope depth, ...).
+     *
+     * @param abc ABC file
+     * @param initScope Initial scope
+     * @param hasThis Has this
+     * @return True if successful
+     */
     public boolean autoFillStats(ABC abc, int initScope, boolean hasThis) {
         //System.out.println("--------------");
         CodeStats stats = getCode().getStats(abc, this, initScope, true);
@@ -490,6 +760,12 @@ public final class MethodBody implements Cloneable {
         return true;
     }
 
+    /**
+     * Auto fills the maximum number of registers.
+     *
+     * @param abc ABC file
+     * @return True if successful
+     */
     public boolean autoFillMaxRegs(ABC abc) {
         CodeStats stats = getCode().getMaxLocal();
         if (stats == null) {

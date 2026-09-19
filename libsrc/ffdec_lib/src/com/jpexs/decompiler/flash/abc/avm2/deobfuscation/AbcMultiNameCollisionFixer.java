@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,22 +12,41 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.deobfuscation;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.types.Multiname;
 import com.jpexs.decompiler.flash.abc.types.NamespaceSet;
-import com.jpexs.decompiler.flash.abc.usages.MultinameUsage;
+import com.jpexs.decompiler.flash.abc.usages.multinames.MultinameUsage;
 import com.jpexs.decompiler.flash.tags.ABCContainerTag;
 import com.jpexs.decompiler.flash.tags.Tag;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Fixes collisions of multinames in ABC files.
+ */
 public class AbcMultiNameCollisionFixer {
 
+    /**
+     * Constructs new AbcMultiNameCollisionFixer.
+     */
+    public AbcMultiNameCollisionFixer() {
+
+    }
+
+
+
+    /**
+     * Fixes collisions of multinames in SWF file.
+     *
+     * @param swf SWF file
+     * @return Number of fixed collisions
+     */
     public int fixCollisions(SWF swf) {
         int ret = 0;
         for (ABCContainerTag tag : swf.getAbcList()) {
@@ -36,6 +55,12 @@ public class AbcMultiNameCollisionFixer {
         return ret;
     }
 
+    /**
+     * Fixes collisions of multinames in ABC file.
+     *
+     * @param abc ABC file
+     * @return Number of fixed collisions
+     */
     public int fixCollisions(ABC abc) {
         Set<MultinameUsage> collidingUsages = abc.getCollidingMultinameUsages();
         Set<Integer> collidingMultinameIndices = new HashSet<>();

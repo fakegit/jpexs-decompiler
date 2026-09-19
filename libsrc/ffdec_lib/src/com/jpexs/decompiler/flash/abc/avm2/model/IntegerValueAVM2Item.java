@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,7 +24,6 @@ import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.CompilationException;
-import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
@@ -37,20 +36,40 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Integer value.
  *
  * @author JPEXS
  */
 public class IntegerValueAVM2Item extends NumberValueAVM2Item implements IntegerValueTypeItem {
 
-    public Long value;
+    /**
+     * Value
+     */
+    public Integer value;
 
-    public IntegerValueAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, Long value) {
+    /**
+     * Formatted
+     */
+    private String formatted;
+
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     */
+    public IntegerValueAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, Integer value) {
         super(instruction, lineStartIns);
         this.value = value;
+        detectFormat();
     }
 
-    @Override
-    public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) {
+    /**
+     * Should be called after value change
+     */
+    public void detectFormat() {
+        precedence = PRECEDENCE_PRIMARY;
+
         if (Configuration.smartNumberFormatting.get()) {
             if (value >= 256 && value <= 0xffffffffL) {
                 int intVal = (int) (long) (value & 0xffffff);
@@ -64,7 +83,8 @@ public class IntegerValueAVM2Item extends NumberValueAVM2Item implements Integer
                         || ((((intVal & 0xf00000) >> 20) == ((intVal & 0x0f0000) >> 16)) // aabbcc
                         && (((intVal & 0x00f000) >> 12) == ((intVal & 0x000f00) >> 8))
                         && (((intVal & 0x0000f0) >> 4) == ((intVal & 0x00000f))))) {
-                    return writer.append("0x").append(Long.toHexString(value));
+                    this.formatted = "0x" + Long.toHexString(value);
+                    return;
                 }
             }
 
@@ -108,23 +128,31 @@ public class IntegerValueAVM2Item extends NumberValueAVM2Item implements Integer
                     for (int i = 0; i < thousandCount; i++) {
                         factors.add(1000);
                     }
+                    StringBuilder sb = new StringBuilder();
                     for (int i = 0; i < factors.size(); i++) {
                         if (i != 0) {
-                            writer.append(" * ");
+                            sb.append(" * ");
                         }
-                        writer.append(factors.get(i));
+                        sb.append(factors.get(i));
                     }
-                    return writer;
+                    precedence = PRECEDENCE_MULTIPLICATIVE;
+
+                    this.formatted = sb.toString();
+                    return;
                 }
             }
         }
+        this.formatted = EcmaScript.toString(value);
+    }
 
-        return writer.append(EcmaScript.toString(value));
+    @Override
+    public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) {
+        return writer.append(formatted);
     }
 
     @Override
     public Object getResult() {
-        return value;//(Double) (double) (long) value;
+        return value; //(Double) (double) (long) value;
     }
 
     @Override
@@ -148,7 +176,7 @@ public class IntegerValueAVM2Item extends NumberValueAVM2Item implements Integer
 
     @Override
     public GraphTargetItem returnType() {
-        return new TypeItem(DottedChain.INT);
+        return TypeItem.INT;
     }
 
     @Override
@@ -185,5 +213,9 @@ public class IntegerValueAVM2Item extends NumberValueAVM2Item implements Integer
         }
         return true;
     }
-
+    
+    @Override
+    public long getAsLong() {
+        return (long) value;
+    }
 }

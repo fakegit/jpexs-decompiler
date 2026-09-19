@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,7 +23,6 @@ import com.jpexs.decompiler.flash.abc.types.ConvertData;
 import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitMethodGetterSetter;
-import com.jpexs.decompiler.flash.abc.types.traits.Traits;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.helpers.CodeFormatting;
@@ -38,10 +37,14 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import natorder.NaturalOrderComparator;
 
 /**
  *
@@ -51,16 +54,33 @@ import java.util.TreeMap;
  */
 public class AS3Generator {
 
+    @SuppressWarnings("unchecked")
     private static void useFile(String testClassName, String[][] swfAndIdentifierList, boolean multipleProviders) throws FileNotFoundException, IOException, InterruptedException {
         StringBuilder s = new StringBuilder();
         File f = new File(swfAndIdentifierList[0][0]);
         SWF swf = new SWF(new BufferedInputStream(new FileInputStream(f)), false);
         DoABC2Tag tag = null;
         List<ScriptPack> scriptPacks = swf.getAS3Packs();
-        Map<String, ScriptPack> sortedPacks = new TreeMap<>();
+        Map<String, ScriptPack> sortedPacks = new TreeMap<>(new NaturalOrderComparator());
         for (ScriptPack pack : scriptPacks) {
             sortedPacks.put(pack.getClassPath().toRawString(), pack);
         }
+        s.append("/*\r\n"
+                + " *  Copyright (C) 2010-2026 JPEXS, All rights reserved.\r\n"
+                + " * \r\n"
+                + " * This library is free software; you can redistribute it and/or\r\n"
+                + " * modify it under the terms of the GNU Lesser General Public\r\n"
+                + " * License as published by the Free Software Foundation; either\r\n"
+                + " * version 3.0 of the License, or (at your option) any later version.\r\n"
+                + " * \r\n"
+                + " * This library is distributed in the hope that it will be useful,\r\n"
+                + " * but WITHOUT ANY WARRANTY; without even the implied warranty of\r\n"
+                + " * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU\r\n"
+                + " * Lesser General Public License for more details.\r\n"
+                + " * \r\n"
+                + " * You should have received a copy of the GNU Lesser General Public\r\n"
+                + " * License along with this library.\r\n"
+                + " */\r\n");
         s.append("package com.jpexs.decompiler.flash.as3decompile;\r\n");
         s.append("\r\n");
         s.append("import com.jpexs.decompiler.flash.ActionScript3DecompileTestBase;\r\n");
@@ -112,7 +132,7 @@ public class AS3Generator {
 
                 for (Trait t : abc.instance_info.get(classId).instance_traits.traits) {
                     if (t instanceof TraitMethodGetterSetter) {
-                        String name = t.getName(abc).getName(abc.constants, null, true, true);
+                        String name = t.getName(abc).getName(new LinkedHashSet<>(), abc, abc.constants, null, true, true);
                         String clsName = pack.getClassPath().className;
                         String lower = clsName.substring(0, 1).toLowerCase() + clsName.substring(1);
                         String identifier = swfAndIdentifierList[0][1];
@@ -140,13 +160,14 @@ public class AS3Generator {
                             s.append("\", ");
                             HighlightedTextWriter src = new HighlightedTextWriter(new CodeFormatting(), false);
                             MethodBody b = abc.findBody(((TraitMethodGetterSetter) t).method_info);
-                            List<Traits> ts = new ArrayList<>();
-                            ts.add(abc.instance_info.get(classId).instance_traits);
-                            
                             Configuration.autoDeobfuscate.set(clsName.toLowerCase().contains("obfus"));
-                            
-                            b.convert(new ConvertData(), "", ScriptExportMode.AS, false, ((TraitMethodGetterSetter) t).method_info, pack.scriptIndex, classId, abc, null, new ScopeStack(), 0, new NulWriter(), new ArrayList<>(), ts, true, new HashSet<>());
-                            b.toString("", ScriptExportMode.AS, abc, null, src, new ArrayList<>(), new HashSet<>());
+
+                            List<MethodBody> callStack = new ArrayList<>();
+                            callStack.add(b);
+                            Set<String> usedDeobfuscations = new LinkedHashSet<>();
+                            b.convert(swf.version, callStack, swf.getAbcIndex(), new ConvertData(), "", ScriptExportMode.AS, false, ((TraitMethodGetterSetter) t).method_info, pack.scriptIndex, classId, abc, null, new ScopeStack(), 0, new NulWriter(), new ArrayList<>(), abc.instance_info.get(classId).instance_traits, true, new HashSet<>(), new ArrayList<>(), usedDeobfuscations);
+                            b.toString(usedDeobfuscations, swf.version, callStack, swf.getAbcIndex(), "", ScriptExportMode.AS, abc, null, src, new ArrayList<>(), new HashSet<>(), -1);
+                            src.finishHilights();
                             String[] srcs = src.toString().split("[\r\n]+");
                             for (int i = 0; i < srcs.length; i++) {
                                 String ss = srcs[i];
@@ -174,9 +195,10 @@ public class AS3Generator {
     public static void main(String[] args) throws Exception {
         Configuration.autoDeobfuscate.set(false);
         Configuration.showMethodBodyId.set(false);
+        Configuration.autoDeobfuscateIdentifiers.set(false);
+        Configuration.as3QNameObfuscatedPropsInSquareBrackets.set(true);
         Configuration.simplifyExpressions.set(false);
         Configuration.displayDupInstructions.set(true);
-
 
         useFile("ActionScript3ClassicDecompileTest", new String[][]{{"testdata/as3_new/bin/as3_new.flex.swf", "classic"}}, false);
         useFile("ActionScript3ClassicAirDecompileTest", new String[][]{{"testdata/as3_new/bin/as3_new.air.swf", "classic_air"}}, false);

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,21 +12,33 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.settings;
 
 import com.jpexs.decompiler.flash.exporters.modes.MovieExportMode;
 
 /**
+ * Movie export settings.
  *
  * @author JPEXS
  */
 public class MovieExportSettings {
 
+    /**
+     * Export folder name
+     */
     public static final String EXPORT_FOLDER_NAME = "movies";
 
+    /**
+     * Mode
+     */
     public MovieExportMode mode;
 
+    /**
+     * Constructor.
+     * @param mode Mode
+     */
     public MovieExportSettings(MovieExportMode mode) {
         this.mode = mode;
     }

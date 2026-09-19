@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -35,21 +35,40 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Get variable.
  *
  * @author JPEXS
  */
 public class GetVariableActionItem extends ActionItem {
 
+    /**
+     * Name
+     */
     public final GraphTargetItem name;
 
+    /**
+     * Computed value
+     */
     private GraphTargetItem computedValue;
 
+    /**
+     * Computed result
+     */
     private Object computedResult;
 
+    /**
+     * Computed compile time
+     */
     private boolean computedCompiletime = false;
 
+    /**
+     * Computed variable computed
+     */
     private boolean computedVariableComputed = false;
 
+    /**
+     * Print obfuscated name
+     */
     public boolean printObfuscatedName = false;
 
     @Override
@@ -62,6 +81,13 @@ public class GetVariableActionItem extends ActionItem {
         visitor.visit(name);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     */
     public GetVariableActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.name = value;
@@ -76,14 +102,14 @@ public class GetVariableActionItem extends ActionItem {
             StringBuilder sb = new StringBuilder();
             StringBuilderTextWriter sbw = new StringBuilderTextWriter(new CodeFormatting(), sb);
             stripQuotes(name, localData, sbw);
-            writer.append(IdentifiersDeobfuscation.printIdentifier(false, sb.toString()));
+            writer.append(IdentifiersDeobfuscation.printIdentifier(localData.swf, localData.usedDeobfuscations, false, sb.toString()));
             return writer;
         }
-        if ((name instanceof DirectValueActionItem) && (((DirectValueActionItem) name).isString()) && (printObfuscatedName || IdentifiersDeobfuscation.isValidNameWithDot(false, ((DirectValueActionItem) name).toStringNoQuotes(localData), "this", "super"))) {
+        if ((name instanceof DirectValueActionItem) && (((DirectValueActionItem) name).isString()) && (printObfuscatedName || IdentifiersDeobfuscation.isValidName(false, ((DirectValueActionItem) name).toStringNoQuotes(localData), "this", "super"))) {
             HighlightData srcData = getSrcData();
             srcData.localName = name.toStringNoQuotes(localData);
             return stripQuotes(name, localData, writer);
-        } else {
+        } else {            
             writer.append("eval(");
             name.appendTry(writer, localData);
             return writer.append(")");
@@ -113,6 +139,10 @@ public class GetVariableActionItem extends ActionItem {
         return null;
     }
 
+    /**
+     * Sets computed value.
+     * @param computedValue Computed value
+     */
     public void setComputedValue(GraphTargetItem computedValue) {
         this.computedValue = computedValue;
         if (computedValue != null) {

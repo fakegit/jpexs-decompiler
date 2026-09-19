@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.other;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -30,11 +31,15 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.List;
 
 /**
+ * findpropstrict instruction - find property strictly.
  *
  * @author JPEXS
  */
 public class FindPropertyStrictIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public FindPropertyStrictIns() {
         super(0x5d, "findpropstrict", new int[]{AVM2Code.DAT_MULTINAME_INDEX}, true);
     }
@@ -58,7 +63,7 @@ public class FindPropertyStrictIns extends InstructionDefinition {
     @Override
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
         int multinameIndex = ins.operands[0];
-        FullMultinameAVM2Item multiname = resolveMultiname(localData, true, stack, localData.getConstants(), multinameIndex, ins);
+        FullMultinameAVM2Item multiname = resolveMultiname(localData, true, stack, localData.getConstants(), multinameIndex, ins, output);
         stack.push(new FindPropertyAVM2Item(ins, localData.lineStartInstruction, multiname));
     }
 

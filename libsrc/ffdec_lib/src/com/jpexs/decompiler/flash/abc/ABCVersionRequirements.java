@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc;
 
 import java.lang.annotation.ElementType;
@@ -21,7 +22,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Target ABC version
+ * Target ABC version.
  *
  * @author JPEXS
  */
@@ -29,13 +30,38 @@ import java.lang.annotation.Target;
 @Target({ElementType.FIELD, ElementType.TYPE})
 public @interface ABCVersionRequirements {
 
+    /**
+     * Gets minimum minor version.
+     *
+     * @return minimum minor version
+     */
     int minMinor() default 0;
 
+    /**
+     * Gets maximum minor version.
+     *
+     * @return maximum minor version
+     */
     int maxMinor() default 0;
 
+    /**
+     * Gets maximum major version.
+     *
+     * @return maximum major version
+     */
     int maxMajor() default 0;
 
+    /**
+     * Get minimum major version.
+     *
+     * @return minimum major version
+     */
     int minMajor() default 0;
 
+    /**
+     * Gets exact minor version.
+     *
+     * @return Exact minor version
+     */
     int exactMinor() default 0;
 }

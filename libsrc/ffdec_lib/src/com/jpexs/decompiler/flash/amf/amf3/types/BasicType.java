@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,10 +12,17 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.amf.amf3.types;
 
+/**
+ * Basic AMF3 types.
+ */
 public enum BasicType implements Amf3ValueType {
+    /**
+     * Null
+     */
     NULL {
         @Override
         public String toString() {
@@ -23,6 +30,9 @@ public enum BasicType implements Amf3ValueType {
         }
 
     },
+    /**
+     * Undefined
+     */
     UNDEFINED {
         @Override
         public String toString() {
@@ -30,7 +40,9 @@ public enum BasicType implements Amf3ValueType {
         }
 
     },
-    //Special types for errors while reading
+    /**
+     * Unknown - Special type for errors while reading
+     */
     UNKNOWN {
         @Override
         public String toString() {

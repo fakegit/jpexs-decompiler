@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.flexsdk;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -55,7 +56,7 @@ public class As3ScriptReplacerTest {
         classNames.add("classes.TestClass1");
         List<ScriptPack> packs = swf.getScriptPacksByClassNames(classNames);
         for (ScriptPack sp : packs) {
-            replacer.replaceScript(sp, replacement);
+            replacer.replaceScript(sp, replacement, new ArrayList<>());
             return;
         }
     }

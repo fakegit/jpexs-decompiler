@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.amf.amf3.types;
 
 import com.jpexs.decompiler.flash.amf.amf3.ListMap;
@@ -23,17 +24,32 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * AMF3 dictionary type.
+ */
 public class DictionaryType extends ListMap<Object, Object> implements WithSubValues, Amf3ValueType {
 
+    /**
+     * True if keys are weak
+     */
     private final boolean weakKeys;
-
+    
+    /**
+     * Constructor.
+     * @param weakKeys True if keys are weak
+     */
     public DictionaryType(boolean weakKeys) {
         this(weakKeys, new HashMap<>());
     }
 
+    /**
+     * Constructor.
+     * @param weakKeys True if keys are weak
+     * @param entries Entries
+     */
     public DictionaryType(boolean weakKeys, Map<Object, Object> entries) {
         super(true /*IdentityMap*/, entries);
-        this.weakKeys = weakKeys; //TODO? Really make the Map weak - something like WeakIdentityMap - but is it neccessary for serialization?
+        this.weakKeys = weakKeys; //TODO? Really make the Map weak - something like WeakIdentityMap - but is it necessary for serialization?
     }
 
     @Override
@@ -49,6 +65,10 @@ public class DictionaryType extends ListMap<Object, Object> implements WithSubVa
         return Amf3Exporter.amfToString(this);
     }
 
+    /**
+     * Checks if keys are weak.
+     * @return True if keys are weak
+     */
     public boolean hasWeakKeys() {
         return weakKeys;
     }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,9 +12,13 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types;
 
+import com.jpexs.decompiler.flash.SWF;
+import com.jpexs.decompiler.flash.tags.base.CharacterTag;
+import com.jpexs.decompiler.flash.tags.base.ImageTag;
 import com.jpexs.decompiler.flash.tags.base.NeedsCharacters;
 import com.jpexs.decompiler.flash.types.annotations.Conditional;
 import com.jpexs.decompiler.flash.types.annotations.EnumValue;
@@ -23,11 +27,15 @@ import java.io.Serializable;
 import java.util.Set;
 
 /**
+ * Morph fill style.
  *
  * @author JPEXS
  */
 public class MORPHFILLSTYLE implements NeedsCharacters, Serializable {
 
+    /**
+     * Fill style type
+     */
     @SWFType(BasicType.UI8)
     @EnumValue(value = SOLID, text = "Solid")
     @EnumValue(value = LINEAR_GRADIENT, text = "Linear gradient")
@@ -39,53 +47,107 @@ public class MORPHFILLSTYLE implements NeedsCharacters, Serializable {
     @EnumValue(value = NON_SMOOTHED_CLIPPED_BITMAP, text = "Non smoothed clipped bitmap")
     public int fillStyleType;
 
+    /**
+     * Type - solid
+     */
     public static final int SOLID = 0x0;
 
+    /**
+     * Type - linear gradient
+     */
     public static final int LINEAR_GRADIENT = 0x10;
 
+    /**
+     * Type - radial gradient
+     */
     public static final int RADIAL_GRADIENT = 0x12;
 
+    /**
+     * Type - focal radial gradient
+     */
     public static final int FOCAL_RADIAL_GRADIENT = 0x13;
 
+    /**
+     * Type - repeating bitmap
+     */
     public static final int REPEATING_BITMAP = 0x40;
 
+    /**
+     * Type - clipped bitmap
+     */
     public static final int CLIPPED_BITMAP = 0x41;
 
+    /**
+     * Type - non smoothed repeating bitmap
+     */
     public static final int NON_SMOOTHED_REPEATING_BITMAP = 0x42;
 
+    /**
+     * Type - non smoothed clipped bitmap
+     */
     public static final int NON_SMOOTHED_CLIPPED_BITMAP = 0x43;
 
+    /**
+     * Start color
+     */
     @Conditional(value = "fillStyleType", options = {SOLID})
     public RGBA startColor;
 
+    /**
+     * End color
+     */
     @Conditional(value = "fillStyleType", options = {SOLID})
     public RGBA endColor;
 
-    @Conditional(value = "fillStyleType", options = {LINEAR_GRADIENT, RADIAL_GRADIENT})
+    /**
+     * Start gradient matrix
+     */
+    @Conditional(value = "fillStyleType", options = {LINEAR_GRADIENT, RADIAL_GRADIENT, FOCAL_RADIAL_GRADIENT})
     public MATRIX startGradientMatrix;
 
-    @Conditional(value = "fillStyleType", options = {LINEAR_GRADIENT, RADIAL_GRADIENT})
+    /**
+     * End gradient matrix
+     */
+    @Conditional(value = "fillStyleType", options = {LINEAR_GRADIENT, RADIAL_GRADIENT, FOCAL_RADIAL_GRADIENT})
     public MATRIX endGradientMatrix;
 
-    @Conditional(value = "fillStyleType", options = {LINEAR_GRADIENT, RADIAL_GRADIENT})
+    /**
+     * Gradient
+     */
+    @Conditional(value = "fillStyleType", options = {LINEAR_GRADIENT, RADIAL_GRADIENT, FOCAL_RADIAL_GRADIENT})
     public MORPHGRADIENT gradient;
 
-    @Conditional(value = "fillStyleType", options = {CLIPPED_BITMAP, NON_SMOOTHED_REPEATING_BITMAP, NON_SMOOTHED_CLIPPED_BITMAP})
+    /**
+     * Bitmap id
+     */
+    @Conditional(value = "fillStyleType", options = {REPEATING_BITMAP, CLIPPED_BITMAP, NON_SMOOTHED_REPEATING_BITMAP, NON_SMOOTHED_CLIPPED_BITMAP})
     public int bitmapId;
 
-    @Conditional(value = "fillStyleType", options = {CLIPPED_BITMAP, NON_SMOOTHED_REPEATING_BITMAP, NON_SMOOTHED_CLIPPED_BITMAP})
+    /**
+     * Start bitmap matrix
+     */
+    @Conditional(value = "fillStyleType", options = {REPEATING_BITMAP, CLIPPED_BITMAP, NON_SMOOTHED_REPEATING_BITMAP, NON_SMOOTHED_CLIPPED_BITMAP})
     public MATRIX startBitmapMatrix;
 
-    @Conditional(value = "fillStyleType", options = {CLIPPED_BITMAP, NON_SMOOTHED_REPEATING_BITMAP, NON_SMOOTHED_CLIPPED_BITMAP})
+    /**
+     * End bitmap matrix
+     */
+    @Conditional(value = "fillStyleType", options = {REPEATING_BITMAP, CLIPPED_BITMAP, NON_SMOOTHED_REPEATING_BITMAP, NON_SMOOTHED_CLIPPED_BITMAP})
     public MATRIX endBitmapMatrix;
 
     @Override
-    public void getNeededCharacters(Set<Integer> needed) {
+    public void getNeededCharacters(Set<Integer> needed, Set<String> neededClasses, SWF swf) {
         if ((fillStyleType == REPEATING_BITMAP)
                 || (fillStyleType == CLIPPED_BITMAP)
                 || (fillStyleType == NON_SMOOTHED_REPEATING_BITMAP)
                 || (fillStyleType == NON_SMOOTHED_CLIPPED_BITMAP)) {
-            needed.add(bitmapId);
+            if (bitmapId == 65535) { //In some cases, this special value is used, but is not used. Ignore it. (#1851)
+                return;
+            }
+            CharacterTag character = swf.getCharacter(bitmapId);
+            if (character instanceof ImageTag) {
+                needed.add(bitmapId);
+            }
         }
     }
 
@@ -122,10 +184,10 @@ public class MORPHFILLSTYLE implements NeedsCharacters, Serializable {
         }
         MATRIX ret = new MATRIX();
         double ratio_d = ratio / 65535.0;
-        ret.scaleX = (int) Math.round(a.getScaleX() + (b.getScaleX() - a.getScaleX()) * ratio_d);
-        ret.scaleY = (int) Math.round(a.getScaleY() + (b.getScaleY() - a.getScaleY()) * ratio_d);
-        ret.rotateSkew0 = (int) Math.round(a.getRotateSkew0() + (b.getRotateSkew0() - a.getRotateSkew0()) * ratio_d);
-        ret.rotateSkew1 = (int) Math.round(a.getRotateSkew1() + (b.getRotateSkew1() - a.getRotateSkew1()) * ratio_d);
+        ret.scaleX = MATRIX.toFloat((int) Math.round(a.getScaleXInteger() + (b.getScaleXInteger() - a.getScaleXInteger()) * ratio_d));
+        ret.scaleY = MATRIX.toFloat((int) Math.round(a.getScaleYInteger() + (b.getScaleYInteger() - a.getScaleYInteger()) * ratio_d));
+        ret.rotateSkew0 = MATRIX.toFloat((int) Math.round(a.getRotateSkew0Integer() + (b.getRotateSkew0Integer() - a.getRotateSkew0Integer()) * ratio_d));
+        ret.rotateSkew1 = MATRIX.toFloat((int) Math.round(a.getRotateSkew1Integer() + (b.getRotateSkew1Integer() - a.getRotateSkew1Integer()) * ratio_d));
         ret.translateX = (int) Math.round(a.translateX + (b.translateX - a.translateX) * ratio_d);
         ret.translateY = (int) Math.round(a.translateY + (b.translateY - a.translateY) * ratio_d);
         ret.hasRotate = true;
@@ -133,6 +195,11 @@ public class MORPHFILLSTYLE implements NeedsCharacters, Serializable {
         return ret;
     }
 
+    /**
+     * Gets fill style at given ratio.
+     * @param ratio Ratio
+     * @return Fill style
+     */
     public FILLSTYLE getFillStyleAt(int ratio) {
         FILLSTYLE ret = new FILLSTYLE();
         ret.bitmapId = bitmapId;
@@ -152,6 +219,10 @@ public class MORPHFILLSTYLE implements NeedsCharacters, Serializable {
         return ret;
     }
 
+    /**
+     * Gets start fill style.
+     * @return Start fill style
+     */
     public FILLSTYLE getStartFillStyle() {
         FILLSTYLE ret = new FILLSTYLE();
         ret.bitmapId = bitmapId;
@@ -165,6 +236,10 @@ public class MORPHFILLSTYLE implements NeedsCharacters, Serializable {
         return ret;
     }
 
+    /**
+     * Gets end fill style.
+     * @return End fill style
+     */
     public FILLSTYLE getEndFillStyle() {
         FILLSTYLE ret = new FILLSTYLE();
         ret.bitmapId = bitmapId;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model.clauses;
 
 import com.jpexs.decompiler.flash.action.model.ActionItem;
@@ -20,13 +21,24 @@ import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.Loop;
 
 /**
+ * Loop.
  *
  * @author JPEXS
  */
 public abstract class LoopActionItem extends ActionItem {
 
+    /***
+     * Loop
+     */
     public Loop loop;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param loop Loop
+     */
     public LoopActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, Loop loop) {
         super(instruction, lineStartIns, NOPRECEDENCE);
         this.loop = loop;

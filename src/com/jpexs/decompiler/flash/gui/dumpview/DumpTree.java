@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -33,6 +33,9 @@ import com.jpexs.decompiler.flash.gui.MainPanel;
 import com.jpexs.decompiler.flash.gui.TreeNodeType;
 import com.jpexs.decompiler.flash.gui.View;
 import com.jpexs.decompiler.flash.gui.tagtree.TagTree;
+import com.jpexs.decompiler.flash.tags.CSMSettingsTag;
+import com.jpexs.decompiler.flash.tags.CharacterSetTag;
+import com.jpexs.decompiler.flash.tags.DebugIDTag;
 import com.jpexs.decompiler.flash.tags.DefineBinaryDataTag;
 import com.jpexs.decompiler.flash.tags.DefineBitsJPEG2Tag;
 import com.jpexs.decompiler.flash.tags.DefineBitsJPEG3Tag;
@@ -41,14 +44,21 @@ import com.jpexs.decompiler.flash.tags.DefineBitsLossless2Tag;
 import com.jpexs.decompiler.flash.tags.DefineBitsLosslessTag;
 import com.jpexs.decompiler.flash.tags.DefineBitsTag;
 import com.jpexs.decompiler.flash.tags.DefineButton2Tag;
+import com.jpexs.decompiler.flash.tags.DefineButtonCxformTag;
+import com.jpexs.decompiler.flash.tags.DefineButtonSoundTag;
 import com.jpexs.decompiler.flash.tags.DefineButtonTag;
 import com.jpexs.decompiler.flash.tags.DefineEditTextTag;
 import com.jpexs.decompiler.flash.tags.DefineFont2Tag;
 import com.jpexs.decompiler.flash.tags.DefineFont3Tag;
 import com.jpexs.decompiler.flash.tags.DefineFont4Tag;
+import com.jpexs.decompiler.flash.tags.DefineFontInfo2Tag;
+import com.jpexs.decompiler.flash.tags.DefineFontInfoTag;
+import com.jpexs.decompiler.flash.tags.DefineFontNameTag;
 import com.jpexs.decompiler.flash.tags.DefineFontTag;
 import com.jpexs.decompiler.flash.tags.DefineMorphShape2Tag;
 import com.jpexs.decompiler.flash.tags.DefineMorphShapeTag;
+import com.jpexs.decompiler.flash.tags.DefineScalingGridTag;
+import com.jpexs.decompiler.flash.tags.DefineSceneAndFrameLabelDataTag;
 import com.jpexs.decompiler.flash.tags.DefineShape2Tag;
 import com.jpexs.decompiler.flash.tags.DefineShape3Tag;
 import com.jpexs.decompiler.flash.tags.DefineShape4Tag;
@@ -56,26 +66,63 @@ import com.jpexs.decompiler.flash.tags.DefineShapeTag;
 import com.jpexs.decompiler.flash.tags.DefineSoundTag;
 import com.jpexs.decompiler.flash.tags.DefineSpriteTag;
 import com.jpexs.decompiler.flash.tags.DefineText2Tag;
+import com.jpexs.decompiler.flash.tags.DefineTextFormatTag;
 import com.jpexs.decompiler.flash.tags.DefineTextTag;
 import com.jpexs.decompiler.flash.tags.DefineVideoStreamTag;
+import com.jpexs.decompiler.flash.tags.DefineVideoTag;
 import com.jpexs.decompiler.flash.tags.DoABC2Tag;
 import com.jpexs.decompiler.flash.tags.DoABCTag;
 import com.jpexs.decompiler.flash.tags.DoActionTag;
 import com.jpexs.decompiler.flash.tags.DoInitActionTag;
+import com.jpexs.decompiler.flash.tags.EnableDebugger2Tag;
+import com.jpexs.decompiler.flash.tags.EnableDebuggerTag;
+import com.jpexs.decompiler.flash.tags.EnableTelemetryTag;
+import com.jpexs.decompiler.flash.tags.ExportAssetsTag;
 import com.jpexs.decompiler.flash.tags.FileAttributesTag;
+import com.jpexs.decompiler.flash.tags.FontRefTag;
+import com.jpexs.decompiler.flash.tags.FrameLabelTag;
+import com.jpexs.decompiler.flash.tags.FreeCharacterTag;
+import com.jpexs.decompiler.flash.tags.GenCommandTag;
+import com.jpexs.decompiler.flash.tags.ImportAssets2Tag;
+import com.jpexs.decompiler.flash.tags.ImportAssetsTag;
+import com.jpexs.decompiler.flash.tags.JPEGTablesTag;
 import com.jpexs.decompiler.flash.tags.MetadataTag;
+import com.jpexs.decompiler.flash.tags.NameCharacterTag;
+import com.jpexs.decompiler.flash.tags.PlaceImagePrivateTag;
 import com.jpexs.decompiler.flash.tags.PlaceObject2Tag;
 import com.jpexs.decompiler.flash.tags.PlaceObject3Tag;
 import com.jpexs.decompiler.flash.tags.PlaceObject4Tag;
 import com.jpexs.decompiler.flash.tags.PlaceObjectTag;
+import com.jpexs.decompiler.flash.tags.ProductInfoTag;
+import com.jpexs.decompiler.flash.tags.ProtectTag;
 import com.jpexs.decompiler.flash.tags.RemoveObject2Tag;
 import com.jpexs.decompiler.flash.tags.RemoveObjectTag;
+import com.jpexs.decompiler.flash.tags.ScriptLimitsTag;
+import com.jpexs.decompiler.flash.tags.SerialNumberTag;
 import com.jpexs.decompiler.flash.tags.SetBackgroundColorTag;
+import com.jpexs.decompiler.flash.tags.SetTabIndexTag;
 import com.jpexs.decompiler.flash.tags.ShowFrameTag;
+import com.jpexs.decompiler.flash.tags.SoundStreamBlockTag;
 import com.jpexs.decompiler.flash.tags.SoundStreamHead2Tag;
 import com.jpexs.decompiler.flash.tags.SoundStreamHeadTag;
+import com.jpexs.decompiler.flash.tags.StartSound2Tag;
+import com.jpexs.decompiler.flash.tags.StartSoundTag;
+import com.jpexs.decompiler.flash.tags.SymbolClassTag;
+import com.jpexs.decompiler.flash.tags.SyncFrameTag;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.decompiler.flash.tags.VideoFrameTag;
+import com.jpexs.decompiler.flash.tags.base.ButtonTag;
+import com.jpexs.decompiler.flash.tags.base.PlaceObjectTypeTag;
 import com.jpexs.decompiler.flash.tags.gfx.DefineCompactedFont;
+import com.jpexs.decompiler.flash.timeline.Timelined;
+import com.jpexs.decompiler.flash.treeitems.TreeItem;
+import com.jpexs.decompiler.flash.types.BUTTONCONDACTION;
+import com.jpexs.decompiler.flash.types.BUTTONRECORD;
+import com.jpexs.decompiler.flash.types.CLIPACTIONRECORD;
+import com.jpexs.decompiler.flash.types.CLIPACTIONS;
+import com.jpexs.decompiler.flash.types.HasSwfAndTag;
+import com.jpexs.decompiler.flash.types.text.format.TextFormatRecord;
+import com.jpexs.helpers.ByteArrayRange;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.MemoryInputStream;
 import java.awt.Color;
@@ -92,7 +139,6 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JFileChooser;
-import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
@@ -105,7 +151,6 @@ import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 
 /**
- *
  * @author JPEXS
  */
 public class DumpTree extends JTree {
@@ -136,6 +181,9 @@ public class DumpTree extends JTree {
                         nodeType = TreeNodeType.FLASH;
                     } else if ("TAG".equals(di.type)) {
                         String name = di.name;
+                        if (name == null) {
+                            name = "null";
+                        }
                         if (name.contains(" ")) {
                             name = name.substring(0, name.indexOf(' ')).trim();
                         }
@@ -186,14 +234,19 @@ public class DumpTree extends JTree {
                             case SoundStreamHead2Tag.NAME:
                                 nodeType = TreeNodeType.SOUND;
                                 break;
+                            case SoundStreamBlockTag.NAME:
+                                nodeType = TreeNodeType.SOUND_STREAM_BLOCK;
+                                break;
                             case DefineBinaryDataTag.NAME:
                                 nodeType = TreeNodeType.BINARY_DATA;
                                 break;
                             case DoActionTag.NAME:
                             case DoInitActionTag.NAME:
+                                nodeType = TreeNodeType.AS;
+                                break;
                             case DoABCTag.NAME:
                             case DoABC2Tag.NAME:
-                                nodeType = TreeNodeType.AS;
+                                nodeType = TreeNodeType.ABC;
                                 break;
                             case ShowFrameTag.NAME:
                                 nodeType = TreeNodeType.FRAME; //show_frame?
@@ -213,9 +266,105 @@ public class DumpTree extends JTree {
                             case PlaceObject4Tag.NAME:
                                 nodeType = TreeNodeType.PLACE_OBJECT;
                                 break;
+                            case PlaceImagePrivateTag.NAME:
+                                nodeType = TreeNodeType.PLACE_IMAGE_PRIVATE;
+                                break;
                             case RemoveObjectTag.NAME:
                             case RemoveObject2Tag.NAME:
                                 nodeType = TreeNodeType.REMOVE_OBJECT;
+                                break;
+                            case DefineScalingGridTag.NAME:
+                                nodeType = TreeNodeType.SCALING_GRID;
+                                break;
+                            case DefineFontInfoTag.NAME:
+                            case DefineFontInfo2Tag.NAME:
+                                nodeType = TreeNodeType.FONT_INFO;
+                                break;
+                            case DefineFontNameTag.NAME:
+                                nodeType = TreeNodeType.FONT_NAME;
+                                break;
+                            case CSMSettingsTag.NAME:
+                                nodeType = TreeNodeType.CSM_SETTINGS;
+                                break;
+                            case DefineButtonCxformTag.NAME:
+                                nodeType = TreeNodeType.BUTTON_CXFORM;
+                                break;
+                            case DefineButtonSoundTag.NAME:
+                                nodeType = TreeNodeType.BUTTON_SOUND;
+                                break;
+                            case FrameLabelTag.NAME:
+                                nodeType = TreeNodeType.FRAME_LABEL;
+                                break;                            
+                            case StartSoundTag.NAME:
+                            case StartSound2Tag.NAME:
+                                nodeType = TreeNodeType.START_SOUND;
+                                break;
+                            case VideoFrameTag.NAME:
+                                nodeType = TreeNodeType.VIDEO_FRAME;
+                                break;
+                            case EnableDebuggerTag.NAME:
+                            case EnableDebugger2Tag.NAME:
+                            case ProtectTag.NAME:
+                                nodeType = TreeNodeType.ENABLE_DEBUGGER;
+                                break;
+                            case EnableTelemetryTag.NAME:
+                                nodeType = TreeNodeType.ENABLE_TELEMETRY;
+                                break;
+                            case ExportAssetsTag.NAME:
+                                nodeType = TreeNodeType.EXPORT_ASSETS;
+                                break;
+                            case ImportAssetsTag.NAME:
+                            case ImportAssets2Tag.NAME:
+                                nodeType = TreeNodeType.IMPORT_ASSETS;
+                                break;
+                            case JPEGTablesTag.NAME:
+                                nodeType = TreeNodeType.JPEG_TABLES;
+                                break;
+                            case ProductInfoTag.NAME:
+                                nodeType = TreeNodeType.PRODUCT_INFO;
+                                break;
+                            case ScriptLimitsTag.NAME:
+                                nodeType = TreeNodeType.SCRIPT_LIMITS;
+                                break;
+                            case SetTabIndexTag.NAME:
+                                nodeType = TreeNodeType.SET_TABINDEX;
+                                break;
+                            case SymbolClassTag.NAME:
+                                nodeType = TreeNodeType.SYMBOL_CLASS;
+                                break;
+                            case DefineSceneAndFrameLabelDataTag.NAME:
+                                nodeType = TreeNodeType.SCENE_AND_FRAME_LABEL_DATA;
+                                break;
+                            case DebugIDTag.NAME:
+                                nodeType = TreeNodeType.DEBUG_ID;
+                                break;
+                            case DefineVideoTag.NAME:
+                                nodeType = TreeNodeType.MOVIE_REF;
+                                break;
+                            case FreeCharacterTag.NAME:
+                                nodeType = TreeNodeType.FREE_CHARACTER;
+                                break;
+                            case SyncFrameTag.NAME:
+                                nodeType = TreeNodeType.SYNC_FRAME;
+                                break;
+                            
+                            case NameCharacterTag.NAME:
+                                nodeType = TreeNodeType.NAME_CHARACTER;
+                                break;
+                            case DefineTextFormatTag.NAME:
+                                nodeType = TreeNodeType.TEXT_FORMAT;
+                                break;
+                            case CharacterSetTag.NAME:
+                                nodeType = TreeNodeType.CHARACTER_SET;
+                                break;
+                            case FontRefTag.NAME:
+                                nodeType = TreeNodeType.FONT_REF;
+                                break;
+                            case GenCommandTag.NAME:
+                                nodeType = TreeNodeType.GEN_COMMAND;
+                                break;
+                            case SerialNumberTag.NAME:
+                                nodeType = TreeNodeType.SERIAL_NUMBER;
                                 break;
                             default:
                                 nodeType = TreeNodeType.OTHER_TAG;
@@ -251,42 +400,57 @@ public class DumpTree extends JTree {
 
         final JMenuItem expandRecursiveMenuItem = new JMenuItem(mainPanel.translate("contextmenu.expandAll"));
         expandRecursiveMenuItem.addActionListener(this::expandRecursiveButtonActionPerformed);
+        expandRecursiveMenuItem.setIcon(View.getIcon("expand16"));
         contextPopupMenu.add(expandRecursiveMenuItem);
 
         final JMenuItem saveToFileMenuItem = new JMenuItem(mainPanel.translate("contextmenu.saveToFile"));
         saveToFileMenuItem.addActionListener(this::saveToFileButtonActionPerformed);
+        saveToFileMenuItem.setIcon(View.getIcon("saveas16"));
         contextPopupMenu.add(saveToFileMenuItem);
 
         final JMenuItem saveUncompressedToFileMenuItem = new JMenuItem(mainPanel.translate("contextmenu.saveUncompressedToFile"));
         saveUncompressedToFileMenuItem.addActionListener(this::saveUncompressedToFileButtonActionPerformed);
+        saveUncompressedToFileMenuItem.setIcon(View.getIcon("saveas16"));
         contextPopupMenu.add(saveUncompressedToFileMenuItem);
 
         final JMenuItem closeSelectionMenuItem = new JMenuItem(mainPanel.translate("contextmenu.closeSwf"));
         closeSelectionMenuItem.addActionListener(this::closeSwfButtonActionPerformed);
+        closeSelectionMenuItem.setIcon(View.getIcon("close16"));
         contextPopupMenu.add(closeSelectionMenuItem);
 
         final JMenuItem parseActionsMenuItem = new JMenuItem(mainPanel.translate("contextmenu.parseActions"));
         parseActionsMenuItem.addActionListener(this::parseActionsButtonActionPerformed);
+        parseActionsMenuItem.setIcon(View.getIcon("parse16"));
         contextPopupMenu.add(parseActionsMenuItem);
 
         final JMenuItem parseAbcMenuItem = new JMenuItem(mainPanel.translate("contextmenu.parseABC"));
         parseAbcMenuItem.addActionListener(this::parseAbcButtonActionPerformed);
+        parseAbcMenuItem.setIcon(View.getIcon("parse16"));
         contextPopupMenu.add(parseAbcMenuItem);
 
         final JMenuItem parseInstructionsMenuItem = new JMenuItem(mainPanel.translate("contextmenu.parseInstructions"));
         parseInstructionsMenuItem.addActionListener(this::parseInstructionsButtonActionPerformed);
+        parseInstructionsMenuItem.setIcon(View.getIcon("parse16"));
         contextPopupMenu.add(parseInstructionsMenuItem);
 
-        final JMenuItem gotoTagMenuItem = new JMenuItem(mainPanel.translate("contextmenu.showInResources"));
-        gotoTagMenuItem.addActionListener(this::gotoTagButtonActionPerformed);
-        contextPopupMenu.add(gotoTagMenuItem);
+        final JMenuItem showInResourcesTagMenuItem = new JMenuItem(mainPanel.translate("contextmenu.showInResources"));
+        showInResourcesTagMenuItem.addActionListener(this::showInResourcesTagButtonActionPerformed);
+        showInResourcesTagMenuItem.setIcon(View.getIcon("folder16"));
+        contextPopupMenu.add(showInResourcesTagMenuItem);
+
+        final JMenuItem showInTagListTagMenuItem = new JMenuItem(mainPanel.translate("contextmenu.showInTagList"));
+        showInTagListTagMenuItem.addActionListener(this::showInTagListTagButtonActionPerformed);
+        showInTagListTagMenuItem.setIcon(View.getIcon("taglist16"));
+        contextPopupMenu.add(showInTagListTagMenuItem);
 
         final JMenuItem gotoActionListMenuItem = new JMenuItem(mainPanel.translate("contextmenu.showInResources"));
         gotoActionListMenuItem.addActionListener(this::gotoActionListButtonActionPerformed);
+        gotoActionListMenuItem.setIcon(View.getIcon("folder16"));
         contextPopupMenu.add(gotoActionListMenuItem);
 
         final JMenuItem gotoMethodMenuItem = new JMenuItem(mainPanel.translate("contextmenu.showInResources"));
         gotoMethodMenuItem.addActionListener(this::gotoMethodButtonActionPerformed);
+        gotoMethodMenuItem.setIcon(View.getIcon("folder16"));
         contextPopupMenu.add(gotoMethodMenuItem);
 
         addMouseListener(new MouseAdapter() {
@@ -312,7 +476,8 @@ public class DumpTree extends JTree {
                     parseActionsMenuItem.setVisible(false);
                     parseAbcMenuItem.setVisible(false);
                     parseInstructionsMenuItem.setVisible(false);
-                    gotoTagMenuItem.setVisible(false);
+                    showInResourcesTagMenuItem.setVisible(false);
+                    showInTagListTagMenuItem.setVisible(false);
                     gotoActionListMenuItem.setVisible(false);
                     gotoMethodMenuItem.setVisible(false);
 
@@ -349,7 +514,8 @@ public class DumpTree extends JTree {
 
                         switch (specialType) {
                             case TAG:
-                                gotoTagMenuItem.setVisible(true);
+                                showInResourcesTagMenuItem.setVisible(true);
+                                showInTagListTagMenuItem.setVisible(true);
                                 break;
                             case ACTION_BYTES:
                                 gotoActionListMenuItem.setVisible(true);
@@ -385,12 +551,12 @@ public class DumpTree extends JTree {
         View.expandTreeNodes(this, path, true);
     }
 
-    private void saveToFileButtonActionPerformed(ActionEvent evt) {
-        saveToFileButtonActionPerformed(false);
-    }
-
     private void saveUncompressedToFileButtonActionPerformed(ActionEvent evt) {
         saveToFileButtonActionPerformed(true);
+    }
+
+    private void saveToFileButtonActionPerformed(ActionEvent evt) {
+        saveToFileButtonActionPerformed(false);
     }
 
     private void saveToFileButtonActionPerformed(boolean decompress) {
@@ -474,23 +640,48 @@ public class DumpTree extends JTree {
         repaint();
     }
 
-    private void gotoTagButtonActionPerformed(ActionEvent evt) {
+    private Tag searchTimelinedForTag(Timelined timelined, long address) {
+        for (Tag tag : timelined.getTags()) {
+            if (tag.getOriginalRange().getPos() == address) {
+                return tag;
+            }
+            if (tag instanceof DefineSpriteTag) {
+                Tag subSpriteFound = searchTimelinedForTag(((DefineSpriteTag) tag), address);
+                if (subSpriteFound != null) {
+                    return subSpriteFound;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void showInTagListTagButtonActionPerformed(ActionEvent evt) {
         TreePath[] paths = getSelectionPaths();
         DumpInfoSpecial dumpInfo = (DumpInfoSpecial) paths[0].getLastPathComponent();
 
         SWF swf = DumpInfoSwfNode.getSwfNode(dumpInfo).getSwf();
         long address = (long) (Long) dumpInfo.specialValue;
-        Tag foundTag = null;
-        for (Tag tag : swf.getTags()) {
-            if (tag.getOriginalRange().getPos() == address) {
-                foundTag = tag;
-                break;
-            }
+
+        Tag foundTag = searchTimelinedForTag(swf, address);
+
+        if (foundTag != null) {
+            mainPanel.getMainFrame().getMenu().showTagListView();
+            mainPanel.setTagTreeSelectedNode(mainPanel.getCurrentTree(), foundTag);
         }
+    }
+
+    private void showInResourcesTagButtonActionPerformed(ActionEvent evt) {
+        TreePath[] paths = getSelectionPaths();
+        DumpInfoSpecial dumpInfo = (DumpInfoSpecial) paths[0].getLastPathComponent();
+
+        SWF swf = DumpInfoSwfNode.getSwfNode(dumpInfo).getSwf();
+        long address = (long) (Long) dumpInfo.specialValue;
+
+        Tag foundTag = searchTimelinedForTag(swf, address);
 
         if (foundTag != null) {
             mainPanel.getMainFrame().getMenu().showResourcesView();
-            mainPanel.setTagTreeSelectedNode(foundTag);
+            mainPanel.setTagTreeSelectedNode(mainPanel.getCurrentTree(), foundTag);
         }
     }
 
@@ -538,6 +729,171 @@ public class DumpTree extends JTree {
         expandPath(new TreePath(new Object[]{root}));
         for (int i = 0; i < childCount; i++) {
             expandPath(new TreePath(new Object[]{root, dtm.getChild(root, i)}));
+        }
+    }
+
+    public void expandSwfNode(SWF swf) {
+        DumpTreeModel dtm = getModel();
+        DumpInfo root = dtm.getRoot();
+        int childCount = dtm.getChildCount(root);
+        expandPath(new TreePath(new Object[]{root}));
+        for (int i = 0; i < childCount; i++) {
+            DumpInfoSwfNode swfNode = (DumpInfoSwfNode) dtm.getChild(root, i);
+            if (swfNode.getSwf() == swf) {
+                expandPath(new TreePath(new Object[]{root, dtm.getChild(root, i)}));
+                break;
+            }
+        }
+    }
+
+    public Tag getOriginalTag(TreeItem item) {
+        Tag tag;
+        if (item instanceof Tag) {
+            tag = (Tag) item;
+        } else if (item instanceof HasSwfAndTag) {
+            tag = ((HasSwfAndTag) item).getTag();
+        } else {
+            return null;
+        }
+        ByteArrayRange range = tag.getOriginalRange();
+        if (range == null) {
+            return null;
+        }
+        long address = range.getPos();
+        return searchTimelinedForTag((SWF) item.getOpenable(), address);
+    }
+
+    public Timelined getTimelinedForItem(TreeItem item) {
+        Tag original = getOriginalTag(item);
+        if (original == null) {
+            return null;
+        }
+        return original.getTimelined();
+    }
+
+    public int getFrameForItem(TreeItem item) {
+
+        Tag originalTag = getOriginalTag(item);
+        if (originalTag == null) {
+            return -1;
+        }
+        int frame = 0;
+        for (Tag t : originalTag.getTimelined().getTags()) {
+            if (t == originalTag) {
+                return frame;
+            }
+            if (t instanceof ShowFrameTag) {
+                frame++;
+            }
+        }
+        return -1;
+    }
+
+    public void setSelectedItem(TreeItem item) {
+        Tag tag;
+        if (item instanceof Tag) {
+            tag = (Tag) item;
+        } else if (item instanceof HasSwfAndTag) {
+            tag = ((HasSwfAndTag) item).getTag();
+        } else {
+            return;
+        }
+        ByteArrayRange range = tag.getOriginalRange();
+        if (range == null) {
+            return;
+        }
+        long address = range.getPos();
+        DumpTreeModel model = getModel();
+        DumpInfo d = model.getRoot();
+        for (DumpInfo sd : d.getChildInfos()) {
+            if (sd instanceof DumpInfoSwfNode) {
+                DumpInfoSwfNode si = (DumpInfoSwfNode) sd;
+                if (si.getSwf() == item.getOpenable()) {
+                    DumpInfo di = si;
+                    while (model.getChildCount(di) > 0) {
+                        boolean found = false;
+                        for (DumpInfo child : di.getChildInfos()) {
+                            if (child.startByte > address) {
+                                break;
+                            }
+                            if (child.getEndByte() >= address) {
+                                di = child;
+                                found = true;
+                            }
+                        }
+                        if (!found) {
+                            break;
+                        }
+                    }
+                    di = di.parent; // tagId is selected, lets select the tag instead
+                    TreePath selPath = model.getDumpInfoPath(di);
+
+                    if (item instanceof CLIPACTIONRECORD) {
+                        CLIPACTIONS clipActions = ((PlaceObjectTypeTag) tag).getClipActions();
+                        int index = clipActions.clipActionRecords.indexOf(item);
+                        for (DumpInfo sdi : di.getChildInfos()) {
+                            if ("clipActions".equals(sdi.name)) {
+                                int i = 0;
+                                for (DumpInfo sdi2 : sdi.getChildInfos()) {
+                                    if (sdi2.name.equals("record")) {
+                                        if (i == index) {
+                                            selPath = model.getDumpInfoPath(sdi2);
+                                            break;
+                                        }
+                                        i++;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    if (item instanceof BUTTONCONDACTION) {
+                        DefineButton2Tag button = (DefineButton2Tag) tag;
+                        int index = button.actions.indexOf(item);
+                        for (DumpInfo sdi : di.getChildInfos()) {
+                            if ("actions".equals(sdi.name)) {
+                                int i = 0;
+                                for (DumpInfo sdi2 : sdi.getChildInfos()) {
+                                    if (sdi2.name.equals("action")) {
+                                        if (i == index) {
+                                            selPath = model.getDumpInfoPath(sdi2);
+                                            break;
+                                        }
+                                        i++;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+
+                    if (item instanceof BUTTONRECORD) {
+                        ButtonTag button = (ButtonTag) tag;
+                        int index = button.getRecords().indexOf(item);
+                        for (DumpInfo sdi : di.getChildInfos()) {
+                            if ("characters".equals(sdi.name)) {
+                                int i = 0;
+                                for (DumpInfo sdi2 : sdi.getChildInfos()) {
+                                    if (sdi2.name.equals("record")) {
+                                        if (i == index) {
+                                            selPath = model.getDumpInfoPath(sdi2);
+                                            break;
+                                        }
+                                        i++;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+
+                    if (selPath != null) {
+                        setSelectionPath(selPath);
+                        scrollPathToVisible(selPath);
+                    }
+                    break;
+                }
+            }
         }
     }
 }

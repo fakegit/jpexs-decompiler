@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,10 +18,9 @@ package com.jpexs.decompiler.flash.exporters.commonshape;
 
 import com.jpexs.decompiler.flash.types.RECT;
 import java.awt.geom.Rectangle2D;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
+ * Export rectangle.
  *
  * @author JPEXS
  */
@@ -124,5 +123,21 @@ public class ExportRectangle {
 
     public ExportRectangle toPx() {
         return new ExportRectangle(Math.round(xMin / 20), Math.round(yMin / 20), Math.round(xMax / 20), Math.round(yMax / 20));
+    }
+
+    public Point getUpperLeftPoint() {
+        return new Point(xMin, yMin);
+    }
+
+    public Point getUpperRightPoint() {
+        return new Point(xMax, yMin);
+    }
+
+    public Point getLowerLeftPoint() {
+        return new Point(xMin, yMax);
+    }
+
+    public Point getLowerRightPoint() {
+        return new Point(xMax, yMax);
     }
 }

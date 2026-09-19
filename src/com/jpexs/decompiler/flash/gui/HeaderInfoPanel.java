@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,26 +18,34 @@ package com.jpexs.decompiler.flash.gui;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFCompression;
+import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.helpers.TableLayoutHelper;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.border.BevelBorder;
 import javax.swing.event.ChangeEvent;
 import layout.TableLayout;
 
 /**
- *
  * @author JPEXS
  */
 public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
@@ -48,6 +56,8 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
 
     private final JLabel gfxLabel = new JLabel();
 
+    private final JLabel encryptedLabel = new JLabel();
+
     private final JLabel versionLabel = new JLabel();
 
     private final JLabel fileSizeLabel = new JLabel();
@@ -55,6 +65,10 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
     private final JLabel frameRateLabel = new JLabel();
 
     private final JLabel frameCountLabel = new JLabel();
+
+    private final JSpinner frameCountEditor = new JSpinner();
+
+    private final JPanel frameCountEditorPanel = new JPanel();
 
     private final JLabel displayRectTwipsLabel = new JLabel();
 
@@ -69,6 +83,8 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
     private final JSpinner versionEditor = new JSpinner();
 
     private final JCheckBox gfxCheckBox = new JCheckBox();
+
+    private final JCheckBox encryptedCheckBox = new JCheckBox();
 
     private final JPanel frameRateEditorPanel = new JPanel();
 
@@ -98,10 +114,20 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
 
     private final JLabel warningLabel = new JLabel();
 
+    private JComboBox<String> unitComboBox;
+
+    private final int UNIT_PIXELS = 0;
+    private final int UNIT_TWIPS = 1;
+
+    private int unit = UNIT_PIXELS;
+
     private SWF swf;
 
-    public HeaderInfoPanel() {
+    private MainPanel mainPanel;
+
+    public HeaderInfoPanel(MainPanel mainPanel) {
         setLayout(new BorderLayout());
+        this.mainPanel = mainPanel;
 
         TableLayout tl;
         propertiesPanel.setLayout(tl = new TableLayout(new double[][]{
@@ -109,7 +135,7 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
             {TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED,
                 TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED,
                 TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED,
-                TableLayout.PREFERRED}
+                TableLayout.PREFERRED, TableLayout.PREFERRED}
         }));
 
         FlowLayout layout = new FlowLayout(SwingConstants.WEST);
@@ -132,13 +158,36 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
         });
         versionEditorPanel.add(versionEditor);
 
-        gfxCheckBox.addActionListener((ActionEvent e) -> {
+        encryptedCheckBox.addChangeListener((ChangeEvent e) -> {
+            validateHeader();
+        });
+
+        gfxCheckBox.addChangeListener((ChangeEvent e) -> {
             validateHeader();
         });
 
         frameRateEditorPanel.setLayout(layout);
         frameRateEditor.setPreferredSize(new Dimension(80, frameRateEditor.getPreferredSize().height));
         frameRateEditorPanel.add(frameRateEditor);
+
+        frameCountEditorPanel.setLayout(layout);
+        frameCountEditor.setPreferredSize(new Dimension(80, frameCountEditor.getPreferredSize().height));
+        frameCountEditorPanel.add(frameCountEditor);
+
+        JLabel frameCountWarningIcon = new JLabel(View.getIcon("warning16"));
+        frameCountWarningIcon.setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 0));
+        frameCountWarningIcon.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        frameCountWarningIcon.setToolTipText(AppStrings.translate("warning.icon"));
+        frameCountWarningIcon.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (SwingUtilities.isLeftMouseButton(e)) {
+                    ViewMessages.showMessageDialog(HeaderInfoPanel.this,
+                            AppStrings.translate("warning.edit.headerframecount"), AppStrings.translate("message.warning"), JOptionPane.WARNING_MESSAGE);
+                }
+            }
+        });
+        frameCountEditorPanel.add(frameCountWarningIcon);
 
         displayRectEditorPanel.setLayout(layout);
         displayRectEditorPanel.setMinimumSize(new Dimension(10, displayRectEditorPanel.getMinimumSize().height));
@@ -153,7 +202,34 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
         displayRectEditorPanel.add(xMaxEditor);
         displayRectEditorPanel.add(new JLabel(","));
         displayRectEditorPanel.add(yMaxEditor);
-        displayRectEditorPanel.add(new JLabel(" twips"));
+
+        unitComboBox = new JComboBox<>(new String[]{
+            AppStrings.translate("header.displayrect.unit.pixels"),
+            AppStrings.translate("header.displayrect.unit.twips")
+        });
+        displayRectEditorPanel.add(unitComboBox);
+
+        unitComboBox.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                if (e.getStateChange() == ItemEvent.SELECTED) {
+                    int newUnit = unitComboBox.getSelectedIndex();
+                    double multiplier = 1.0;
+                    if (unit == UNIT_PIXELS && newUnit == UNIT_TWIPS) {
+                        multiplier = 20.0;
+                    }
+                    if (unit == UNIT_TWIPS && newUnit == UNIT_PIXELS) {
+                        multiplier = 1 / 20.0;
+                    }
+                    unit = newUnit;
+
+                    xMinEditor.setValue(((double) xMinEditor.getValue()) * multiplier);
+                    yMinEditor.setValue(((double) yMinEditor.getValue()) * multiplier);
+                    xMaxEditor.setValue(((double) xMaxEditor.getValue()) * multiplier);
+                    yMaxEditor.setValue(((double) yMaxEditor.getValue()) * multiplier);
+                }
+            }
+        });
 
         warningLabel.setIcon(View.getIcon("warning16"));
         warningPanel.setLayout(layout);
@@ -168,33 +244,46 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
         propertiesPanel.add(new JLabel(AppStrings.translate("header.version")), "0,2");
         propertiesPanel.add(versionLabel, "1,2");
         propertiesPanel.add(versionEditorPanel, "1,2");
-        propertiesPanel.add(new JLabel(AppStrings.translate("header.gfx")), "0,3");
-        propertiesPanel.add(gfxLabel, "1,3");
-        propertiesPanel.add(gfxCheckBox, "1,3");
-        propertiesPanel.add(new JLabel(AppStrings.translate("header.filesize")), "0,4");
-        propertiesPanel.add(fileSizeLabel, "1,4");
-        propertiesPanel.add(new JLabel(AppStrings.translate("header.framerate")), "0,5");
-        propertiesPanel.add(frameRateLabel, "1,5");
-        propertiesPanel.add(frameRateEditorPanel, "1,5");
-        propertiesPanel.add(new JLabel(AppStrings.translate("header.framecount")), "0,6");
-        propertiesPanel.add(frameCountLabel, "1,6");
-        propertiesPanel.add(new JLabel(AppStrings.translate("header.displayrect")), "0,7");
-        propertiesPanel.add(displayRectTwipsLabel, "1,7");
-        propertiesPanel.add(displayRectEditorPanel, "1,7");
-        propertiesPanel.add(new JLabel(""), "0,8");
-        propertiesPanel.add(displayRectPixelsLabel, "1,8");
-        propertiesPanel.add(warningPanel, "0,9,1,9");
+        propertiesPanel.add(new JLabel(AppStrings.translate("header.encrypted")), "0,3");
+        propertiesPanel.add(encryptedLabel, "1,3");
+        propertiesPanel.add(encryptedCheckBox, "1,3");
+        propertiesPanel.add(new JLabel(AppStrings.translate("header.gfx")), "0,4");
+        propertiesPanel.add(gfxLabel, "1,4");
+        propertiesPanel.add(gfxCheckBox, "1,4");
+        propertiesPanel.add(new JLabel(AppStrings.translate("header.filesize")), "0,5");
+        propertiesPanel.add(fileSizeLabel, "1,5");
+        propertiesPanel.add(new JLabel(AppStrings.translate("header.framerate")), "0,6");
+        propertiesPanel.add(frameRateLabel, "1,6");
+        propertiesPanel.add(frameRateEditorPanel, "1,6");
+        propertiesPanel.add(new JLabel(AppStrings.translate("header.framecount")), "0,7");
+        propertiesPanel.add(frameCountLabel, "1,7");
+        propertiesPanel.add(frameCountEditorPanel, "1,7");
+        propertiesPanel.add(new JLabel(AppStrings.translate("header.displayrect")), "0,8");
+        propertiesPanel.add(displayRectTwipsLabel, "1,8");
+        propertiesPanel.add(displayRectEditorPanel, "1,8");
+        propertiesPanel.add(new JLabel(""), "0,9");
+        propertiesPanel.add(displayRectPixelsLabel, "1,9");
+        propertiesPanel.add(warningPanel, "0,10,1,10");
 
         add(propertiesPanel, BorderLayout.CENTER);
 
-        editButton.setVisible(false);
         editButton.addActionListener(this::editButtonActionPerformed);
 
-        saveButton.setVisible(false);
         saveButton.addActionListener(this::saveButtonActionPerformed);
 
-        cancelButton.setVisible(false);
         cancelButton.addActionListener(this::cancelButtonActionPerformed);
+
+        if (Configuration.editorMode.get()) {
+            editButton.setVisible(false);
+            saveButton.setVisible(false);
+            saveButton.setEnabled(false);
+            cancelButton.setVisible(false);
+            cancelButton.setEnabled(false);
+        } else {
+            editButton.setVisible(false);
+            saveButton.setVisible(false);
+            cancelButton.setVisible(false);
+        }
 
         buttonsPanel.setLayout(new FlowLayout());
         buttonsPanel.setBorder(new BevelBorder(BevelBorder.RAISED));
@@ -219,25 +308,36 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
 
     private void editButtonActionPerformed(ActionEvent evt) {
         setEditMode(true);
+        mainPanel.setEditingStatus();
     }
 
     private void saveButtonActionPerformed(ActionEvent evt) {
         swf.compression = getCompression();
         swf.version = getVersionNumber();
         swf.gfx = gfxCheckBox.isSelected();
+        swf.encrypted = encryptedCheckBox.isSelected() && !gfxCheckBox.isSelected();
         swf.frameRate = ((Number) (frameRateEditor.getModel().getValue())).floatValue();
-        swf.displayRect.Xmin = (int) xMinEditor.getModel().getValue();
-        swf.displayRect.Xmax = (int) xMaxEditor.getModel().getValue();
-        swf.displayRect.Ymin = (int) yMinEditor.getModel().getValue();
-        swf.displayRect.Ymax = (int) yMaxEditor.getModel().getValue();
+        swf.frameCount = ((Number) (frameCountEditor.getModel().getValue())).intValue();
+        double multiplier = 1.0;
+        if (unit == UNIT_PIXELS) {
+            multiplier = 20.0;
+        }
+        swf.displayRect.Xmin = (int) (multiplier * (double) xMinEditor.getModel().getValue());
+        swf.displayRect.Xmax = (int) (multiplier * (double) xMaxEditor.getModel().getValue());
+        swf.displayRect.Ymin = (int) (multiplier * (double) yMinEditor.getModel().getValue());
+        swf.displayRect.Ymax = (int) (multiplier * (double) yMaxEditor.getModel().getValue());
+        swf.setHeaderModified(true);
 
         load(swf);
+        mainPanel.repaintTree();
         setEditMode(false);
+        mainPanel.clearEditingStatus();
     }
 
     private void cancelButtonActionPerformed(ActionEvent evt) {
         load(swf);
         setEditMode(false);
+        mainPanel.clearEditingStatus();
     }
 
     public void load(SWF swf) {
@@ -261,6 +361,9 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
         versionLabel.setText(Integer.toString(swf.version));
         versionEditor.setModel(new SpinnerNumberModel(swf.version, 1, SWF.MAX_VERSION, 1));
 
+        encryptedLabel.setText(swf.encrypted ? AppStrings.translate("yes") : AppStrings.translate("no"));
+        encryptedCheckBox.setSelected(swf.encrypted);
+
         gfxLabel.setText(swf.gfx ? AppStrings.translate("yes") : AppStrings.translate("no"));
         gfxCheckBox.setSelected(swf.gfx);
 
@@ -270,6 +373,8 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
         frameRateEditor.setModel(new SpinnerNumberModel(swf.frameRate, -0x80000000, 0x7fffffff, 1));
 
         frameCountLabel.setText("" + swf.frameCount);
+        frameCountEditor.setModel(new SpinnerNumberModel(swf.frameCount, -0x80000000, 0x7fffffff, 1));
+
         displayRectTwipsLabel.setText(AppStrings.translate("header.displayrect.value.twips")
                 .replace("%xmin%", Integer.toString(swf.displayRect.Xmin))
                 .replace("%ymin%", Integer.toString(swf.displayRect.Ymin))
@@ -281,12 +386,54 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
                 .replace("%xmax%", fmtDouble(swf.displayRect.Xmax / SWF.unitDivisor))
                 .replace("%ymax%", fmtDouble(swf.displayRect.Ymax / SWF.unitDivisor)));
 
-        xMinEditor.setModel(new SpinnerNumberModel(swf.displayRect.Xmin, -0x80000000, 0x7fffffff, 1));
-        xMaxEditor.setModel(new SpinnerNumberModel(swf.displayRect.Xmax, -0x80000000, 0x7fffffff, 1));
-        yMinEditor.setModel(new SpinnerNumberModel(swf.displayRect.Ymin, -0x80000000, 0x7fffffff, 1));
-        yMaxEditor.setModel(new SpinnerNumberModel(swf.displayRect.Ymax, -0x80000000, 0x7fffffff, 1));
+        double multiplier = 1.0;
+        if (unit == UNIT_PIXELS) {
+            multiplier = 1 / SWF.unitDivisor;
+        }
 
-        setEditMode(false);
+        xMinEditor.setModel(new SpinnerNumberModel(swf.displayRect.Xmin * multiplier, -0x80000000, 0x7fffffff, 1));
+        xMaxEditor.setModel(new SpinnerNumberModel(swf.displayRect.Xmax * multiplier, -0x80000000, 0x7fffffff, 1));
+        yMinEditor.setModel(new SpinnerNumberModel(swf.displayRect.Ymin * multiplier, -0x80000000, 0x7fffffff, 1));
+        yMaxEditor.setModel(new SpinnerNumberModel(swf.displayRect.Ymax * multiplier, -0x80000000, 0x7fffffff, 1));
+
+        compressionComboBox.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                setModified();
+            }
+        });
+        versionEditor.addChangeListener((ChangeEvent e) -> {
+            setModified();
+        });
+        encryptedCheckBox.addChangeListener((ChangeEvent e) -> {
+            setModified();
+        });
+        gfxCheckBox.addChangeListener((ChangeEvent e) -> {
+            setModified();
+        });
+        frameRateEditor.addChangeListener((ChangeEvent e) -> {
+            setModified();
+        });
+        xMinEditor.addChangeListener((ChangeEvent e) -> {
+            setModified();
+        });
+        xMaxEditor.addChangeListener((ChangeEvent e) -> {
+            setModified();
+        });
+        yMinEditor.addChangeListener((ChangeEvent e) -> {
+            setModified();
+        });
+        yMaxEditor.addChangeListener((ChangeEvent e) -> {
+            setModified();
+        });
+
+        setEditMode(Configuration.editorMode.get());
+    }
+
+    private void setModified() {
+        saveButton.setEnabled(true);
+        cancelButton.setEnabled(true);
+        mainPanel.setEditingStatus();
     }
 
     public void clear() {
@@ -303,14 +450,22 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
     }
 
     private void setEditMode(boolean edit) {
+
+        if (Configuration.editorMode.get()) {
+            edit = true;
+        }
         compressionLabel.setVisible(!edit);
         compressionEditorPanel.setVisible(edit);
         versionLabel.setVisible(!edit);
         versionEditorPanel.setVisible(edit);
+        encryptedLabel.setVisible(!edit);
+        encryptedCheckBox.setVisible(edit);
         gfxLabel.setVisible(!edit);
         gfxCheckBox.setVisible(edit);
         frameRateLabel.setVisible(!edit);
         frameRateEditorPanel.setVisible(edit);
+        frameCountLabel.setVisible(!edit);
+        frameCountEditorPanel.setVisible(edit);
 
         displayRectTwipsLabel.setVisible(!edit);
         displayRectPixelsLabel.setVisible(!edit);
@@ -318,19 +473,33 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
 
         warningPanel.setVisible(false);
 
-        editButton.setVisible(!edit);
-        saveButton.setVisible(edit);
-        cancelButton.setVisible(edit);
+        if (Configuration.editorMode.get()) {
+            editButton.setVisible(false);
+            saveButton.setVisible(true);
+            saveButton.setEnabled(false);
+            cancelButton.setVisible(true);
+            cancelButton.setEnabled(false);
+        } else {
+            editButton.setVisible(!edit);
+            saveButton.setVisible(edit);
+            cancelButton.setVisible(edit);
+        }
     }
 
     private boolean validateHeader() {
         int version = getVersionNumber();
         boolean gfx = gfxCheckBox.isSelected();
+        boolean encrypted = encryptedCheckBox.isSelected();
         SWFCompression compression = getCompression();
         String resultStr = "";
         boolean result = true;
         if (gfx && !(compression == SWFCompression.NONE || compression == SWFCompression.ZLIB)) {
             resultStr += AppStrings.translate("header.warning.unsupportedGfxCompression") + " ";
+            result = false;
+        }
+
+        if (gfx && encrypted) {
+            resultStr += AppStrings.translate("header.warning.unsupportedGfxEncryption") + " ";
             result = false;
         }
 
@@ -354,12 +523,21 @@ public class HeaderInfoPanel extends JPanel implements TagEditorPanel {
 
     @Override
     public boolean tryAutoSave() {
-        // todo: implement
-        return false;
+        if (saveButton.isVisible() && saveButton.isEnabled() && Configuration.autoSaveTagModifications.get()) {
+            saveButtonActionPerformed(null);
+        }
+        return !(saveButton.isVisible() && saveButton.isEnabled());
     }
 
     @Override
     public boolean isEditing() {
-        return saveButton.isVisible();
+        return saveButton.isVisible() && saveButton.isEnabled();
+    }
+
+    public void startEdit() {
+        if (!editButton.isVisible()) {
+            return;
+        }
+        editButtonActionPerformed(null);
     }
 }

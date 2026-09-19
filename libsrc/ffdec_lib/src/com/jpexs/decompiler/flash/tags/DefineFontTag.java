@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,11 +24,13 @@ import com.jpexs.decompiler.flash.tags.base.FontInfoTag;
 import com.jpexs.decompiler.flash.tags.base.FontTag;
 import com.jpexs.decompiler.flash.types.BasicType;
 import com.jpexs.decompiler.flash.types.SHAPE;
+import com.jpexs.decompiler.flash.types.annotations.Conditional;
 import com.jpexs.decompiler.flash.types.annotations.Internal;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.decompiler.flash.types.shaperecords.SHAPERECORD;
 import com.jpexs.helpers.ByteArrayRange;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.awt.Font;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -36,6 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * DefineFont tag - defines a font.
  *
  * @author JPEXS
  */
@@ -49,15 +52,19 @@ public class DefineFontTag extends FontTag {
     @SWFType(BasicType.UI16)
     public int fontId;
 
+    @Conditional("!strippedShapes")
     public List<SHAPE> glyphShapeTable;
 
     @Internal
     private FontInfoTag fontInfoTag = null;
 
+    @Internal
+    public boolean strippedShapes = false; //Can be in GFX
+
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineFontTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -68,9 +75,9 @@ public class DefineFontTag extends FontTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineFontTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -82,16 +89,23 @@ public class DefineFontTag extends FontTag {
         fontId = sis.readUI16("fontId");
         glyphShapeTable = new ArrayList<>();
 
-        if (sis.available() > 0) {
-            long pos = sis.getPos();
-            int firstOffset = sis.readUI16("firstOffset");
-            int nGlyphs = firstOffset / 2;
+        strippedShapes = false;
 
-            long[] offsetTable = new long[nGlyphs];
-            offsetTable[0] = firstOffset;
-            for (int i = 1; i < nGlyphs; i++) {
-                offsetTable[i] = sis.readUI16("offset");
+        long pos = sis.getPos();
+        int firstOffset = sis.readUI16("firstOffset");
+        int nGlyphs = firstOffset / 2;
+
+        long[] offsetTable = new long[nGlyphs];
+        offsetTable[0] = firstOffset;
+        for (int i = 1; i < nGlyphs; i++) {
+            int offset = sis.readUI16("offset");
+            if (offset == 0) {
+                strippedShapes = true;
+                break;
             }
+            offsetTable[i] = offset;
+        }
+        if (!strippedShapes) {
             for (int i = 0; i < nGlyphs; i++) {
                 sis.seek(pos + offsetTable[i]);
                 glyphShapeTable.add(sis.readSHAPE(1, false, "shape"));
@@ -103,22 +117,27 @@ public class DefineFontTag extends FontTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
-    public void getData(SWFOutputStream sos) throws IOException {
+    public synchronized void getData(SWFOutputStream sos) throws IOException {
         sos.writeUI16(fontId);
-        ByteArrayOutputStream baos2 = new ByteArrayOutputStream();
-        List<Integer> offsetTable = new ArrayList<>();
-        SWFOutputStream sos2 = new SWFOutputStream(baos2, getVersion());
-        for (SHAPE shape : glyphShapeTable) {
-            offsetTable.add(glyphShapeTable.size() * 2 + (int) sos2.getPos());
-            sos2.writeSHAPE(shape, 1);
+        if (strippedShapes) {
+            sos.writeUI16(glyphShapeTable.size() * 2);
+            sos.writeUI16(0);
+        } else {
+            ByteArrayOutputStream baos2 = new ByteArrayOutputStream();
+            List<Integer> offsetTable = new ArrayList<>();
+            SWFOutputStream sos2 = new SWFOutputStream(baos2, getVersion(), getCharset());
+            for (SHAPE shape : glyphShapeTable) {
+                offsetTable.add(glyphShapeTable.size() * 2 + (int) sos2.getPos());
+                sos2.writeSHAPE(shape, 1);
+            }
+            for (int offset : offsetTable) {
+                sos.writeUI16(offset);
+            }
+            sos.write(baos2.toByteArray());
         }
-        for (int offset : offsetTable) {
-            sos.writeUI16(offset);
-        }
-        sos.write(baos2.toByteArray());
     }
 
     @Override
@@ -132,8 +151,18 @@ public class DefineFontTag extends FontTag {
     }
 
     @Override
-    public int getGlyphWidth(int glyphIndex) {
-        return glyphShapeTable.get(glyphIndex).getBounds().getWidth();
+    public void setGlyphAdvance(int glyphIndex, double advanceValue) {
+        
+    }
+
+    @Override
+    public void updateBounds() {
+        throw new UnsupportedOperationException("Not supported yet.");
+    }            
+    
+    @Override
+    public synchronized int getGlyphWidth(int glyphIndex) {
+        return glyphShapeTable.get(glyphIndex).getBounds(1).getWidth();
     }
 
     private void ensureFontInfo() {
@@ -153,10 +182,10 @@ public class DefineFontTag extends FontTag {
     }
 
     @Override
-    public char glyphToChar(int glyphIndex) {
+    public synchronized char glyphToChar(int glyphIndex) {
         ensureFontInfo();
         if (fontInfoTag != null) {
-            return (char) (int) fontInfoTag.getCodeTable().get(glyphIndex);
+            return Utf8Helper.codePointToChar(fontInfoTag.getCodeTable().get(glyphIndex), getCodesCharset());
         } else {
             return '?';
         }
@@ -166,14 +195,14 @@ public class DefineFontTag extends FontTag {
     public int charToGlyph(char c) {
         ensureFontInfo();
         if (fontInfoTag != null) {
-            return fontInfoTag.getCodeTable().indexOf((int) c);
+            return fontInfoTag.getCodeTable().indexOf(Utf8Helper.charToCodePoint(c, getCodesCharset()));
         }
         return -1;
 
     }
 
     @Override
-    public List<SHAPE> getGlyphShapeTable() {
+    public synchronized List<SHAPE> getGlyphShapeTable() {
         return glyphShapeTable;
     }
 
@@ -266,37 +295,73 @@ public class DefineFontTag extends FontTag {
     }
 
     @Override
-    public void addCharacter(char character, Font font) {
+    public String getCodesCharset() {
+        if (fontInfoTag != null && fontInfoTag.isShiftJIS()) {
+            return "Shift_JIS";
+        }
+        return getCharset();
+    }
+
+    @Override
+    public synchronized boolean addCharacter(char character, Font font) {
         SHAPE shp = SHAPERECORD.fontCharacterToSHAPE(font, (int) Math.round(getDivider() * 1024), character);
         ensureFontInfo();
-        int code = (int) character;
+        int code = (int) Utf8Helper.charToCodePoint(character, getCodesCharset());
+
+        if (code == -1) { //Fixme - throw exception, etc.
+            code = 0;
+        }
         int pos = -1;
         boolean exists = false;
         if (fontInfoTag != null) {
             List<Integer> codeTable = fontInfoTag.getCodeTable();
-            for (int i = 0; i < codeTable.size(); i++) {
-                if (codeTable.get(i) >= code) {
-                    if (codeTable.get(i) == code) {
-                        exists = true;
+                        
+            pos = codeTable.indexOf(code);
+            exists = pos != -1;
+            if (!exists) {
+                for (int i = 0; i < codeTable.size(); i++) {
+                    if (codeTable.get(i) > code) {
+                        pos = i;
+                        break;
                     }
-
-                    pos = i;
-                    break;
                 }
             }
-
             if (pos == -1) {
                 pos = codeTable.size();
-            }
+            }            
         } else {
             pos = 0;
+        }
+
+        //Check whether offset is not too large
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SWFOutputStream sos2 = new SWFOutputStream(baos, getVersion(), getCharset());
+        for (int s = 0; s <= glyphShapeTable.size(); s++) {
+            SHAPE shape;
+            if (s == glyphShapeTable.size() || pos == s) {
+                if (pos != s) {
+                    break;
+                }
+                shape = shp;
+            } else {
+                shape = glyphShapeTable.get(s);
+            }
+            int offset = glyphShapeTable.size() * 2 + (int) sos2.getPos();
+            if (offset > 0xffff) {
+                return false;
+            }
+            try {
+                sos2.writeSHAPE(shape, 1);
+            } catch (IOException ex) {
+                //should not happen
+            }
         }
 
         if (!exists) {
             shiftGlyphIndices(fontId, pos, true);
             glyphShapeTable.add(pos, shp);
             if (fontInfoTag != null) {
-                fontInfoTag.addFontCharacter(pos, (int) character);
+                fontInfoTag.addFontCharacter(pos, code);
             }
         } else {
             glyphShapeTable.set(pos, shp);
@@ -304,10 +369,11 @@ public class DefineFontTag extends FontTag {
 
         setModified(true);
         getSwf().clearImageCache();
+        return true;
     }
 
     @Override
-    public boolean removeCharacter(char character) {
+    public synchronized boolean removeCharacter(char character) {
         ensureFontInfo();
         if (fontInfoTag == null) {
             return false;
@@ -316,17 +382,8 @@ public class DefineFontTag extends FontTag {
         int code = (int) character;
         int pos = -1;
         List<Integer> codeTable = fontInfoTag.getCodeTable();
-        for (int i = 0; i < codeTable.size(); i++) {
-            if (codeTable.get(i) >= code) {
-                if (codeTable.get(i) == code) {
-                    pos = i;
-                    break;
-                }
-
-                return false;
-            }
-        }
-
+        pos = codeTable.indexOf(code);
+        
         if (pos == -1) {
             return false;
         }
@@ -347,7 +404,7 @@ public class DefineFontTag extends FontTag {
     }
 
     @Override
-    public int getCharacterCount() {
+    public synchronized int getCharacterCount() {
         ensureFontInfo();
         if (fontInfoTag != null) {
             List<Integer> codeTable = fontInfoTag.getCodeTable();
@@ -357,13 +414,13 @@ public class DefineFontTag extends FontTag {
     }
 
     @Override
-    public String getCharacters() {
+    public synchronized String getCharacters() {
         ensureFontInfo();
         if (fontInfoTag != null) {
             List<Integer> codeTable = fontInfoTag.getCodeTable();
             StringBuilder ret = new StringBuilder(codeTable.size());
             for (int i : codeTable) {
-                ret.append((char) i);
+                ret.append(Utf8Helper.codePointToChar(i, getCodesCharset()));
             }
             return ret.toString();
         }
@@ -420,5 +477,13 @@ public class DefineFontTag extends FontTag {
     public boolean isLeadingEditable() {
         return false;
     }
-
+    
+    @Override
+    public List<Integer> getRawCodeTable() {
+        ensureFontInfo();
+        if (fontInfoTag == null) {
+            return new ArrayList<>();
+        }
+        return fontInfoTag.getCodeTable();
+    }
 }

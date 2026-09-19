@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.helpers;
 
 import java.util.ArrayList;
@@ -20,8 +21,10 @@ import java.util.Collection;
 import java.util.HashMap;
 
 /**
+ * Hash array list.
  *
  * @author JPEXS
+ * @param <E> Element type
  */
 public class HashArrayList<E> extends ArrayList<E> {
 

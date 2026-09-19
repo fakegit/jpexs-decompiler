@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -28,11 +28,15 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.List;
 
 /**
+ * getglobalscope instruction - get global scope object.
  *
  * @author JPEXS
  */
 public class GetGlobalScopeIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public GetGlobalScopeIns() {
         super(0x64, "getglobalscope", new int[]{}, false);
     }

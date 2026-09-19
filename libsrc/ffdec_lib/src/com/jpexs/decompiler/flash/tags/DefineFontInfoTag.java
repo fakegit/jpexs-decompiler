@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,12 +25,13 @@ import com.jpexs.decompiler.flash.types.annotations.Reserved;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.helpers.ByteArrayRange;
-import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
+ * DefineFontInfo tag - defines font info.
  *
  * @author JPEXS
  */
@@ -65,7 +66,7 @@ public class DefineFontInfoTag extends FontInfoTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineFontInfoTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -76,9 +77,9 @@ public class DefineFontInfoTag extends FontInfoTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineFontInfoTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -88,11 +89,7 @@ public class DefineFontInfoTag extends FontInfoTag {
     @Override
     public final void readData(SWFInputStream sis, ByteArrayRange data, int level, boolean parallel, boolean skipUnusualTags, boolean lazy) throws IOException {
         fontID = sis.readUI16("fontId");
-        if (swf.version >= 6) {
-            fontName = sis.readNetString("fontName", Utf8Helper.charset);
-        } else {
-            fontName = sis.readNetString("fontName");
-        }
+        fontName = sis.readNetString("fontName");
         reserved = (int) sis.readUB(2, "reserved");
         fontFlagsSmallText = sis.readUB(1, "fontFlagsSmallText") == 1;
         fontFlagsShiftJIS = sis.readUB(1, "fontFlagsShiftJIS") == 1;
@@ -114,16 +111,12 @@ public class DefineFontInfoTag extends FontInfoTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
         sos.writeUI16(fontID);
-        if (swf.version >= 6) {
-            sos.writeNetString(fontName, Utf8Helper.charset);
-        } else {
-            sos.writeNetString(fontName);
-        }
+        sos.writeNetString(fontName);
         sos.writeUB(2, reserved);
         sos.writeUB(1, fontFlagsSmallText ? 1 : 0);
         sos.writeUB(1, fontFlagsShiftJIS ? 1 : 0);
@@ -183,5 +176,20 @@ public class DefineFontInfoTag extends FontInfoTag {
     @Override
     public void setFontFlagsItalic(boolean value) {
         fontFlagsItalic = value;
+    }
+
+    @Override
+    public boolean isShiftJIS() {
+        return fontFlagsShiftJIS;
+    }
+
+    @Override
+    public boolean isAnsi() {
+        return fontFlagsANSI;
+    }
+
+    @Override
+    public void getNeededCharacters(Set<Integer> needed, Set<String> neededClasses, SWF swf) {
+        needed.add(fontID);
     }
 }

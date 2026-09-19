@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,6 +25,7 @@ import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SimpleValue;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
@@ -32,11 +33,17 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * Null value.
  *
  * @author JPEXS
  */
-public class NullAVM2Item extends AVM2Item {
+public class NullAVM2Item extends AVM2Item implements SimpleValue {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     */
     public NullAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
     }
@@ -91,5 +98,10 @@ public class NullAVM2Item extends AVM2Item {
     public int hashCode() {
         int hash = 3;
         return hash;
+    }
+
+    @Override
+    public boolean isSimpleValue() {
+        return true;
     }
 }

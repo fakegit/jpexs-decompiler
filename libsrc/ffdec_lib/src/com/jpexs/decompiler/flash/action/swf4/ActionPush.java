@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.swf4;
 
 import com.jpexs.decompiler.flash.BaseLocalData;
@@ -20,16 +21,20 @@ import com.jpexs.decompiler.flash.EndOfStreamException;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.action.Action;
+import com.jpexs.decompiler.flash.action.ActionGraphTargetDialect;
 import com.jpexs.decompiler.flash.action.ActionList;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
+import com.jpexs.decompiler.flash.action.as2.Trait;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
 import com.jpexs.decompiler.flash.action.model.TemporaryRegister;
+import com.jpexs.decompiler.flash.action.model.TemporaryRegisterMark;
 import com.jpexs.decompiler.flash.action.model.UnresolvedConstantActionItem;
 import com.jpexs.decompiler.flash.action.parser.ActionParseException;
 import com.jpexs.decompiler.flash.action.parser.pcode.ASMParsedSymbol;
 import com.jpexs.decompiler.flash.action.parser.pcode.FlasmLexer;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.dumpview.DumpInfo;
+import com.jpexs.decompiler.flash.ecma.EcmaScript;
 import com.jpexs.decompiler.flash.ecma.Null;
 import com.jpexs.decompiler.flash.ecma.Undefined;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
@@ -49,19 +54,30 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
+ * Push action - Pushes values onto the stack.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 4)
 public class ActionPush extends Action {
 
+    /**
+     * Values to push
+     */
     public List<Object> values;
 
+    /**
+     * Replacement values, if not null, values will be replaced by this list
+     */
     public List<Object> replacement;
 
+    /**
+     * Constant pool
+     */
     public List<String> constantPool;
 
     /**
@@ -70,8 +86,15 @@ public class ActionPush extends Action {
      */
     public static final int MAX_CONSTANT_INDEX_TYPE8 = 255;
 
-    public ActionPush(int actionLength, SWFInputStream sis, int version) throws IOException {
-        super(0x96, actionLength);
+    /**
+     * Constructor
+     *
+     * @param actionLength Action length
+     * @param sis SWF input stream
+     * @throws IOException On I/O error
+     */
+    public ActionPush(int actionLength, SWFInputStream sis) throws IOException {
+        super(0x96, actionLength, sis.getCharset());
         int type;
         values = new ArrayList<>();
         DumpInfo di = sis.dumpInfo;
@@ -121,12 +144,17 @@ public class ActionPush extends Action {
                 }
             }
         } catch (EndOfStreamException ex) {
+            //ignored
         }
     }
 
     @Override
     protected void getContentBytes(SWFOutputStream sos) throws IOException {
-        for (Object o : values) {
+        List<Object> vals = values;
+        if (replacement != null) {
+            vals = replacement;
+        }
+        for (Object o : vals) {
             if (o instanceof String) {
                 sos.writeUI8(0);
                 sos.writeString((String) o);
@@ -150,9 +178,12 @@ public class ActionPush extends Action {
                         o = (double) l;
                     }
                 }
-                if (o instanceof Double || o instanceof Float) {
+                if (o instanceof Float) {
+                    sos.writeUI8(1);
+                    sos.writeFLOAT((Float) o);
+                } else if (o instanceof Double) {
                     sos.writeUI8(6);
-                    sos.writeDOUBLE(((Number) o).doubleValue());
+                    sos.writeDOUBLE((Double) o);
                 } else if (o instanceof Long || o instanceof Integer || o instanceof Short || o instanceof Byte) {
                     sos.writeUI8(7);
                     sos.writeSI32(((Number) o).longValue());
@@ -177,10 +208,14 @@ public class ActionPush extends Action {
      */
     @Override
     protected int getContentBytesLength() {
+        List<Object> vals = values;
+        if (replacement != null) {
+            vals = replacement;
+        }
         int res = 0;
-        for (Object o : values) {
+        for (Object o : vals) {
             if (o instanceof String) {
-                res += Utf8Helper.getBytesLength((String) o) + 2;
+                res += Utf8Helper.getBytesLength((String) o, charset) + 2;
             } else if (o instanceof Float) {
                 res += 5;
             } else if (o == Null.INSTANCE) {
@@ -198,7 +233,9 @@ public class ActionPush extends Action {
                         o = (double) l;
                     }
                 }
-                if (o instanceof Double || o instanceof Float) {
+                if (o instanceof Float) {
+                    res += 5;
+                } else if (o instanceof Double) {
                     res += 9;
                 } else if (o instanceof Long || o instanceof Integer || o instanceof Short || o instanceof Byte) {
                     res += 5;
@@ -216,6 +253,12 @@ public class ActionPush extends Action {
         return res;
     }
 
+    /**
+     * Checks if the value is valid
+     *
+     * @param value Value
+     * @return True if valid
+     */
     public static boolean isValidValue(Object value) {
         if (value instanceof String) {
             for (char ch : ((String) value).toCharArray()) {
@@ -233,28 +276,54 @@ public class ActionPush extends Action {
         return true;
     }
 
-    public ActionPush(Object value) {
-        super(0x96, 0);
+    /**
+     * Constructor
+     *
+     * @param value Value
+     * @param charset Charset
+     */
+    public ActionPush(Object value, String charset) {
+        super(0x96, 0, charset);
         this.values = new ArrayList<>();
         this.values.add(value);
         updateLength();
     }
 
-    public ActionPush(Object[] values) {
-        super(0x96, 0);
+    /**
+     * Constructor
+     *
+     * @param values Values
+     * @param charset Charset
+     */
+    public ActionPush(Object[] values, String charset) {
+        super(0x96, 0, charset);
         this.values = new ArrayList<>();
         this.values.addAll(Arrays.asList(values));
         updateLength();
     }
 
-    public ActionPush(FlasmLexer lexer, List<String> constantPool) throws IOException, ActionParseException {
-        super(0x96, 0);
+    /**
+     * Constructor
+     *
+     * @param lexer Lexer
+     * @param constantPool Constant pool
+     * @param charset Charset
+     * @throws IOException On I/O error
+     * @throws ActionParseException On action parse error
+     */
+    public ActionPush(FlasmLexer lexer, List<String> constantPool, String charset) throws IOException, ActionParseException {
+        super(0x96, 0, charset);
         this.constantPool = constantPool;
         values = new ArrayList<>();
         int count = 0;
         loop:
         while (true) {
-            ASMParsedSymbol symb = lexer.yylex();
+            boolean valueExpected = false;
+            ASMParsedSymbol symb = lexer.lex();
+            if (symb.type == ASMParsedSymbol.TYPE_COMMA) {
+                symb = lexer.lex();
+                valueExpected = true;
+            }
             switch (symb.type) {
                 case ASMParsedSymbol.TYPE_STRING:
                     count++;
@@ -265,6 +334,7 @@ public class ActionPush extends Action {
                     }
                     break;
                 case ASMParsedSymbol.TYPE_FLOAT:
+                case ASMParsedSymbol.TYPE_DOUBLE:
                 case ASMParsedSymbol.TYPE_NULL:
                 case ASMParsedSymbol.TYPE_UNDEFINED:
                 case ASMParsedSymbol.TYPE_REGISTER:
@@ -276,7 +346,9 @@ public class ActionPush extends Action {
                     break;
                 case ASMParsedSymbol.TYPE_EOL:
                 case ASMParsedSymbol.TYPE_EOF:
-                    if (count == 0) {
+                    if (valueExpected) {
+                        throw new ActionParseException("Value expected", lexer.yyline());
+                    } else if (count == 0) {
                         throw new ActionParseException("Arguments expected", lexer.yyline());
                     } else {
                         break loop;
@@ -290,7 +362,7 @@ public class ActionPush extends Action {
     }
 
     @Override
-    public GraphTextWriter getASMSourceReplaced(ActionList container, Set<Long> knownAddreses, ScriptExportMode exportMode, GraphTextWriter writer) {
+    public GraphTextWriter getASMSourceReplaced(ActionList container, Set<Long> knownAddresses, ScriptExportMode exportMode, GraphTextWriter writer) {
         if (replacement == null || replacement.size() < values.size()) {
             return toString(writer);
         }
@@ -301,7 +373,16 @@ public class ActionPush extends Action {
         return writer;
     }
 
-    public GraphTextWriter paramsToStringReplaced(List<? extends GraphSourceItem> container, Set<Long> knownAddreses, ScriptExportMode exportMode, GraphTextWriter writer) {
+    /**
+     * Converts the parameters to string - use replacements when available.
+     *
+     * @param container Container
+     * @param knownAddresses Known addresses
+     * @param exportMode Export mode
+     * @param writer Writer
+     * @return Writer
+     */
+    public GraphTextWriter paramsToStringReplaced(List<? extends GraphSourceItem> container, Set<Long> knownAddresses, ScriptExportMode exportMode, GraphTextWriter writer) {
         if (replacement == null || replacement.size() < values.size()) {
             return paramsToString(writer);
         }
@@ -312,6 +393,12 @@ public class ActionPush extends Action {
         return writer;
     }
 
+    /**
+     * To string without quotes.
+     *
+     * @param i Index
+     * @return String
+     */
     public String toStringNoQ(int i) {
         String ret;
         Object value = values.get(i);
@@ -327,6 +414,28 @@ public class ActionPush extends Action {
         return ret;
     }
 
+    /**
+     * Converts the parameters to string.
+     *
+     * @param writer Writer
+     * @return Writer
+     */
+    public GraphTextWriter paramsToString(GraphTextWriter writer) {
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) {
+                writer.appendNoHilight(", ");
+            }
+            writer.append(toString(i), getAddress() + i, getFileOffset());
+        }
+        return writer;
+    }
+
+    /**
+     * Converts the parameter to string.
+     *
+     * @param i Index
+     * @return String
+     */
     public String toString(int i) {
         String ret;
         Object value = values.get(i);
@@ -336,31 +445,35 @@ public class ActionPush extends Action {
             ret = "\"" + Helper.escapeActionScriptString((String) value) + "\"";
         } else if (value instanceof RegisterNumber) {
             ret = ((RegisterNumber) value).toStringNoName();
+        } else if ((value instanceof Float) || (value instanceof Double)) {
+            String fdString = EcmaScript.toString(value);
+            if (value instanceof Double && fdString.matches("^[0-9]+$")) {
+                fdString += ".0";
+            }
+            if (value instanceof Float) {
+                fdString += "f";
+            }
+            ret = fdString;
         } else {
             ret = value.toString();
         }
         return ret;
     }
 
-    public GraphTextWriter paramsToString(GraphTextWriter writer) {
-        int pos = 0;
-        for (int i = 0; i < values.size(); i++) {
-            if (pos > 0) {
-                writer.appendNoHilight(" ");
-            }
-            writer.append(toString(i), getAddress() + pos + 1, getFileOffset());
-            pos++;
-        }
-        return writer;
-    }
-
     @Override
     public String toString() {
         HighlightedTextWriter writer = new HighlightedTextWriter(Configuration.getCodeFormatting(), false);
         toString(writer);
+        writer.finishHilights();
         return writer.toString();
     }
 
+    /**
+     * To string.
+     *
+     * @param writer Writer
+     * @return Writer
+     */
     public GraphTextWriter toString(GraphTextWriter writer) {
         writer.appendNoHilight("Push ");
         paramsToString(writer);
@@ -390,68 +503,55 @@ public class ActionPush extends Action {
     }
 
     @Override
-    public void translate(SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+    public void translate(Set<String> usedDeobfuscations, Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
         int pos = 0;
         for (Object o : values) {
+            GraphTargetItem toPush = null;
             if (o instanceof ConstantIndex) {
                 if ((constantPool == null) || (((ConstantIndex) o).index >= constantPool.size())) {
-                    stack.push(new UnresolvedConstantActionItem(((ConstantIndex) o).index));
-                    continue;
+                    toPush = new UnresolvedConstantActionItem(((ConstantIndex) o).index);
                 } else {
                     o = constantPool.get(((ConstantIndex) o).index);
                 }
             }
-            /*if (o instanceof RegisterNumber) {
-             if (regNames.containsKey(((RegisterNumber) o).number)) {
-             ((RegisterNumber) o).name = regNames.get(((RegisterNumber) o).number);
-             } else if (output.size() >= 2) { //chained assignments:, ignore for class prototype assignment
-             GraphTargetItem last = output.get(output.size() - 1);
-             GraphTargetItem prev = output.get(output.size() - 2);
-             if (last instanceof SetTypeActionItem) {
-             if (prev instanceof StoreRegisterActionItem) {
-             StoreRegisterActionItem str = (StoreRegisterActionItem) prev;
-             if (str.register.number == ((RegisterNumber) o).number) {
-             SetTypeActionItem stt = (SetTypeActionItem) last;
-             stt.setTempRegister(((RegisterNumber) o).number);
-             if ((stt.getValue() instanceof IncrementActionItem) && (((IncrementActionItem) stt.getValue()).object.equals(stt.getObject()))) {
-             stack.push(new PreIncrementActionItem(this, lineStartAction, stt.getObject()));
-             } else if ((stt.getValue() instanceof DecrementActionItem) && (((DecrementActionItem) stt.getValue()).object.equals(stt.getObject()))) {
-             stack.push(new PreDecrementActionItem(this, lineStartAction, stt.getObject()));
-             } else {
-             //stack.push(last);
-             continue;
-             }
-             output.remove(output.size() - 1);
-             output.remove(output.size() - 1);
-             pos++;
-             continue;
-             }
-             }
-             }
-             }
-             }*/
-            if (o instanceof Boolean) {
-                Boolean b = (Boolean) o;
-                if (b) {
-                    stack.push(new TrueItem(this, lineStartAction));
+            if (toPush == null) {
+                if (o instanceof Boolean) {
+                    Boolean b = (Boolean) o;
+                    if (b) {
+                        toPush = new TrueItem(ActionGraphTargetDialect.INSTANCE, this, lineStartAction);
+                    } else {
+                        toPush = new FalseItem(ActionGraphTargetDialect.INSTANCE, this, lineStartAction);
+                    }
                 } else {
-                    stack.push(new FalseItem(this, lineStartAction));
-                }
-            } else {
-                DirectValueActionItem dvt = new DirectValueActionItem(this, lineStartAction, pos, o, constantPool);
+                    DirectValueActionItem dvt = new DirectValueActionItem(this, lineStartAction, pos, o, constantPool);
 
-                if (o instanceof RegisterNumber) {//TemporaryRegister
-                    dvt.computedRegValue = variables.get("__register" + ((RegisterNumber) o).number);
-                    if (regNames.containsKey(((RegisterNumber) o).number)) {
-                        ((RegisterNumber) o).name = regNames.get(((RegisterNumber) o).number);
+                    if (o instanceof RegisterNumber) { //TemporaryRegister
+                        dvt.computedRegValue = variables.get("__register" + ((RegisterNumber) o).number);
+                        if (regNames.containsKey(((RegisterNumber) o).number)) {
+                            ((RegisterNumber) o).name = regNames.get(((RegisterNumber) o).number);
+                        }
+                    }
+                    if (dvt.computedRegValue instanceof TemporaryRegister) {
+                        ((TemporaryRegister) dvt.computedRegValue).used = true;
+                        stack.finishBlock(output);
+                        for (int i = 0; i < output.size(); i++) {
+                            if (output.get(i) instanceof TemporaryRegisterMark) {
+                                TemporaryRegisterMark trm = (TemporaryRegisterMark) output.get(i);
+                                if (trm.tempReg == dvt.computedRegValue) {
+                                    output.remove(i);
+                                    break;
+                                }
+                            }
+                        }
+                        stack.moveToStack(output);
+                        toPush = new TemporaryRegister(((RegisterNumber) o).number, ((TemporaryRegister) dvt.computedRegValue).value);
+                    } else {
+                        toPush = dvt;
                     }
                 }
-                if (dvt.computedRegValue instanceof TemporaryRegister) {
-                    stack.push(new TemporaryRegister(((RegisterNumber) o).number, ((TemporaryRegister) dvt.computedRegValue).value));
-                } else {
-                    stack.push(dvt);
-                }
             }
+            toPush.setPos(pos);
+            stack.push(toPush);
             pos++;
         }
     }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,22 +12,35 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.parser.script;
 
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 
 /**
+ * Exception mark instruction.
  *
  * @author JPEXS
  */
 public class ExceptionMarkAVM2Instruction extends AVM2Instruction {
 
+    /**
+     * Mark type
+     */
     public int markType;
 
+    /**
+     * Exception id
+     */
     public int exceptionId;
 
+    /**
+     * Constructor.
+     * @param exceptionId Exception id
+     * @param markType Mark type
+     */
     public ExceptionMarkAVM2Instruction(int exceptionId, int markType) {
         super(0, null, null);
         this.markType = markType;

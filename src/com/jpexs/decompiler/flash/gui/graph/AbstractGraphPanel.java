@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@ import com.jpexs.decompiler.graph.Graph;
 import javax.swing.JPanel;
 
 /**
- *
  * @author JPEXS
  */
 public abstract class AbstractGraphPanel extends JPanel {

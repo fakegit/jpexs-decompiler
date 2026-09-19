@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,18 +21,31 @@ import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
+import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Convert value to another type.
  *
  * @author JPEXS
  */
 public class ConvertAVM2Item extends AVM2Item {
 
+    /**
+     * Type to convert to
+     */
     public GraphTargetItem type;
 
+    /**
+     * Constructor
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param value Value to convert
+     * @param type Type to convert to
+     */
     public ConvertAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value, GraphTargetItem type) {
         super(instruction, lineStartIns, value.getPrecedence(), value);
         this.type = type;
@@ -48,9 +61,53 @@ public class ConvertAVM2Item extends AVM2Item {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        type.toString(writer, localData).append("(");
+        //Same for CoerceAVM2Item
+        boolean displayConvert = true;
+        GraphTargetItem valueReturnType = value.returnType();
+        switch (type.toString()) {
+            case "Boolean":
+                displayConvert = !valueReturnType.equals(TypeItem.BOOLEAN)
+                        ; //&& !valueReturnType.equals(TypeItem.UNBOUNDED);
+                break;
+            case "Number":
+                displayConvert = !valueReturnType.equals(TypeItem.INT)
+                        && !valueReturnType.equals(TypeItem.NUMBER)
+                        && !valueReturnType.equals(TypeItem.UINT)
+                        ; //&& !valueReturnType.equals(TypeItem.UNBOUNDED);
+                break;
+            case "float":
+                displayConvert = !valueReturnType.equals(TypeItem.INT)
+                        && !valueReturnType.equals(new TypeItem("float"))
+                        && !valueReturnType.equals(TypeItem.UINT)
+                        ; //&& !valueReturnType.equals(TypeItem.UNBOUNDED);
+                break;
+            case "int":
+                displayConvert = !valueReturnType.equals(TypeItem.INT)
+                        ; //&& !valueReturnType.equals(TypeItem.UNBOUNDED);
+                break;
+            case "uint":
+                if (valueReturnType.equals(TypeItem.INT) && (value instanceof IntegerValueAVM2Item)) {
+                    displayConvert = (((IntegerValueAVM2Item) value).value < 0);
+                } else {
+                    displayConvert = !valueReturnType.equals(TypeItem.UINT)
+                        ; //    && !valueReturnType.equals(TypeItem.UNBOUNDED);
+                }
+                break;
+            case "String":
+                displayConvert = !valueReturnType.equals(TypeItem.STRING)
+                        //&& !valueReturnType.equals(new TypeItem("XML"))
+                        //&& !valueReturnType.equals(new TypeItem("XMLList"))
+                        && !valueReturnType.equals(new TypeItem("null"))
+                        ; //&& !valueReturnType.equals(TypeItem.UNBOUNDED);
+                break;
+        }
+        if (displayConvert) {
+            type.toString(writer, localData).append("(");
+        }
         value.toString(writer, localData);
-        writer.append(")");
+        if (displayConvert) {
+            writer.append(")");
+        }
         return writer;
     }
 

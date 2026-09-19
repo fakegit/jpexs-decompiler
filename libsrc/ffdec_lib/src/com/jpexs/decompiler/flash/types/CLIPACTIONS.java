@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,12 +26,15 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Define event handlers for a sprite character
+ * Define event handlers for a sprite character.
  *
  * @author JPEXS
  */
 public class CLIPACTIONS implements Serializable {
 
+    /**
+     * Reserved
+     */
     @Reserved
     @SWFType(BasicType.UI16)
     public int reserved;
@@ -46,6 +49,16 @@ public class CLIPACTIONS implements Serializable {
      */
     public List<CLIPACTIONRECORD> clipActionRecords = new ArrayList<>();
 
+    /**
+     * Constructor
+     */
+    public CLIPACTIONS() {
+
+    }
+
+    /**
+     * Calculates allEventFlags
+     */
     public void calculateAllEventFlags() {
 
         allEventFlags = new CLIPEVENTFLAGS();

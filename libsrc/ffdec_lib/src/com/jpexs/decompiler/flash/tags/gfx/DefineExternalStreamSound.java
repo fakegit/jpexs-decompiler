@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,20 +12,40 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.gfx;
 
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.decompiler.flash.tags.TagInfo;
+import com.jpexs.decompiler.flash.tags.base.CharacterIdTag;
+import com.jpexs.decompiler.flash.tags.base.SoundTag;
+import com.jpexs.decompiler.flash.types.annotations.Internal;
+import com.jpexs.decompiler.flash.types.sound.SoundExportFormat;
+import com.jpexs.decompiler.flash.types.sound.SoundFormat;
 import com.jpexs.helpers.ByteArrayRange;
+import com.jpexs.helpers.Helper;
+import java.io.BufferedInputStream;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.UnsupportedAudioFileException;
 
 /**
+ * DefineExternalStreamSound tag - external stream sound.
  *
  * @author JPEXS
  */
-public class DefineExternalStreamSound extends Tag {
+public class DefineExternalStreamSound extends Tag implements CharacterIdTag, SoundTag {
 
     public static final int ID = 1007;
 
@@ -51,11 +71,14 @@ public class DefineExternalStreamSound extends Tag {
 
     public static final int SOUND_FORMAT_WAV = 0;
 
+    @Internal
+    private int virtualCharacterId = -1;
+
     /**
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -73,13 +96,18 @@ public class DefineExternalStreamSound extends Tag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineExternalStreamSound(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
         readData(sis, data, 0, false, false, false);
+    }
+
+    public DefineExternalStreamSound(SWF swf) {
+        super(swf, ID, NAME, null);
+        fileName = "";
     }
 
     @Override
@@ -93,5 +121,157 @@ public class DefineExternalStreamSound extends Tag {
         startFrame = sis.readUI32("startFrame");
         lastFrame = sis.readUI32("lastFrame");
         fileName = sis.readNetString("fileName");
+    }
+
+    @Override
+    public SoundExportFormat getExportFormat() {
+        return SoundExportFormat.WAV; //?
+    }
+
+    @Override
+    public boolean importSupported() {
+        return false;
+    }
+
+    @Override
+    public int getSoundRate() {
+        switch ((int) sampleRate) {
+            case 5512:
+                return 0;
+            case 11025:
+                return 1;
+            case 22050:
+                return 2;
+            case 44100:
+                return 3;
+        }
+        return -1; //?
+    }
+
+    @Override
+    public boolean getSoundType() {
+        return channels == 2;
+    }
+
+    @Override
+    public List<ByteArrayRange> getRawSoundData() {
+        List<ByteArrayRange> ret = new ArrayList<>();
+        Path soundPath = getSwf().getFile() == null ? null : Paths.get(getSwf().getFile()).getParent().resolve(Paths.get(fileName));
+        if (soundPath == null || !soundPath.toFile().exists()) {
+            ret.add(new ByteArrayRange(new byte[]{}));
+            return ret;
+        }
+        try (FileInputStream fis = new FileInputStream(soundPath.toFile()); AudioInputStream audioIs = AudioSystem.getAudioInputStream(new BufferedInputStream(fis))) {
+            ret.add(new ByteArrayRange(Helper.readStream(audioIs)));
+            return ret;
+        } catch (IOException | UnsupportedAudioFileException iex) {
+            ret.add(new ByteArrayRange(new byte[]{}));
+            return ret;
+        }
+
+    }
+
+    @Override
+    public int getSoundFormatId() {
+        return SoundFormat.FORMAT_UNCOMPRESSED_LITTLE_ENDIAN;
+    }
+
+    @Override
+    public long getTotalSoundSampleCount() {
+        return sampleCount;
+    }
+
+    @Override
+    public boolean getSoundSize() {
+        return bits == 16;
+    }
+
+    @Override
+    public SoundFormat getSoundFormat() {
+        final int[] rateMap = {5512, 11025, 22050, 44100};
+        return new SoundFormat(getSoundFormatId(), rateMap[getSoundRate()], getSoundType());
+    }
+
+    @Override
+    public void setSoundSize(boolean soundSize) {
+        if (soundSize) {
+            bits = 16;
+        } else {
+            bits = 8;
+        }
+    }
+
+    @Override
+    public void setSoundType(boolean soundType) {
+        if (soundType) {
+            channels = 2;
+        } else {
+            channels = 1;
+        }
+    }
+
+    @Override
+    public void setSoundSampleCount(long soundSampleCount) {
+        this.sampleCount = soundSampleCount;
+    }
+
+    @Override
+    public void setSoundCompression(int soundCompression) {
+        //unsupported
+    }
+
+    @Override
+    public void setSoundRate(int soundRate) {
+        final int[] rateMap = {5512, 11025, 22050, 44100};
+        this.sampleRate = rateMap[soundRate];
+    }
+
+    @Override
+    public int getCharacterId() {
+        return this.virtualCharacterId;
+    }
+
+    @Override
+    public void setCharacterId(int characterId) {
+        this.virtualCharacterId = characterId;
+    }
+
+    @Override
+    public String getCharacterExportFileName() {
+        return "" + getCharacterId();
+    }
+
+    @Override
+    public Map<String, String> getNameProperties() {
+        Map<String, String> ret = super.getNameProperties();
+        ret.put("chid", "" + virtualCharacterId);
+        return ret;
+    }
+
+    @Override
+    public String getUniqueId() {
+        return "" + virtualCharacterId;
+    }
+
+    @Override
+    public void getTagInfo(TagInfo tagInfo) {
+        super.getTagInfo(tagInfo);
+        SoundFormat soundFormat = getSoundFormat();
+        tagInfo.addInfo("general", "fileName", fileName);
+        tagInfo.addInfo("general", "codecName", soundFormat.getFormatName());
+        tagInfo.addInfo("general", "exportFormat", soundFormat.getNativeExportFormat());
+        tagInfo.addInfo("general", "samplingRate", soundFormat.samplingRate);
+        tagInfo.addInfo("general", "stereo", soundFormat.stereo);
+        tagInfo.addInfo("general", "sampleCount", sampleCount);
+    }
+
+    @Override
+    public String getFlaExportName() {
+        return "sound" + getCharacterId();
+    }
+
+    @Override
+    public int getInitialLatency() {
+        return 0;
     }
 }

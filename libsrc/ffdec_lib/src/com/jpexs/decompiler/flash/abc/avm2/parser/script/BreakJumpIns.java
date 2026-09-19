@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,12 +12,14 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.parser.script;
 
 import com.jpexs.decompiler.flash.abc.avm2.instructions.jumps.JumpIns;
 
 /**
+ * Jump instruction for break statement in loops.
  *
  * @author JPEXS
  */
@@ -25,10 +27,18 @@ public class BreakJumpIns extends JumpIns {
 
     private final long loopId;
 
+    /**
+     * Constructor.
+     * @param loopId Loop id
+     */
     public BreakJumpIns(long loopId) {
         this.loopId = loopId;
     }
 
+    /**
+     * Gets loop id.
+     * @return Loop id
+     */
     public long getLoopId() {
         return loopId;
     }

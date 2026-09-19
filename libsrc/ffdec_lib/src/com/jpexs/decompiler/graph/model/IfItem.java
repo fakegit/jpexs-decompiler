@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,8 +22,10 @@ import com.jpexs.decompiler.graph.Block;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphPart;
 import com.jpexs.decompiler.graph.GraphSourceItem;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
+import com.jpexs.decompiler.graph.SimpleValue;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import java.util.ArrayList;
@@ -31,19 +33,40 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * If statement.
  *
  * @author JPEXS
  */
 public class IfItem extends GraphTargetItem implements Block {
 
+    /**
+     * Expression
+     */
     public GraphTargetItem expression;
 
+    /**
+     * On true
+     */
     public List<GraphTargetItem> onTrue;
 
+    /**
+     * On false
+     */
     public List<GraphTargetItem> onFalse;
 
+    /**
+     * Decision part
+     */
     public GraphPart decisionPart;
+
+    /**
+     * On true part
+     */
     public GraphPart onTruePart;
+
+    /**
+     * On false part
+     */
     public GraphPart onFalsePart;
 
     @Override
@@ -51,7 +74,9 @@ public class IfItem extends GraphTargetItem implements Block {
         if (dependencies.contains(expression)) {
             return false;
         }
-        dependencies.add(expression);
+        if (!((expression instanceof SimpleValue) && ((SimpleValue) expression).isSimpleValue())) {
+            dependencies.add(expression);
+        }
         return expression.isCompileTime(dependencies);
     }
 
@@ -83,9 +108,18 @@ public class IfItem extends GraphTargetItem implements Block {
         visitor.visit(expression);
     }
 
-
-    public IfItem(GraphSourceItem src, GraphSourceItem lineStartIns, GraphTargetItem expression, List<GraphTargetItem> onTrue, List<GraphTargetItem> onFalse) {
-        super(src, lineStartIns, NOPRECEDENCE);
+    /**
+     * Constructor.
+     *
+     * @param dialect Dialect
+     * @param src Source
+     * @param lineStartIns Line start instruction
+     * @param expression Expression
+     * @param onTrue On true
+     * @param onFalse On false
+     */
+    public IfItem(GraphTargetDialect dialect, GraphSourceItem src, GraphSourceItem lineStartIns, GraphTargetItem expression, List<GraphTargetItem> onTrue, List<GraphTargetItem> onFalse) {
+        super(dialect, src, lineStartIns, NOPRECEDENCE);
         this.expression = expression;
         this.onTrue = onTrue;
         this.onFalse = onFalse;
@@ -156,6 +190,28 @@ public class IfItem extends GraphTargetItem implements Block {
             }
             if (ti instanceof Block) {
                 ret.addAll(((Block) ti).getContinues());
+            }
+        }
+        return ret;
+    }
+    
+    @Override
+    public List<BreakItem> getBreaks() {
+        List<BreakItem> ret = new ArrayList<>();
+        for (GraphTargetItem ti : onTrue) {
+            if (ti instanceof BreakItem) {
+                ret.add((BreakItem) ti);
+            }
+            if (ti instanceof Block) {
+                ret.addAll(((Block) ti).getBreaks());
+            }
+        }
+        for (GraphTargetItem ti : onFalse) {
+            if (ti instanceof BreakItem) {
+                ret.add((BreakItem) ti);
+            }
+            if (ti instanceof Block) {
+                ret.addAll(((Block) ti).getBreaks());
             }
         }
         return ret;

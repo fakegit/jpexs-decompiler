@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.jumps;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -33,11 +34,15 @@ import java.util.HashMap;
 import java.util.List;
 
 /**
+ * ifle instruction - if value is less or equal, jump.
  *
  * @author JPEXS
  */
 public class IfLeIns extends InstructionDefinition implements IfTypeIns {
 
+    /**
+     * Constructor
+     */
     public IfLeIns() {
         super(0x16, "ifle", new int[]{AVM2Code.DAT_OFFSET}, true);
     }

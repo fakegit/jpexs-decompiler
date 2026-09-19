@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,9 +12,11 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.parser.pcode;
 
+import com.jpexs.decompiler.flash.ValueTooLargeException;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.ActionList;
 import com.jpexs.decompiler.flash.action.flashlite.ActionFSCommand2;
@@ -25,16 +27,16 @@ import com.jpexs.decompiler.flash.action.special.ActionDeobfuscatePop;
 import com.jpexs.decompiler.flash.action.special.ActionEnd;
 import com.jpexs.decompiler.flash.action.special.ActionNop;
 import com.jpexs.decompiler.flash.action.special.ActionUnknown;
-import com.jpexs.decompiler.flash.action.swf3.ActionGetURL;
+import com.jpexs.decompiler.flash.action.swf1.ActionGetURL;
+import com.jpexs.decompiler.flash.action.swf1.ActionGotoFrame;
+import com.jpexs.decompiler.flash.action.swf1.ActionNextFrame;
+import com.jpexs.decompiler.flash.action.swf1.ActionPlay;
+import com.jpexs.decompiler.flash.action.swf1.ActionPrevFrame;
+import com.jpexs.decompiler.flash.action.swf1.ActionStop;
+import com.jpexs.decompiler.flash.action.swf1.ActionToggleQuality;
+import com.jpexs.decompiler.flash.action.swf2.ActionStopSounds;
 import com.jpexs.decompiler.flash.action.swf3.ActionGoToLabel;
-import com.jpexs.decompiler.flash.action.swf3.ActionGotoFrame;
-import com.jpexs.decompiler.flash.action.swf3.ActionNextFrame;
-import com.jpexs.decompiler.flash.action.swf3.ActionPlay;
-import com.jpexs.decompiler.flash.action.swf3.ActionPrevFrame;
 import com.jpexs.decompiler.flash.action.swf3.ActionSetTarget;
-import com.jpexs.decompiler.flash.action.swf3.ActionStop;
-import com.jpexs.decompiler.flash.action.swf3.ActionStopSounds;
-import com.jpexs.decompiler.flash.action.swf3.ActionToggleQuality;
 import com.jpexs.decompiler.flash.action.swf3.ActionWaitForFrame;
 import com.jpexs.decompiler.flash.action.swf4.ActionAdd;
 import com.jpexs.decompiler.flash.action.swf4.ActionAnd;
@@ -137,6 +139,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * ActionScript 1-2 parser.
  *
  * @author JPEXS
  */
@@ -144,82 +147,20 @@ public class ASMParser {
 
     private static final Logger logger = Logger.getLogger(ASMParser.class.getName());
 
-    public static ActionList parse(boolean ignoreNops, List<Label> labels, Map<Action, Integer> lineMap, long address, FlasmLexer lexer, List<String> constantPool, int version) throws IOException, ActionParseException {
-        ActionList list = new ActionList();
-        Stack<GraphSourceItemContainer> containers = new Stack<>();
-
-        ActionConstantPool cpool = new ActionConstantPool(constantPool);
-        cpool.setAddress(address);
-        address += cpool.getTotalActionLength();
-        list.add(cpool);
-
-        while (true) {
-            ASMParsedSymbol symb = lexer.yylex();
-            if (symb.type == ASMParsedSymbol.TYPE_LABEL) {
-                labels.add(new Label((String) symb.value, address));
-            } else if (symb.type == ASMParsedSymbol.TYPE_COMMENT) {
-                if (!list.isEmpty()) {
-                    String cmt = (String) symb.value;
-                    if (cmt.equals("compileTimeJump")) {
-                        Action a = list.get(list.size() - 1);
-                        if (a instanceof ActionIf) {
-                            ((ActionIf) a).ignoreUsed = false;
-                        }
-                    } else if (cmt.equals("compileTimeIgnore")) {
-                        Action a = list.get(list.size() - 1);
-                        if (a instanceof ActionIf) {
-                            ((ActionIf) a).jumpUsed = false;
-                        }
-                    }
-                }
-            } else if (symb.type == ASMParsedSymbol.TYPE_BLOCK_END) {
-                if (containers.isEmpty()) {
-                    throw new ActionParseException("Block end without start", lexer.yyline());
-                }
-                GraphSourceItemContainer a = containers.peek();
-                if (!a.parseDivision(address - ((Action) a).getAddress(), lexer)) {
-                    containers.pop();
-                }
-            } else if (symb.type == ASMParsedSymbol.TYPE_INSTRUCTION_NAME) {
-                String instructionName = (String) symb.value;
-                Action a = parseAction(instructionName, lexer, constantPool, version);
-                if (ignoreNops && a instanceof ActionNop) {
-                    a = null;
-                }
-                if (a instanceof ActionConstantPool) {
-                    a = null;
-                }
-                if (a instanceof ActionNop) {
-                    a.setAddress(address);
-                    address += 1;
-                } else if (a != null) {
-                    a.setAddress(address);
-                    address += a.getTotalActionLength();
-                }
-                if (a instanceof GraphSourceItemContainer) {
-                    containers.push((GraphSourceItemContainer) a);
-                }
-                if (a != null) {
-                    list.add(a);
-                    lineMap.put(a, lexer.yyline());
-                }
-            } else if (symb.type == ASMParsedSymbol.TYPE_EOL) {
-            } else if ((symb.type == ASMParsedSymbol.TYPE_BLOCK_END) || (symb.type == ASMParsedSymbol.TYPE_EOF)) {
-                return list;
-            } else {
-                throw new ActionParseException("Label or Instruction name expected, found:" + symb.type + " " + symb.value, lexer.yyline());
-            }
-        }
+    /**
+     * Constructor.
+     */
+    public ASMParser() {
     }
 
-    private static Action parseAction(String instructionName, FlasmLexer lexer, List<String> constantPool, int version) throws IOException, ActionParseException {
+    private static Action parseAction(String instructionName, FlasmLexer lexer, List<String> constantPool, int version, String charset) throws IOException, ActionParseException {
         Action a = null;
         if (instructionName.compareToIgnoreCase("GetURL") == 0) {
-            a = new ActionGetURL(lexer);
+            a = new ActionGetURL(lexer, charset);
         } else if (instructionName.compareToIgnoreCase("GoToLabel") == 0) {
-            a = new ActionGoToLabel(lexer);
+            a = new ActionGoToLabel(lexer, charset);
         } else if (instructionName.compareToIgnoreCase("GotoFrame") == 0) {
-            a = new ActionGotoFrame(lexer);
+            a = new ActionGotoFrame(lexer, charset);
         } else if (instructionName.compareToIgnoreCase("NextFrame") == 0) {
             a = new ActionNextFrame();
         } else if (instructionName.compareToIgnoreCase("Play") == 0) {
@@ -227,7 +168,7 @@ public class ASMParser {
         } else if (instructionName.compareToIgnoreCase("PrevFrame") == 0) {
             a = new ActionPrevFrame();
         } else if (instructionName.compareToIgnoreCase("SetTarget") == 0) {
-            a = new ActionSetTarget(lexer);
+            a = new ActionSetTarget(lexer, charset);
         } else if (instructionName.compareToIgnoreCase("Stop") == 0) {
             a = new ActionStop();
         } else if (instructionName.compareToIgnoreCase("StopSounds") == 0) {
@@ -235,7 +176,7 @@ public class ASMParser {
         } else if (instructionName.compareToIgnoreCase("ToggleQuality") == 0) {
             a = new ActionToggleQuality();
         } else if (instructionName.compareToIgnoreCase("WaitForFrame") == 0) {
-            a = new ActionWaitForFrame(lexer);
+            a = new ActionWaitForFrame(lexer, charset, version);
         } else if (instructionName.compareToIgnoreCase("Add") == 0) {
             a = new ActionAdd();
         } else if (instructionName.compareToIgnoreCase("And") == 0) {
@@ -259,15 +200,15 @@ public class ASMParser {
         } else if (instructionName.compareToIgnoreCase("GetTime") == 0) {
             a = new ActionGetTime();
         } else if (instructionName.compareToIgnoreCase("GetURL2") == 0) {
-            a = new ActionGetURL2(lexer);
+            a = new ActionGetURL2(lexer, charset);
         } else if (instructionName.compareToIgnoreCase("GetVariable") == 0) {
             a = new ActionGetVariable();
         } else if (instructionName.compareToIgnoreCase("GotoFrame2") == 0) {
-            a = new ActionGotoFrame2(lexer);
+            a = new ActionGotoFrame2(lexer, charset);
         } else if (instructionName.compareToIgnoreCase("If") == 0) {
-            a = new ActionIf(lexer);
+            a = new ActionIf(lexer, charset);
         } else if (instructionName.compareToIgnoreCase("Jump") == 0) {
-            a = new ActionJump(lexer);
+            a = new ActionJump(lexer, charset);
         } else if (instructionName.compareToIgnoreCase("Less") == 0) {
             a = new ActionLess();
         } else if (instructionName.compareToIgnoreCase("MBAsciiToChar") == 0) {
@@ -287,7 +228,7 @@ public class ASMParser {
         } else if (instructionName.compareToIgnoreCase("Pop") == 0) {
             a = new ActionPop();
         } else if (instructionName.compareToIgnoreCase("Push") == 0) {
-            a = new ActionPush(lexer, constantPool);
+            a = new ActionPush(lexer, constantPool, charset);
         } else if (instructionName.compareToIgnoreCase("RandomNumber") == 0) {
             a = new ActionRandomNumber();
         } else if (instructionName.compareToIgnoreCase("RemoveSprite") == 0) {
@@ -295,7 +236,7 @@ public class ASMParser {
         } else if (instructionName.compareToIgnoreCase("SetProperty") == 0) {
             a = new ActionSetProperty();
         } else if (instructionName.compareToIgnoreCase("SetTarget2") == 0) {
-            a = new ActionSetTarget2();
+            a = new ActionSetTarget2(charset);
         } else if (instructionName.compareToIgnoreCase("SetVariable") == 0) {
             a = new ActionSetVariable();
         } else if (instructionName.compareToIgnoreCase("StartDrag") == 0) {
@@ -317,7 +258,7 @@ public class ASMParser {
         } else if (instructionName.compareToIgnoreCase("Trace") == 0) {
             a = new ActionTrace();
         } else if (instructionName.compareToIgnoreCase("WaitForFrame2") == 0) {
-            a = new ActionWaitForFrame2(lexer);
+            a = new ActionWaitForFrame2(lexer, charset, version);
         } else if (instructionName.compareToIgnoreCase("Add2") == 0) {
             a = new ActionAdd2();
         } else if (instructionName.compareToIgnoreCase("BitAnd") == 0) {
@@ -337,11 +278,11 @@ public class ASMParser {
         } else if (instructionName.compareToIgnoreCase("CallMethod") == 0) {
             a = new ActionCallMethod();
         } else if (instructionName.compareToIgnoreCase("ConstantPool") == 0) {
-            a = new ActionConstantPool(lexer);
+            a = new ActionConstantPool(lexer, charset);
         } else if (instructionName.compareToIgnoreCase("Decrement") == 0) {
             a = new ActionDecrement();
         } else if (instructionName.compareToIgnoreCase("DefineFunction") == 0) {
-            a = new ActionDefineFunction(lexer);
+            a = new ActionDefineFunction(lexer, charset);
         } else if (instructionName.compareToIgnoreCase("DefineLocal") == 0) {
             a = new ActionDefineLocal();
         } else if (instructionName.compareToIgnoreCase("DefineLocal2") == 0) {
@@ -379,7 +320,7 @@ public class ASMParser {
         } else if (instructionName.compareToIgnoreCase("StackSwap") == 0) {
             a = new ActionStackSwap();
         } else if (instructionName.compareToIgnoreCase("StoreRegister") == 0) {
-            a = new ActionStoreRegister(lexer);
+            a = new ActionStoreRegister(lexer, charset);
         } else if (instructionName.compareToIgnoreCase("TargetPath") == 0) {
             a = new ActionTargetPath();
         } else if (instructionName.compareToIgnoreCase("ToNumber") == 0) {
@@ -389,7 +330,7 @@ public class ASMParser {
         } else if (instructionName.compareToIgnoreCase("TypeOf") == 0) {
             a = new ActionTypeOf();
         } else if (instructionName.compareToIgnoreCase("With") == 0) {
-            a = new ActionWith(lexer);
+            a = new ActionWith(lexer, charset);
         } else if (instructionName.compareToIgnoreCase("Enumerate2") == 0) {
             a = new ActionEnumerate2();
         } else if (instructionName.compareToIgnoreCase("Greater") == 0) {
@@ -403,19 +344,19 @@ public class ASMParser {
         } else if (instructionName.compareToIgnoreCase("CastOp") == 0) {
             a = new ActionCastOp();
         } else if (instructionName.compareToIgnoreCase("DefineFunction2") == 0) {
-            a = new ActionDefineFunction2(lexer);
+            a = new ActionDefineFunction2(lexer, charset);
         } else if (instructionName.compareToIgnoreCase("Extends") == 0) {
-            a = new ActionExtends();
+            a = new ActionExtends(charset);
         } else if (instructionName.compareToIgnoreCase("ImplementsOp") == 0) {
-            a = new ActionImplementsOp();
+            a = new ActionImplementsOp(charset);
         } else if (instructionName.compareToIgnoreCase("Throw") == 0) {
             a = new ActionThrow();
         } else if (instructionName.compareToIgnoreCase("Try") == 0) {
-            a = new ActionTry(lexer, version);
+            a = new ActionTry(lexer, version, charset);
         } else if (instructionName.compareToIgnoreCase("FSCommand2") == 0) {
-            a = new ActionFSCommand2();
+            a = new ActionFSCommand2(charset);
         } else if (instructionName.compareToIgnoreCase("StrictMode") == 0) {
-            a = new ActionStrictMode(lexer);
+            a = new ActionStrictMode(lexer, charset);
         } else if (instructionName.compareToIgnoreCase("Nop") == 0) {
             a = new ActionNop();
         } else if (instructionName.compareToIgnoreCase("End") == 0) {
@@ -423,10 +364,10 @@ public class ASMParser {
         } else if (instructionName.compareToIgnoreCase("FFDec_DeobfuscatePop") == 0) {
             a = new ActionDeobfuscatePop();
         } else if (instructionName.compareToIgnoreCase("FFDec_DeobfuscateJump") == 0) {
-            a = new ActionDeobfuscateJump(lexer);
+            a = new ActionDeobfuscateJump(lexer, charset);
         } else if (instructionName.length() == 10 && instructionName.substring(0, 8).compareToIgnoreCase("Unknown_") == 0) {
             int actionCode = Integer.parseInt(instructionName.substring(8), 16);
-            a = new ActionUnknown(actionCode, 0);
+            a = new ActionUnknown(actionCode, 0, charset);
         } else {
             throw new ActionParseException("Unknown instruction name :" + instructionName, lexer.yyline());
         }
@@ -435,25 +376,36 @@ public class ASMParser {
         return a;
     }
 
-    private static List<Action> parseAllActions(FlasmLexer lexer, int version) throws IOException, ActionParseException {
+    private static List<Action> parseAllActions(FlasmLexer lexer, int version, String charset) throws IOException, ActionParseException {
         List<Action> list = new ArrayList<>();
         Stack<GraphSourceItemContainer> containers = new Stack<>();
         List<String> emptyList = new ArrayList<>();
         while (true) {
-            ASMParsedSymbol symb = lexer.yylex();
+            ASMParsedSymbol symb = lexer.lex();
             if (symb.type == ASMParsedSymbol.TYPE_BLOCK_END) {
                 if (containers.isEmpty()) {
                     throw new ActionParseException("Block end without start", lexer.yyline());
                 }
                 GraphSourceItemContainer a = containers.peek();
                 if (!a.parseDivision(0, lexer)) {
+                    try {
+                        ((Action) a).getBytes(version);
+                    } catch (ValueTooLargeException vtl) {
+                        throw new ActionParseException("Action container is too large", lexer.yyline());
+                    }
                     containers.pop();
                 }
             } else if (symb.type == ASMParsedSymbol.TYPE_INSTRUCTION_NAME) {
                 String instructionName = (String) symb.value;
-                Action a = parseAction(instructionName, lexer, emptyList, version);
+                Action a = parseAction(instructionName, lexer, emptyList, version, charset);
                 if (a instanceof GraphSourceItemContainer) {
                     containers.push((GraphSourceItemContainer) a);
+                } else if (a != null) {
+                    try {
+                        ((Action) a).getBytes(version);
+                    } catch (ValueTooLargeException vtl) {
+                        throw new ActionParseException("Action is too large", lexer.yyline());
+                    }
                 }
                 if (a != null) {
                     list.add(a);
@@ -464,9 +416,120 @@ public class ASMParser {
         }
     }
 
-    public static ActionList parse(long address, boolean ignoreNops, String source, int version, boolean throwOnError) throws IOException, ActionParseException {
+    /**
+     * Parses ActionScript 1-2.
+     *
+     * @param ignoreNops Ignore NOPs
+     * @param labels Labels
+     * @param lineMap Line map
+     * @param address Address
+     * @param lexer Lexer
+     * @param constantPool Constant pool
+     * @param version Version
+     * @param charset Charset
+     * @return Action list
+     * @throws IOException On I/O error
+     * @throws ActionParseException On parse error
+     */
+    public static ActionList parse(boolean ignoreNops, List<Label> labels, Map<Action, Integer> lineMap, long address, FlasmLexer lexer, List<String> constantPool, int version, String charset) throws IOException, ActionParseException {
+        ActionList list = new ActionList(charset, version);
+        Stack<GraphSourceItemContainer> containers = new Stack<>();
+
+        if (!constantPool.isEmpty()) {
+            ActionConstantPool cpool = new ActionConstantPool(constantPool, charset);
+            cpool.setAddress(address);
+            address += cpool.getTotalActionLength();
+            list.add(cpool);
+        }
+
+        while (true) {
+            ASMParsedSymbol symb = lexer.lex();
+            if (symb.type == ASMParsedSymbol.TYPE_LABEL) {
+                labels.add(new Label((String) symb.value, address));
+            } else if (symb.type == ASMParsedSymbol.TYPE_COMMENT) {
+                if (!list.isEmpty()) {
+                    String cmt = (String) symb.value;
+                    if (cmt.equals("compileTimeJump")) {
+                        Action a = list.get(list.size() - 1);
+                        if (a instanceof ActionIf) {
+                            ((ActionIf) a).ignoreUsed = false;
+                        }
+                    } else if (cmt.equals("compileTimeIgnore")) {
+                        Action a = list.get(list.size() - 1);
+                        if (a instanceof ActionIf) {
+                            ((ActionIf) a).jumpUsed = false;
+                        }
+                    }
+                }
+            } else if (symb.type == ASMParsedSymbol.TYPE_BLOCK_END) {
+                if (containers.isEmpty()) {
+                    throw new ActionParseException("Block end without start", lexer.yyline());
+                }
+                GraphSourceItemContainer a = containers.peek();
+                if (!a.parseDivision(address - ((Action) a).getAddress(), lexer)) {
+                    containers.pop();
+
+                    try {
+                        ((Action) a).getBytes(version);
+                    } catch (ValueTooLargeException vtl) {
+                        throw new ActionParseException("Action container is too large", lexer.yyline());
+                    }
+                }
+            } else if (symb.type == ASMParsedSymbol.TYPE_INSTRUCTION_NAME) {
+                String instructionName = (String) symb.value;
+                Action a = parseAction(instructionName, lexer, constantPool, version, charset);
+                if (ignoreNops && a instanceof ActionNop) {
+                    a = null;
+                }
+                if (a instanceof ActionConstantPool) {
+                    a = null;
+                }
+                if (a instanceof ActionNop) {
+                    a.setAddress(address);
+                    address += 1;
+                } else if (a != null) {
+                    a.setAddress(address);
+                    address += a.getTotalActionLength();
+                }
+                if (a instanceof GraphSourceItemContainer) {
+                    containers.push((GraphSourceItemContainer) a);
+                } else if (a != null) {
+                    try {
+                        ((Action) a).getBytes(version);
+                    } catch (ValueTooLargeException vtl) {
+                        throw new ActionParseException("Action is too large", lexer.yyline());
+                    }
+                }
+                if (a != null) {
+                    list.add(a);
+                    lineMap.put(a, lexer.yyline());
+                }
+            } else if (symb.type == ASMParsedSymbol.TYPE_EOL) {
+                //empty
+            } else if ((symb.type == ASMParsedSymbol.TYPE_BLOCK_END) || (symb.type == ASMParsedSymbol.TYPE_EOF)) {
+                return list;
+            } else {
+                throw new ActionParseException("Label or Instruction name expected, found:" + symb.type + " " + symb.value, lexer.yyline());
+            }
+        }
+    }
+
+    /**
+     * Parses ActionScript 1-2.
+     *
+     * @param address Address
+     * @param ignoreNops Ignore NOPs
+     * @param source Source
+     * @param version Version
+     * @param throwOnError Throw on error
+     * @param charset Charset
+     * @return Action list
+     * @throws IOException On I/O error
+     * @throws ActionParseException On parse error
+     */
+    public static ActionList parse(long address, boolean ignoreNops, String source, int version, boolean throwOnError, String charset) throws IOException, ActionParseException {
         FlasmLexer lexer = new FlasmLexer(new StringReader(source));
-        List<Action> list = parseAllActions(lexer, version);
+        List<Action> list = parseAllActions(lexer, version, charset);
 
         List<String> constantPool = new ArrayList<>();
         for (Action a : list) {
@@ -478,7 +541,7 @@ public class ASMParser {
         lexer = new FlasmLexer(new StringReader(source));
         List<Label> labels = new ArrayList<>();
         Map<Action, Integer> lineMap = new HashMap<>();
-        ActionList ret = parse(ignoreNops, labels, lineMap, address, lexer, constantPool, version);
+        ActionList ret = parse(ignoreNops, labels, lineMap, address, lexer, constantPool, version, charset);
         //Action.setActionsAddresses(ret, address, version);
         for (Action link : ret) {
             if (!(link instanceof ActionIf || link instanceof ActionJump)) {
@@ -496,7 +559,7 @@ public class ASMParser {
                     if (actionJump.identifier.equals(label.name)) {
                         int offset = (int) (label.address - (actionJump.getAddress() + actionJump.getTotalActionLength()));
                         if (offset < -0x8000 || offset > 0x7fff) {
-                            String message = "Jump offset is too large:" + offset + " addr: ofs" + Helper.formatAddress(link.getAddress());
+                            String message = "ActionJump offset is too large. offset: " + offset + ", jump action addr: ofs" + Helper.formatAddress(link.getAddress()) + ", target label: " + label.name;
                             if (throwOnError) {
                                 Integer line = lineMap.get(link);
                                 if (line == null) {
@@ -522,7 +585,7 @@ public class ASMParser {
                     if (actionIf.identifier.equals(label.name)) {
                         int offset = (int) (label.address - (actionIf.getAddress() + actionIf.getTotalActionLength()));
                         if (offset < -0x8000 || offset > 0x7fff) {
-                            String message = "If offset is too large:" + offset + " addr: ofs" + Helper.formatAddress(link.getAddress());
+                            String message = "ActionIf offset is too large. offset: " + offset + ", jump action addr: ofs" + Helper.formatAddress(link.getAddress()) + ", target label: " + label.name;
                             if (throwOnError) {
                                 Integer line = lineMap.get(link);
                                 if (line == null) {

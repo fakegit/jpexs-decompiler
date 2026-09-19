@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,6 +21,7 @@ import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.tags.base.SymbolClassTypeTag;
 import com.jpexs.decompiler.flash.types.BasicType;
+import com.jpexs.decompiler.flash.types.annotations.DottedIdentifier;
 import com.jpexs.decompiler.flash.types.annotations.SWFArray;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
@@ -31,8 +32,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
+ * SymbolClass tag - associates class names with character IDs. CharacterId 0 is
+ * the main class.
  *
  * @author JPEXS
  */
@@ -50,6 +54,7 @@ public class SymbolClassTag extends SymbolClassTypeTag {
 
     @SWFArray(value = "name", countField = "numSymbols")
     @Table(value = "symbols", itemName = "symbol")
+    @DottedIdentifier(as3 = true)
     public List<String> names;
 
     @Override
@@ -68,7 +73,7 @@ public class SymbolClassTag extends SymbolClassTypeTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public SymbolClassTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -98,7 +103,7 @@ public class SymbolClassTag extends SymbolClassTypeTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -137,5 +142,14 @@ public class SymbolClassTag extends SymbolClassTypeTag {
             setModified(true);
         }
         return modified;
+    }
+
+    @Override
+    public void getNeededCharacters(Set<Integer> needed, Set<String> neededClasses, SWF swf) {
+        for (int t : tags) {
+            if (t != 0) { //main class
+                needed.add(t);
+            }
+        }
     }
 }

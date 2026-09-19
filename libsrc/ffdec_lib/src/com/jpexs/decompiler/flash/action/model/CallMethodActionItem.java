@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,6 +18,9 @@ package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
+import com.jpexs.decompiler.flash.action.swf4.ActionPush;
+import com.jpexs.decompiler.flash.action.swf4.RegisterNumber;
 import com.jpexs.decompiler.flash.action.swf5.ActionCallMethod;
 import com.jpexs.decompiler.flash.ecma.Undefined;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
@@ -32,16 +35,31 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Call method.
  *
  * @author JPEXS
  */
 public class CallMethodActionItem extends ActionItem {
 
+    /**
+     * Method name
+     */
     public GraphTargetItem methodName;
 
+    /**
+     * Script object
+     */
     public GraphTargetItem scriptObject;
 
-    public List<GraphTargetItem> arguments;
+    /**
+     * Arguments
+     */
+    public List<GraphTargetItem> arguments;   
+
+    /**
+     * Is getter
+     */
+    public boolean isGetter = false;
 
     @Override
     public void visit(GraphTargetVisitorInterface visitor) {
@@ -49,15 +67,24 @@ public class CallMethodActionItem extends ActionItem {
         visitor.visit(scriptObject);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param scriptObject Script object
+     * @param methodName Method name
+     * @param arguments Arguments
+     */
     public CallMethodActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem scriptObject, GraphTargetItem methodName, List<GraphTargetItem> arguments) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.methodName = methodName;
         this.arguments = arguments;
-        this.scriptObject = scriptObject;
+        this.scriptObject = scriptObject;       
     }
 
     @Override
-    public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
+    public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {        
         if (methodName instanceof DirectValueActionItem) {
             boolean blankMethod = false;
 
@@ -79,8 +106,9 @@ public class CallMethodActionItem extends ActionItem {
                 } else {
                     scriptObject.toString(writer, localData);
                 }
-                if (IdentifiersDeobfuscation.isValidName(false, methodName.toStringNoQuotes(localData))) {
-                    writer.append(".");
+                if (!(((DirectValueActionItem) methodName).value instanceof RegisterNumber)
+                        && IdentifiersDeobfuscation.isValidName(false, methodName.toStringNoQuotes(localData))) {
+                    writer.allowWrapHere().append(".");
                     methodName.toStringNoQuotes(writer, localData);
                 } else {
                     writer.append("[");
@@ -105,11 +133,11 @@ public class CallMethodActionItem extends ActionItem {
             writer.append("]");
         }
 
-        writer.spaceBeforeCallParenthesies(arguments.size());
+        writer.spaceBeforeCallParenthesis(arguments.size());
         writer.append("(");
         for (int t = 0; t < arguments.size(); t++) {
             if (t > 0) {
-                writer.append(",");
+                writer.allowWrapHere().append(",");
             }
             arguments.get(t).toStringNL(writer, localData);
         }
@@ -130,6 +158,23 @@ public class CallMethodActionItem extends ActionItem {
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+        if (isGetter) {
+            ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+            String charset = asGenerator.getCharset();
+
+            String methodNameAsStr = ((DirectValueActionItem) methodName).getAsString();
+
+            return toSourceMerge(
+                    localData, generator,
+                    toSourceCall(localData, generator, arguments),
+                    new ActionPush((Long) (long) 0, charset),
+                    scriptObject,
+                    asGenerator.pushConst("__get__" + methodNameAsStr),
+                    new ActionCallMethod(),
+                    new ActionPush(Undefined.INSTANCE, charset),
+                    new ActionCallMethod()
+            );
+        }
         return toSourceMerge(localData, generator, toSourceCall(localData, generator, arguments), scriptObject, methodName, new ActionCallMethod());
     }
 

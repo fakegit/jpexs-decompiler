@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -30,11 +30,15 @@ import com.jpexs.decompiler.graph.model.AnyItem;
 import java.util.List;
 
 /**
+ * pop instruction - Pop the top value from the stack.
  *
  * @author JPEXS
  */
 public class PopIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public PopIns() {
         super(0x29, "pop", new int[]{}, false);
     }
@@ -59,7 +63,7 @@ public class PopIns extends InstructionDefinition {
             return;
         }
 
-        output.add(top);
+        stack.addToOutput(top);
     }
 
     @Override

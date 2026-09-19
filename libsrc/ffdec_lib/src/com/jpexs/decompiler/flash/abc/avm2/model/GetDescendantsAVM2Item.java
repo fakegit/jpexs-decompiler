@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,20 +31,39 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Get descendants.
  *
  * @author JPEXS
  */
 public class GetDescendantsAVM2Item extends AVM2Item {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
+    /**
+     * Multiname
+     */
     public GraphTargetItem multiname;
 
+    /**
+     * Opened namespaces
+     */
     public List<NamespaceItem> openedNamespaces;
 
+    /**
+     * Name string
+     */
     public String nameStr;
 
-    //constructor for compiler
+    /**
+     * Constructor.
+     * For compiler.
+     * @param object Object
+     * @param nameStr Name string
+     * @param openedNamespaces Opened namespaces
+     */
     public GetDescendantsAVM2Item(GraphTargetItem object, String nameStr, List<NamespaceItem> openedNamespaces) {
         super(null, null, PRECEDENCE_PRIMARY);
         this.object = object;
@@ -57,6 +76,13 @@ public class GetDescendantsAVM2Item extends AVM2Item {
         visitor.visit(object);
     }
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     * @param multiname Multiname
+     */
     public GetDescendantsAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem multiname) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.object = object;
@@ -65,7 +91,14 @@ public class GetDescendantsAVM2Item extends AVM2Item {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        object.toString(writer, localData);
+        if (object.getPrecedence() > precedence) {
+            writer.append("(");
+            object.toString(writer, localData);
+            writer.append(")");
+        } else {
+            object.toString(writer, localData);
+        }
+
         writer.append("..");
         return multiname.toString(writer, localData);
     }

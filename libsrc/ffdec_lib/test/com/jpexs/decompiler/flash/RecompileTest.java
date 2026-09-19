@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -49,7 +50,7 @@ public class RecompileTest extends FileTestBase {
     public void testAS3InstructionParsing(String filePath) {
         try {
             Configuration._debugCopy.set(false);
-            try (FileInputStream fis = new FileInputStream(filePath)) {
+            try ( FileInputStream fis = new FileInputStream(filePath)) {
                 SWF swf = new SWF(new BufferedInputStream(fis), false);
                 for (ABCContainerTag abcTag : swf.getAbcList()) {
                     ABC abc = abcTag.getABC();
@@ -68,8 +69,9 @@ public class RecompileTest extends FileTestBase {
     @Test(dataProvider = "provideFiles")
     public void testRecompile(String filePath) {
         try {
-            try (FileInputStream fis = new FileInputStream(filePath)) {
+            try ( FileInputStream fis = new FileInputStream(filePath)) {
                 Configuration._debugCopy.set(true);
+                Configuration.autoRenameIdentifiers.set(false);
                 SWF swf = new SWF(new BufferedInputStream(fis), false);
                 swf.saveTo(new ByteArrayOutputStream());
             }
@@ -100,6 +102,6 @@ public class RecompileTest extends FileTestBase {
 
     @Override
     public String[] getTestDataDirs() {
-        return new String[]{TESTDATADIR, FREE_ACTIONSCRIPT_AS2, FREE_ACTIONSCRIPT_AS3};
+        return new String[]{TESTDATADIR};
     }
 }

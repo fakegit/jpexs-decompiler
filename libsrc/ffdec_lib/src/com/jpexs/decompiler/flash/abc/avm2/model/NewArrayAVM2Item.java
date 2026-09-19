@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -34,13 +34,24 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
+ * New array.
  *
  * @author JPEXS
  */
 public class NewArrayAVM2Item extends AVM2Item {
 
+    /**
+     * Values.
+     */
     public List<GraphTargetItem> values;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param values Values
+     */
     public NewArrayAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, List<GraphTargetItem> values) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.values = values;
@@ -56,7 +67,7 @@ public class NewArrayAVM2Item extends AVM2Item {
         writer.append("[");
         for (int a = 0; a < values.size(); a++) {
             if (a > 0) {
-                writer.append(",");
+                writer.allowWrapHere().append(",");
             }
             values.get(a).toString(writer, localData);
         }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types.shaperecords;
 
 import com.jpexs.decompiler.flash.SWFOutputStream;
@@ -22,6 +23,7 @@ import com.jpexs.decompiler.flash.types.annotations.Conditional;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 
 /**
+ * Straight edge record.
  *
  * @author JPEXS
  */
@@ -41,6 +43,8 @@ public class StraightEdgeRecord extends SHAPERECORD {
     public static final boolean typeFlag = true;
 
     public static final boolean straightFlag = true;
+    
+    public static final int MAX_NUM_BITS = 15;
 
     @Calculated
     @SWFType(value = BasicType.UB, count = 4)
@@ -90,6 +94,7 @@ public class StraightEdgeRecord extends SHAPERECORD {
     public void flip() {
         deltaX = -deltaX;
         deltaY = -deltaY;
+        calculateBits();
     }
 
     @Override
@@ -116,4 +121,45 @@ public class StraightEdgeRecord extends SHAPERECORD {
             }
         }
     }
+
+    @Override
+    public boolean isTooLarge() {
+        calculateBits();
+        return !SWFOutputStream.fitsInUB(4, numBits);
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 5;
+        hash = 29 * hash + (this.generalLineFlag ? 1 : 0);
+        hash = 29 * hash + (this.vertLineFlag ? 1 : 0);
+        hash = 29 * hash + this.deltaX;
+        hash = 29 * hash + this.deltaY;
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final StraightEdgeRecord other = (StraightEdgeRecord) obj;
+        if (this.generalLineFlag != other.generalLineFlag) {
+            return false;
+        }
+        if (this.vertLineFlag != other.vertLineFlag) {
+            return false;
+        }
+        if (this.deltaX != other.deltaX) {
+            return false;
+        }
+        return this.deltaY == other.deltaY;
+    }
+
 }

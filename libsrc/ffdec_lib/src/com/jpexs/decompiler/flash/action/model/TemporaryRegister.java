@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,18 +25,38 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Temporary register.
  *
  * @author JPEXS
  */
 public class TemporaryRegister extends ActionItem {
 
+    /**
+     * Register ID.
+     */
     private final int regId;
 
+    /**
+     * If this register is used.
+     */
+    public boolean used = false;
+
+    /**
+     * Constructor.
+     *
+     * @param regId Register ID
+     * @param value Value
+     */
     public TemporaryRegister(int regId, GraphTargetItem value) {
         super(value.getSrc(), value.getLineStartItem(), value.getPrecedence(), value);
         this.regId = regId;
     }
 
+    /**
+     * Gets register ID.
+     *
+     * @return Register ID
+     */
     public int getRegId() {
         return regId;
     }

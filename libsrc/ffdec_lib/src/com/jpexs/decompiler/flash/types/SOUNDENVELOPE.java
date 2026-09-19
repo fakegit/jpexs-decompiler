@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,17 +20,27 @@ import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import java.io.Serializable;
 
 /**
+ * Sound envelope.
  *
  * @author JPEXS
  */
 public class SOUNDENVELOPE implements Serializable {
 
+    /**
+     * Position in 44 kHz samples
+     */
     @SWFType(BasicType.UI32)
     public long pos44;
 
+    /**
+     * Left level
+     */
     @SWFType(BasicType.UI16)
     public int leftLevel;
 
+    /**
+     * Right level
+     */
     @SWFType(BasicType.UI16)
     public int rightLevel;
 

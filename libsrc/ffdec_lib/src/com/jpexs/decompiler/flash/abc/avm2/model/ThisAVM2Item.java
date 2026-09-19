@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,6 +16,7 @@
  */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
+import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instructions;
@@ -33,22 +34,48 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * This object.
  *
  * @author JPEXS
  */
 public class ThisAVM2Item extends AVM2Item {
 
+    /**
+     * Class name
+     */
     public DottedChain className;
 
+    /**
+     * Is basic object
+     */
     public boolean basicObject;
 
-    public ThisAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, DottedChain className, boolean basicObject) {
+    /**
+     * Show class name
+     */
+    public boolean showClassName;
+
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param className Class name
+     * @param basicObject Is basic object
+     * @param showClassName Show class name
+     */
+    public ThisAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, DottedChain className, boolean basicObject, boolean showClassName) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.className = className;
         this.basicObject = basicObject;
+        this.showClassName = showClassName;
         getSrcData().localName = "this";
     }
 
+    /**
+     * Checks if this is a basic object.
+     * @return True if this is a basic object
+     */
     public boolean isBasicObject() {
         return basicObject;
     }
@@ -84,6 +111,14 @@ public class ThisAVM2Item extends AVM2Item {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) {
+        if (showClassName) {
+            if (className != null) {
+                if (localData.fullyQualifiedNames != null && localData.fullyQualifiedNames.contains(className)) {
+                    return writer.append(className.toPrintableString(localData.usedDeobfuscations, localData.swf, true)).append(".this");
+                }
+                return writer.append(IdentifiersDeobfuscation.printIdentifier(localData.abc.getSwf(), localData.usedDeobfuscations, true, className.getLast())).append(".this");
+            }
+        }
         return writer.append("this");
     }
 
@@ -95,7 +130,7 @@ public class ThisAVM2Item extends AVM2Item {
 
     @Override
     public GraphTargetItem returnType() {
-        return TypeItem.UNBOUNDED;
+        return new TypeItem(className);
     }
 
     @Override

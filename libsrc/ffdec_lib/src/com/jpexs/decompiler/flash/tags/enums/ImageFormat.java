@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,16 +12,43 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.enums;
 
+import dev.matrixlab.webp4j.WebPCodec;
+
 /**
+ * Image format.
  *
  * @author JPEXS
  */
 public enum ImageFormat {
 
-    UNKNOWN(""), JPEG(".jpg"), GIF(".gif"), PNG(".png"), BMP(".bmp");
+    /**
+     * Unknown
+     */
+    UNKNOWN(""),
+    /**
+     * JPEG
+     */
+    JPEG(".jpg"),
+    /**
+     * GIF
+     */
+    GIF(".gif"),
+    /**
+     * PNG
+     */
+    PNG(".png"),
+    /**
+     * BMP
+     */
+    BMP(".bmp"),
+    /**
+     * WEBP
+     */
+    WEBP(".webp");
 
     private final String extension;
 
@@ -29,7 +56,19 @@ public enum ImageFormat {
         this.extension = extension;
     }
 
+    /**
+     * Get extension of the image format.
+     *
+     * @return Extension of the image format.
+     */
     public String getExtension() {
         return extension;
+    }
+
+    public boolean available() {
+        if (this == WEBP) {
+            return WebPCodec.isAvailable();
+        }
+        return true;
     }
 }

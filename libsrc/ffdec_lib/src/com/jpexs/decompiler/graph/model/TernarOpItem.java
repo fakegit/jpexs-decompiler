@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,26 +20,48 @@ import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
+import com.jpexs.decompiler.graph.TypeItem;
 import java.util.List;
 import java.util.Objects;
 
 /**
+ * Ternar operator.
  *
  * @author JPEXS
  */
 public class TernarOpItem extends GraphTargetItem {
 
+    /**
+     * Expression
+     */
     public GraphTargetItem expression;
 
+    /**
+     * On true
+     */
     public GraphTargetItem onTrue;
 
+    /**
+     * On false
+     */
     public GraphTargetItem onFalse;
 
-    public TernarOpItem(GraphSourceItem src, GraphSourceItem lineStartIns, GraphTargetItem expression, GraphTargetItem onTrue, GraphTargetItem onFalse) {
-        super(src, lineStartIns, PRECEDENCE_CONDITIONAL);
+    /**
+     * Constructor.
+     *
+     * @param dialect Dialect
+     * @param src Source
+     * @param lineStartIns Line start instruction
+     * @param expression Expression
+     * @param onTrue On true
+     * @param onFalse On false
+     */
+    public TernarOpItem(GraphTargetDialect dialect, GraphSourceItem src, GraphSourceItem lineStartIns, GraphTargetItem expression, GraphTargetItem onTrue, GraphTargetItem onFalse) {
+        super(dialect, src, lineStartIns, PRECEDENCE_CONDITIONAL);
         this.expression = expression;
         this.onTrue = onTrue;
         this.onFalse = onFalse;
@@ -57,7 +79,7 @@ public class TernarOpItem extends GraphTargetItem {
         if (expression.getPrecedence() >= precedence) {
             writer.append("(");
         }
-        expression.toString(writer, localData);
+        expression.toString(writer, localData, "Boolean", true);
         if (expression.getPrecedence() >= precedence) {
             writer.append(")");
         }
@@ -66,7 +88,7 @@ public class TernarOpItem extends GraphTargetItem {
         if (onTrue.getPrecedence() >= precedence && onTrue.getPrecedence() != GraphTargetItem.NOPRECEDENCE) {  // >= ternar in ternar better in parenthesis
             writer.append("(");
         }
-        onTrue.toString(writer, localData);
+        onTrue.toString(writer, localData, "", true);
         if (onTrue.getPrecedence() >= precedence && onTrue.getPrecedence() != GraphTargetItem.NOPRECEDENCE) {
             writer.append(")");
         }
@@ -74,7 +96,7 @@ public class TernarOpItem extends GraphTargetItem {
         if (onFalse.getPrecedence() >= precedence && onFalse.getPrecedence() != GraphTargetItem.NOPRECEDENCE) {
             writer.append("(");
         }
-        onFalse.toString(writer, localData);
+        onFalse.toString(writer, localData, "", true);
         if (onFalse.getPrecedence() >= precedence && onFalse.getPrecedence() != GraphTargetItem.NOPRECEDENCE) {
             writer.append(")");
         }
@@ -94,7 +116,16 @@ public class TernarOpItem extends GraphTargetItem {
 
     @Override
     public GraphTargetItem returnType() {
-        return onTrue.returnType();
+        GraphTargetItem onTrueType = onTrue.returnType();
+        GraphTargetItem onFalseType = onFalse.returnType();
+        if (onTrueType.equals(onFalseType)) {
+            return onTrueType;
+        }
+        if ((onTrueType.equals(TypeItem.NUMBER) || onTrueType.equals(TypeItem.INT) || onTrueType.equals(TypeItem.UINT))
+                && (onFalseType.equals(TypeItem.NUMBER) || onFalseType.equals(TypeItem.INT) || onFalseType.equals(TypeItem.UINT))) {
+            return TypeItem.NUMBER;
+        }
+        return TypeItem.UNKNOWN;
     }
 
     @Override

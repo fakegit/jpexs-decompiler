@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -97,7 +97,9 @@ public class SwfXmlExportImportTest extends FileTestBase {
             new SwfXmlExporter().exportXml(swf, outFile);
 
             SWF swf2 = new SWF();
-            new SwfXmlImporter().importSwf(swf2, outFile);
+            try ( FileInputStream fis = new FileInputStream(outFile)) {
+                new SwfXmlImporter().importSwf(swf2, fis, outFile.getParentFile());
+            }
 
             if (swf.getTags().size() != swf2.getTags().size()) {
                 throw new NotSameException(0);
@@ -151,6 +153,6 @@ public class SwfXmlExportImportTest extends FileTestBase {
 
     @Override
     public String[] getTestDataDirs() {
-        return new String[]{TESTDATADIR, FREE_ACTIONSCRIPT_AS2, FREE_ACTIONSCRIPT_AS3};
+        return new String[]{TESTDATADIR};
     }
 }

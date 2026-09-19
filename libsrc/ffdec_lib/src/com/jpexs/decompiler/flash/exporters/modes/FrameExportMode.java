@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,20 +12,67 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.modes;
 
+import com.jpexs.decompiler.flash.tags.enums.ImageFormat;
+
 /**
+ * Frame export mode.
  *
  * @author JPEXS
  */
 public enum FrameExportMode {
+    /**
+     * PNG - Portable Network Graphics
+     */
     PNG,
+    /**
+     * APNG - Animated Portable Network Graphics
+     */
+    APNG,
+    /**
+     * GIF - Graphics Interchange Format
+     */
     GIF,
+    /**
+     * AVI - Audio Video Interleave
+     */
     AVI,
+    /**
+     * SVG - Scalable Vector Graphics
+     */
     SVG,
+    /**
+     * HTML5 Canvas
+     */
     CANVAS,
+    /**
+     * PDF - Portable Document Format
+     */
     PDF,
+    /**
+     * BMP - Windows Bitmap
+     */
     BMP,
-    SWF,
+    /**
+     * WEBP
+     */
+    WEBP,
+    /**
+     * WEBP - animated
+     */
+    WEBP_ANIMATED,
+    /**
+     * SWF - Shockwave Flash
+     */
+    SWF;
+    
+    public boolean available() {
+        if (this == WEBP || this == WEBP_ANIMATED) {
+            return ImageFormat.WEBP.available();
+        }
+        return true;
+    }
 }

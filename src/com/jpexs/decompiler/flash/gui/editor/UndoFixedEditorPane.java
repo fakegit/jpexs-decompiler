@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@ package com.jpexs.decompiler.flash.gui.editor;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.View;
 import com.jpexs.helpers.Stopwatch;
-import java.awt.Color;
 import java.awt.Font;
 import java.awt.event.KeyEvent;
 import java.io.IOException;
@@ -37,13 +36,10 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.EditorKit;
 import javax.swing.text.JTextComponent;
+import javax.swing.text.PlainDocument;
 import jsyntaxpane.SyntaxDocument;
-import jsyntaxpane.SyntaxStyle;
-import jsyntaxpane.SyntaxStyles;
-import jsyntaxpane.TokenType;
 
 /**
- *
  * @author JPEXS
  */
 public class UndoFixedEditorPane extends JEditorPane {
@@ -92,37 +88,42 @@ public class UndoFixedEditorPane extends JEditorPane {
     }
 
     public void changeContentType(String type) {
-        if (!type.equals(getContentType())) {
-            removeDocumentListener();
-            Font oldFont = getFont();
-            setContentType(type);
-            setFont(oldFont);
-            addDocumentListener();
-        }
+        View.execInEventDispatch(new Runnable() {
+            @Override
+            public void run() {
+                if (!type.equals(getContentType())) {
+                    removeDocumentListener();
+                    Font oldFont = getFont();
+                    setContentType(type);
+                    setFont(oldFont);
+                    addDocumentListener();
+                }
 
-        if (!Configuration.autoCloseQuotes.get()) {
-            getActionMap().remove("quotes");
-            KeyStroke ks = KeyStroke.getKeyStroke("typed '");
-            getInputMap(JTextComponent.WHEN_FOCUSED).remove(ks);
-        }
+                if (!Configuration.autoCloseQuotes.get()) {
+                    getActionMap().remove("quotes");
+                    KeyStroke ks = KeyStroke.getKeyStroke("typed '");
+                    getInputMap(JTextComponent.WHEN_FOCUSED).remove(ks);
+                }
 
-        if (!Configuration.autoCloseDoubleQuotes.get()) {
-            getActionMap().remove("double-quotes");
-            KeyStroke ks = KeyStroke.getKeyStroke("typed \"");
-            getInputMap(JTextComponent.WHEN_FOCUSED).remove(ks);
-        }
+                if (!Configuration.autoCloseDoubleQuotes.get()) {
+                    getActionMap().remove("double-quotes");
+                    KeyStroke ks = KeyStroke.getKeyStroke("typed \"");
+                    getInputMap(JTextComponent.WHEN_FOCUSED).remove(ks);
+                }
 
-        if (!Configuration.autoCloseBrackets.get()) {
-            getActionMap().remove("brackets");
-            KeyStroke ks = KeyStroke.getKeyStroke("typed [");
-            getInputMap(JTextComponent.WHEN_FOCUSED).remove(ks);
-        }
+                if (!Configuration.autoCloseBrackets.get()) {
+                    getActionMap().remove("brackets");
+                    KeyStroke ks = KeyStroke.getKeyStroke("typed [");
+                    getInputMap(JTextComponent.WHEN_FOCUSED).remove(ks);
+                }
 
-        if (!Configuration.autoCloseParenthesis.get()) {
-            getActionMap().remove("parenthesis");
-            KeyStroke ks = KeyStroke.getKeyStroke("typed (");
-            getInputMap(JTextComponent.WHEN_FOCUSED).remove(ks);
-        }
+                if (!Configuration.autoCloseParenthesis.get()) {
+                    getActionMap().remove("parenthesis");
+                    KeyStroke ks = KeyStroke.getKeyStroke("typed (");
+                    getInputMap(JTextComponent.WHEN_FOCUSED).remove(ks);
+                }
+            }
+        });
     }
 
     @Override
@@ -143,7 +144,11 @@ public class UndoFixedEditorPane extends JEditorPane {
             if (!t.equals(getText())) {
                 boolean plain = t.length() > Configuration.syntaxHighlightLimit.get();
                 if (plain) {
-                    contentType = "text/plain";
+                    if (this instanceof DebuggableEditorPane) {
+                        contentType = "text/plaindebug";
+                    } else {
+                        contentType = "text/plain";
+                    }
                     originalContentType = getContentType();
                     changeContentType(contentType);
                 } else if (originalContentType != null) {
@@ -166,6 +171,9 @@ public class UndoFixedEditorPane extends JEditorPane {
                         ((SyntaxDocument) doc).setIgnoreUpdate(false);
                     }
 
+                    doc.putProperty(PlainDocument.tabSizeAttribute, Configuration.tabSize.get());
+                    doc.putProperty("jpexs:useTabs", Configuration.indentUseTabs.get());
+
                     setDocument(doc);
                 } catch (BadLocationException | IOException ex) {
                     Logger.getLogger(UndoFixedEditorPane.class.getName()).log(Level.SEVERE, null, ex);
@@ -173,7 +181,7 @@ public class UndoFixedEditorPane extends JEditorPane {
 
                 sw.stop();
                 if (!plain && sw.getElapsedMilliseconds() > 5000) {
-                    Logger.getLogger(UndoFixedEditorPane.class.getName()).log(Level.WARNING, "Syntax highlightig took long time. You can try to decrease the syntax highlight limit in advanced settings.");
+                    Logger.getLogger(UndoFixedEditorPane.class.getName()).log(Level.WARNING, "Syntax highlighting took long time. You can try to decrease the syntax highlight limit in advanced settings.");
                 }
 
                 clearUndos();

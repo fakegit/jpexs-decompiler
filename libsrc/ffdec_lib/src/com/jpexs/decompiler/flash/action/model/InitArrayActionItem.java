@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -30,11 +30,15 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Initialize array.
  *
  * @author JPEXS
  */
 public class InitArrayActionItem extends ActionItem {
 
+    /**
+     * Values
+     */
     public List<GraphTargetItem> values;
 
     @Override
@@ -42,6 +46,12 @@ public class InitArrayActionItem extends ActionItem {
         visitor.visitAll(values);
     }
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param values Values
+     */
     public InitArrayActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, List<GraphTargetItem> values) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.values = values;
@@ -130,6 +140,5 @@ public class InitArrayActionItem extends ActionItem {
         }
         return false;
     }
-
 
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,16 +12,20 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.swf;
 
+import com.jpexs.decompiler.flash.ReadOnlyTagList;
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.helpers.CodeFormatting;
 import com.jpexs.decompiler.flash.helpers.FileTextWriter;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.LazyObject;
+import com.jpexs.decompiler.flash.tags.DefineSpriteTag;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.decompiler.flash.timeline.Timelined;
 import com.jpexs.decompiler.flash.types.annotations.Internal;
 import com.jpexs.helpers.ByteArrayRange;
 import com.jpexs.helpers.Helper;
@@ -39,6 +43,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Exports SWF to Java code.
  *
  * @author JPEXS
  */
@@ -53,8 +58,18 @@ public class SwfJavaExporter {
         "FILLSTYLEARRAY", "LINESTYLE", "LINESTYLE2", "LINESTYLEARRAY", "SHAPERECORD", "SHAPE", "SHAPEWITHSTYLE", "SHAPERECORDS",
         "SOUNDINFO", "SOUNDENVELOPE", "GLYPHENTRY", "TEXTRECORD", "MORPHGRADRECORD", "MORPHGRADIENT", "MORPHFOCALGRADIENT",
         "MORPHFILLSTYLE", "MORPHFILLSTYLEARRAY", "MORPHLINESTYLE", "MORPHLINESTYLE2", "MORPHLINESTYLEARRAY", "KERNINGRECORD",
-        "LANGCODE", "ZONERECORD", "ZONEDATA", "PIX15", "PIX24", "COLORMAPDATA", "BITMAPDATA", "ALPHABITMAPDATA", "ALPHACOLORMAPDATA"};
+        "LANGCODE", "ZONERECORD", "ZONEDATA", "PIX15", "PIX24", "COLORMAPDATA", "BITMAPDATA", "ALPHABITMAPDATA", "ALPHACOLORMAPDATA",
+        //GFX
+        "ContourType", "EdgeType", "FONTINFO", "FontType", "GLYPHIDX", "GlyphInfoType", "GlyphType", "KerningPairType", "TEXGLYPH"
+    };
 
+    /**
+     * Exports SWF to Java code.
+     * @param swf SWF to export
+     * @param outdir Output directory
+     * @return List of exported files
+     * @throws IOException On I/O error
+     */
     public List<File> exportJavaCode(SWF swf, String outdir) throws IOException {
         final File file = new File(outdir + File.separator + Helper.makeFileName("SwfFile.java"));
         CodeFormatting codeFormatting = Configuration.getCodeFormatting();
@@ -68,6 +83,12 @@ public class SwfJavaExporter {
         return ret;
     }
 
+    /**
+     * Exports SWF to Java code.
+     * @param swf SWF to export
+     * @param writer Writer to write to
+     * @throws IOException On I/O error
+     */
     public void exportJavaCode(SWF swf, GraphTextWriter writer) throws IOException {
         Map<String, Integer> objectNames = new HashMap<>();
         writer.append("package com.jpexs.decompiler.flash.exporters.swf;").newLine();
@@ -75,7 +96,13 @@ public class SwfJavaExporter {
         writer.append("import com.jpexs.decompiler.flash.SWF;").newLine();
         writer.append("import com.jpexs.decompiler.flash.SWFCompression;").newLine();
         writer.append("import com.jpexs.decompiler.flash.tags.*;").newLine();
+        if (swf.gfx) {
+            writer.append("import com.jpexs.decompiler.flash.tags.gfx.*;").newLine();
+        }
         writer.append("import com.jpexs.decompiler.flash.types.*;").newLine();
+        if (swf.gfx) {
+            writer.append("import com.jpexs.decompiler.flash.types.gfx.*;").newLine();
+        }
         writer.append("import com.jpexs.decompiler.flash.types.filters.*;").newLine();
         writer.append("import com.jpexs.decompiler.flash.types.shaperecords.*;").newLine();
         writer.append("import com.jpexs.helpers.ByteArrayRange;").newLine();
@@ -101,7 +128,7 @@ public class SwfJavaExporter {
         writer.append("        SWF swf = getSwf();").newLine();
         writer.append("        swf.clearModified();").newLine();
         writer.append("        try (FileOutputStream fos = new FileOutputStream(fileName)) {").newLine();
-        writer.append("            swf.saveTo(fos, SWFCompression.ZLIB);").newLine();
+        writer.append("            swf.saveTo(fos);").newLine();
         writer.append("        }").newLine();
         writer.append("    }").newLine();
         writer.append("}").newLine();
@@ -241,10 +268,27 @@ public class SwfJavaExporter {
                 }
             }
 
+            if ((obj instanceof SWF) || (obj instanceof DefineSpriteTag)) {
+                Timelined tim = (Timelined) obj;
+                ReadOnlyTagList tags = tim.getTags();
+                sb2.appendLine("Tag tag;");
+                for (Tag t : tags) {
+                    Object value2 = generateJavaCode(writer, sb2, objectNames, t, level + 1);
+                    if (value2 != null) {
+                        sb2.appendLine("tag = " + value2 + ";");
+                        sb2.appendLine(resultName + ".addTag(tag);");
+                        sb2.appendLine("tag.setTimelined(" + resultName + ");");
+                    }
+                }
+            }
+
             writer.append("private ").append(className).append(" ").append(tagObjName).append("(").append(isSwf ? "" : "SWF swf").append(") {").newLine();
             writer.indent();
-            writer.append(className).append(" ").append(resultName).append(" = new ").append(className).append("(").append(obj instanceof Tag ? "swf" : "").append(");").newLine();
+            writer.append(className).append(" ").append(resultName).append(" = new ").append(className).append("(").append(obj instanceof Tag ? "swf" : "").append(");");
+            writer.unindent().unindent();
+            writer.newLine();
             writer.append(sb2.toString());
+            writer.indent().indent();
             writer.append(indent).append("return ").append(resultName).append(";").newLine();
             writer.unindent();
             writer.append("}").newLine().newLine();

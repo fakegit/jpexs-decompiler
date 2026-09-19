@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,19 +21,23 @@ import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.tags.base.SymbolClassTypeTag;
 import com.jpexs.decompiler.flash.types.BasicType;
+import com.jpexs.decompiler.flash.types.annotations.DottedIdentifier;
 import com.jpexs.decompiler.flash.types.annotations.SWFArray;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.decompiler.flash.types.annotations.Table;
 import com.jpexs.helpers.ByteArrayRange;
+import com.jpexs.helpers.Helper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Makes portions of a SWF file available for import by other SWF files
+ * ExportAssets tag - Makes portions of a SWF file available for import by other
+ * SWF files.
  *
  * @author JPEXS
  */
@@ -54,12 +58,13 @@ public class ExportAssetsTag extends SymbolClassTypeTag {
 
     @SWFArray(value = "name", countField = "count")
     @Table(value = "assets", itemName = "asset")
+    @DottedIdentifier(exportName = true)
     public List<String> names;
 
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public ExportAssetsTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -83,9 +88,9 @@ public class ExportAssetsTag extends SymbolClassTypeTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public ExportAssetsTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -109,7 +114,7 @@ public class ExportAssetsTag extends SymbolClassTypeTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -148,4 +153,21 @@ public class ExportAssetsTag extends SymbolClassTypeTag {
         }
         return modified;
     }
+
+    @Override
+    public void getNeededCharacters(Set<Integer> needed, Set<String> neededClasses, SWF swf) {
+        needed.addAll(tags);
+    }
+
+    @Override
+    public Map<String, String> getNameProperties() {
+        Map<String, String> ret = super.getNameProperties();
+        if (names.size() == 1) {
+            ret.put("chid", "" + tags.get(0));
+            String exportName = names.get(0);
+            ret.put("exp", Helper.escapeExportname(getSwf(), exportName, true));           
+        }
+        return ret;
+    }
+
 }

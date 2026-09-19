@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,52 +22,105 @@ import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.ClassPath;
 import com.jpexs.decompiler.flash.abc.ScriptPack;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
+import com.jpexs.decompiler.flash.treeitems.Openable;
+import com.jpexs.decompiler.graph.DottedChain;
+import com.jpexs.helpers.AllowedObjectInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * ABC search result.
  *
  * @author JPEXS
  */
 public class ABCSearchResult implements Serializable, ScriptSearchResult {
 
+    /**
+     * Instance initializer string
+     */
     public static String STR_INSTANCE_INITIALIZER = AppResources.translate("trait.instanceinitializer");
 
+    /**
+     * Class initializer string
+     */
     public static String STR_CLASS_INITIALIZER = AppResources.translate("trait.classinitializer");
 
+    /**
+     * Script initializer string
+     */
     public static String STR_SCRIPT_INITIALIZER = AppResources.translate("trait.scriptinitializer");
 
+    /**
+     * Script pack
+     */
     private ScriptPack scriptPack;
 
+    /**
+     * Is pcode
+     */
     private final boolean pcode;
 
+    /**
+     * Class index
+     */
     private final int classIndex;
 
+    /**
+     * Trait id
+     */
     private final int traitId;
 
-    private static final int SERIAL_VERSION_MAJOR = 1;
+    /**
+     * Serial version major
+     */
+    private static final int SERIAL_VERSION_MAJOR = 2;
+    /**
+     * Serial version minor
+     */
     private static final int SERIAL_VERSION_MINOR = 0;
 
+    /**
+     * Constructs ABC search result.
+     * @param openable Openable
+     * @param is Input stream
+     * @throws IOException On I/O error
+     * @throws ScriptNotFoundException On script not found
+     */
     @SuppressWarnings("unchecked")
-    public ABCSearchResult(SWF swf, InputStream is) throws IOException, ScriptNotFoundException {
-        ObjectInputStream ois = new ObjectInputStream(is);
+    public ABCSearchResult(Openable openable, InputStream is) throws IOException, ScriptNotFoundException {
+        ObjectInputStream ois = new AllowedObjectInputStream(is);
         int versionMajor = ois.read();
         ois.read(); //minor
+        if (versionMajor == 1) {
+            throw new IOException("Cannot read older version results");
+        }
         if (versionMajor != SERIAL_VERSION_MAJOR) {
             throw new IOException("Unknown search result version: " + versionMajor);
         }
 
+        SWF swf = null;
+        if (openable instanceof SWF) {
+            swf = (SWF) openable;
+        }
+        if (openable instanceof ABC) {
+            swf = ((ABC) openable).getSwf();
+        }
+        
         ClassPath cp;
         List<Integer> traitIndices;
         try {
-            cp = (ClassPath) ois.readObject();
+            String classPathDC = ois.readUTF();
+            DottedChain dc = DottedChain.parseWithSuffix(classPathDC);
+            cp = new ClassPath(dc.getWithoutLast(), dc.getLast(), dc.getLastNamespaceSuffix(), swf);
             traitIndices = (List<Integer>) ois.readObject();
         } catch (ClassNotFoundException ex) {
             Logger.getLogger(ABCSearchResult.class.getName()).log(Level.SEVERE, null, ex);
@@ -78,7 +131,19 @@ public class ABCSearchResult implements Serializable, ScriptSearchResult {
         this.classIndex = ois.readInt();
         this.traitId = ois.readInt();
         boolean packFound = false;
-        for (ScriptPack pack : swf.getAS3Packs()) {
+
+        List<ScriptPack> packs;
+
+        if (openable instanceof SWF) {
+            packs = ((SWF) openable).getAS3Packs();
+        } else {
+            ABC abc = (ABC) openable;
+            List<ABC> allAbcs = new ArrayList<>();
+            allAbcs.add(abc);
+            packs = abc.getScriptPacks(null, allAbcs);
+        }
+
+        for (ScriptPack pack : packs) {
             if (cp.equals(pack.getClassPath()) && traitIndices.equals(pack.traitIndices)) {
                 this.scriptPack = pack;
                 packFound = true;
@@ -90,11 +155,16 @@ public class ABCSearchResult implements Serializable, ScriptSearchResult {
         }
     }
 
+    /**
+     * Save to output stream.
+     * @param os Output stream
+     * @throws IOException On I/O error
+     */
     public void save(OutputStream os) throws IOException {
         ObjectOutputStream oos = new ObjectOutputStream(os);
         oos.write(SERIAL_VERSION_MAJOR);
         oos.write(SERIAL_VERSION_MINOR);
-        oos.writeObject(scriptPack.getClassPath());
+        oos.writeUTF(scriptPack.getClassPath().toRawString());
         oos.writeObject(scriptPack.traitIndices);
         oos.writeBoolean(pcode);
         oos.writeInt(classIndex);
@@ -103,6 +173,10 @@ public class ABCSearchResult implements Serializable, ScriptSearchResult {
         oos.close();
     }
 
+    /**
+     * Constructs ABC search result.
+     * @param scriptPack Script pack
+     */
     public ABCSearchResult(ScriptPack scriptPack) {
         this.scriptPack = scriptPack;
         pcode = false;
@@ -110,6 +184,12 @@ public class ABCSearchResult implements Serializable, ScriptSearchResult {
         traitId = GraphTextWriter.TRAIT_UNKNOWN;
     }
 
+    /**
+     * Constructs ABC search result.
+     * @param scriptPack Script pack
+     * @param classIndex Class index
+     * @param traitId Trait id
+     */
     public ABCSearchResult(ScriptPack scriptPack, int classIndex, int traitId) {
         this.scriptPack = scriptPack;
         pcode = true;
@@ -117,22 +197,42 @@ public class ABCSearchResult implements Serializable, ScriptSearchResult {
         this.traitId = traitId;
     }
 
+    /**
+     * Gets script pack.
+     * @return Script pack
+     */
     public ScriptPack getScriptPack() {
         return scriptPack;
     }
 
+    /**
+     * Is P-code
+     * @return True if P-code
+     */
     public boolean isPcode() {
         return pcode;
     }
 
+    /**
+     * Gets class index.
+     * @return Class index
+     */
     public int getClassIndex() {
         return classIndex;
     }
 
+    /**
+     * Gets trait id.
+     * @return Trait id
+     */
     public int getTraitId() {
         return traitId;
     }
 
+    /**
+     * Gets trait name.
+     * @return Trait name
+     */
     private String getTraitName() {
         if (traitId == GraphTextWriter.TRAIT_SCRIPT_INITIALIZER) {
             return STR_SCRIPT_INITIALIZER;
@@ -156,13 +256,17 @@ public class ABCSearchResult implements Serializable, ScriptSearchResult {
         boolean isStatic = traitId < staticTraitCount;
 
         if (isStatic) {
-            return abc.class_info.get(classIndex).static_traits.traits.get(traitId).getName(abc).getName(abc.constants, null, false, true);
+            return abc.class_info.get(classIndex).static_traits.traits.get(traitId).getName(abc).getName(new LinkedHashSet<>(), abc, abc.constants, null, false, true);
         } else {
             int index = traitId - staticTraitCount;
-            return abc.instance_info.get(classIndex).instance_traits.traits.get(index).getName(abc).getName(abc.constants, null, false, true);
+            return abc.instance_info.get(classIndex).instance_traits.traits.get(index).getName(abc).getName(new LinkedHashSet<>(), abc, abc.constants, null, false, true);
         }
     }
 
+    /**
+     * To string.
+     * @return String
+     */
     @Override
     public String toString() {
         String result = scriptPack.getClassPath().toString();
@@ -175,8 +279,12 @@ public class ABCSearchResult implements Serializable, ScriptSearchResult {
         return result;
     }
 
+    /**
+     * Gets openable.
+     * @return Openable
+     */
     @Override
-    public SWF getSWF() {
-        return scriptPack.getSwf();
+    public Openable getOpenable() {
+        return scriptPack.getOpenable();
     }
 }

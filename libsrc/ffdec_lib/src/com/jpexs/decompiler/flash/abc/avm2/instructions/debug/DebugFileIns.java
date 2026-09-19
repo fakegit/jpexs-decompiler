@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.debug;
 
 import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
@@ -22,11 +23,15 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
 
 /**
+ * debugfile instruction - Set the current file for debugging.
  *
  * @author JPEXS
  */
 public class DebugFileIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public DebugFileIns() {
         super(0xf1, "debugfile", new int[]{AVM2Code.DAT_STRING_INDEX}, false);
     }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -33,7 +33,6 @@ import javax.swing.border.EmptyBorder;
 import jsyntaxpane.DefaultSyntaxKit;
 
 /**
- *
  * @author JPEXS
  */
 public class SelectLanguageDialog extends AppDialog {
@@ -42,7 +41,7 @@ public class SelectLanguageDialog extends AppDialog {
 
     public String languageCode = null;
 
-    protected static final String[] languages = new String[]{"en", "ca", "cs", "zh", "de", "es", "fr", "hu", "it", "ja", "nl", "pl", "pt", "pt-BR", "ru", "sv", "tr", "uk"};
+    protected static final String[] languages = new String[]{"en", "ca", "cs", "zh", "de", "es", "fr", "hu", "it", "ja", "nl", "pl", "pt", "pt-BR", "ru", "sk", "sl", "sv", "tr", "uk"};
 
     public SelectLanguageDialog(Window owner) {
         super(owner);

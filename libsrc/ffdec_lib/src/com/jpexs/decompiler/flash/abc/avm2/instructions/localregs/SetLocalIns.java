@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,18 +12,23 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.localregs;
 
 import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 
 /**
+ * setlocal instruction - set local register value.
  *
  * @author JPEXS
  */
 public class SetLocalIns extends SetLocalTypeIns {
 
+    /**
+     * Constructor
+     */
     public SetLocalIns() {
         super(0x63, "setlocal", new int[]{AVM2Code.DAT_LOCAL_REG_INDEX}, false);
     }

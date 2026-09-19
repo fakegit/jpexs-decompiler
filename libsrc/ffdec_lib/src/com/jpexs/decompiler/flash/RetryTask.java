@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,26 +12,46 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import java.io.IOException;
 
 /**
+ * Task that can be retried on error.
  *
  * @author JPEXS
  */
 public class RetryTask {
 
+    /**
+     * Runnable that can throw IOException.
+     */
     private final RunnableIOEx r;
 
+    /**
+     * Handler for retrying.
+     */
     private final AbortRetryIgnoreHandler handler;
 
+    /**
+     * Constructs a new RetryTask.
+     *
+     * @param r Runnable that can throw IOException
+     * @param handler Handler for retrying
+     */
     public RetryTask(RunnableIOEx r, AbortRetryIgnoreHandler handler) {
         this.r = r;
         this.handler = handler;
     }
 
+    /**
+     * Runs the task.
+     *
+     * @throws IOException On I/O error
+     * @throws InterruptedException On interrupt
+     */
     public void run() throws IOException, InterruptedException {
         boolean retry;
         do {

@@ -24,8 +24,7 @@ function hideNoName(name) {
             if ((typeof name) != "undefined" && name.trim() != "") {
                 var ss = lis[i].getElementsByTagName("strong");
                 for (var s = 0; s < ss.length; s++) {
-                    if (ss[s].className == "instruction-name")
-                    {
+                    if (ss[s].className == "instruction-name") {
                         var insName = ss[s].innerHTML;
                         if (insName.toLowerCase().indexOf(name.toLowerCase()) != 0) { //does not start with desired name
                             showhide(lis[i], false);
@@ -70,11 +69,9 @@ function sortInstructions(order) {
             if (cls.indexOf(" instruction-item ") != -1) {
                 var ss = lis[i].getElementsByTagName(order == "code" ? "span" : "strong");
                 for (var s = 0; s < ss.length; s++) {
-                    if (ss[s].className == "instruction-" + order)
-                    {
+                    if (ss[s].className == "instruction-" + order) {
                         var checkedVal = ss[s].innerHTML;
-                        if (smallestVal == null || smallestVal > checkedVal)
-                        {
+                        if (smallestVal == null || smallestVal > checkedVal) {
                             smallestItem = lis[i];
                             smallestVal = checkedVal;
                         }
@@ -125,12 +122,17 @@ function init() {
     t += "<input onkeydown=\"applyFilter();\" onkeyup=\"applyFilter();\" onkeypress=\"applyFilter();\" type=\"text\" id=\"filter-byname\" size=\"15\" />";
     t += "</div>";
 
-    t += "<div class=\"filter-item\">";
-    t += "<strong class=\"filter-hide-title\">" + txt_filter_hide + "</strong><br />";
-    for (var flag in flags) {
-        var flagDesc = flags[flag];
-        var flagSet = flags_set[flag];
-        t += '<input class="filter" data-flag="' + flag + '" onchange="applyFilter();" type="checkbox"' + (flagSet ? ' checked="checked"' : '') + ' id="flag-' + flag + '-switch"/><label for="flag-' + flag + '-switch">' + flagDesc + '</label><br />';
+    if (flags !== null) {
+        t += "<div class=\"filter-item\">";
+
+        t += "<strong class=\"filter-hide-title\">" + txt_filter_hide + "</strong><br />";        
+    
+        for (var flag in flags) {
+            var flagDesc = flags[flag];
+            var flagSet = flags_set[flag];
+            t += '<input class="filter" data-flag="' + flag + '" onchange="applyFilter();" type="checkbox"' + (flagSet ? ' checked="checked"' : '') + ' id="flag-' + flag + '-switch"/><label for="flag-' + flag + '-switch">' + flagDesc + '</label><br />';
+        }
+        t += "</div>";
     }
 
     t += "<div class=\"filter-item\">";
@@ -139,7 +141,6 @@ function init() {
     t += "<option value=\"code\"" + (order_set == "code" ? ' selected="selected"' : '') + ">" + txt_filter_order_code + "</option>";
     t += "<option value=\"name\"" + (order_set == "name" ? ' selected="selected"' : '') + ">" + txt_filter_order_name + "</option>";
     t += "</select>";
-    t += "</div>";
     t += "</div>";
 
     t += "</div>"; //.filter

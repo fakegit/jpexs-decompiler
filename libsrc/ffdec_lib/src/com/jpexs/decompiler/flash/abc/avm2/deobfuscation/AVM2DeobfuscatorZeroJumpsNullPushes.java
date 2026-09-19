@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -37,33 +37,76 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PushUndefinedIns;
 import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.helpers.SWFDecompilerAdapter;
+import com.jpexs.helpers.CancellableWorker;
+import com.jpexs.helpers.Reference;
 import java.util.Set;
 
 /**
+ * Deobfuscator for removing zero jumps and null pushes.
  *
  * @author JPEXS
  */
 public class AVM2DeobfuscatorZeroJumpsNullPushes extends SWFDecompilerAdapter {
 
+    /**
+     * Constructor.
+     */
+    public AVM2DeobfuscatorZeroJumpsNullPushes() {
+
+    }
+
+    /**
+     * Removes zero jumps from the code.
+     *
+     * @param code AVM2 code
+     * @param body Method body
+     * @return True if any zero jumps were removed
+     * @throws InterruptedException On interrupt
+     */
     protected boolean removeZeroJumps(AVM2Code code, MethodBody body) throws InterruptedException {
+        return removeZeroJumps(code, body, new Reference<>(-1));
+    }
+
+    /**
+     * Removes zero jumps from the code.
+     *
+     * @param code AVM2 code
+     * @param body Method body
+     * @param minChangedIpRef Reference to the minimum changed instruction
+     * pointer
+     * @return True if any zero jumps were removed
+     * @throws InterruptedException On interrupt
+     */
+    protected boolean removeZeroJumps(AVM2Code code, MethodBody body, Reference<Integer> minChangedIpRef) throws InterruptedException {
         boolean result = false;
+        int minChangedIp = -1;
         for (int i = 0; i < code.code.size(); i++) {
             AVM2Instruction ins = code.code.get(i);
             if (ins.definition instanceof JumpIns) {
                 if (ins.operands[0] == 0) {
-                    if (Thread.currentThread().isInterrupted()) {
+                    if (CancellableWorker.isInterrupted()) {
                         throw new InterruptedException();
                     }
 
+                    if (minChangedIp == -1) {
+                        minChangedIp = i;
+                    }
                     code.removeInstruction(i, body);
                     i--;
                     result = true;
                 }
             }
         }
+        minChangedIpRef.setVal(minChangedIp);
         return result;
     }
 
+    /**
+     * Checks if the instruction is a simple push.
+     *
+     * @param def Instruction definition
+     * @return True if the instruction is a simple push
+     */
     private boolean isSimplePush(InstructionDefinition def) {
         return (def instanceof PushByteIns
                 || def instanceof PushDoubleIns
@@ -78,6 +121,14 @@ public class AVM2DeobfuscatorZeroJumpsNullPushes extends SWFDecompilerAdapter {
                 || def instanceof PushUndefinedIns);
     }
 
+    /**
+     * Removes null pushes from the code.
+     *
+     * @param code AVM2 code
+     * @param body Method body
+     * @return True if any null pushes were removed
+     * @throws InterruptedException On interrupt
+     */
     protected boolean removeNullPushes(AVM2Code code, MethodBody body) throws InterruptedException {
         boolean result = false;
         Set<Long> offsets = code.getImportantOffsets(body, true);
@@ -92,7 +143,7 @@ public class AVM2DeobfuscatorZeroJumpsNullPushes extends SWFDecompilerAdapter {
             if (ins2.definition instanceof PopIns
                     && !offsets.contains(ins2.getAddress())
                     && isSimplePush(ins1.definition)) {
-                if (Thread.currentThread().isInterrupted()) {
+                if (CancellableWorker.isInterrupted()) {
                     throw new InterruptedException();
                 }
 
@@ -109,7 +160,7 @@ public class AVM2DeobfuscatorZeroJumpsNullPushes extends SWFDecompilerAdapter {
                         && !offsets.contains(ins2.getAddress())
                         && !offsets.contains(ins1.getAddress())
                         && isSimplePush(ins0.definition)) {
-                    if (Thread.currentThread().isInterrupted()) {
+                    if (CancellableWorker.isInterrupted()) {
                         throw new InterruptedException();
                     }
                     code.removeInstruction(i - 2, body);
@@ -126,6 +177,19 @@ public class AVM2DeobfuscatorZeroJumpsNullPushes extends SWFDecompilerAdapter {
         return result;
     }
 
+    /**
+     * Removes zero jumps and null pushes from the code.
+     *
+     * @param path Path
+     * @param classIndex Class index
+     * @param isStatic Is static
+     * @param scriptIndex Script index
+     * @param abc ABC
+     * @param trait Trait
+     * @param methodInfo Method info
+     * @param body Method body
+     * @throws InterruptedException On interrupt
+     */
     @Override
     public void avm2CodeRemoveTraps(String path, int classIndex, boolean isStatic, int scriptIndex, ABC abc, Trait trait, int methodInfo, MethodBody body) throws InterruptedException {
         AVM2Code code = body.getCode();

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -37,20 +37,40 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Delete property.
  *
  * @author JPEXS
  */
 public class DeletePropertyAVM2Item extends AVM2Item {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
+    /**
+     * Property name
+     */
     public GraphTargetItem propertyName;
 
+    /**
+     * Line
+     */
     private int line;
 
-    //Constructor for compiler
+    /**
+     * Is static
+     */
+    public boolean isStatic;
+
+    /**
+     * Constructor.
+     * For compiler.
+     * @param property Property
+     * @param line Line
+     */
     public DeletePropertyAVM2Item(GraphTargetItem property, int line) {
-        this(null, null, property, null);
+        this(null, null, property, null, false);
         this.line = line;
     }
 
@@ -60,16 +80,25 @@ public class DeletePropertyAVM2Item extends AVM2Item {
         visitor.visit(propertyName);
     }
 
-    public DeletePropertyAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem propertyName) {
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     * @param propertyName Property name
+     * @param isStatic Is static
+     */
+    public DeletePropertyAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem propertyName, boolean isStatic) {
         super(instruction, lineStartIns, PRECEDENCE_UNARY);
         this.object = object;
         this.propertyName = propertyName;
+        this.isStatic = isStatic;
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("delete ");
-        formatProperty(writer, object, propertyName, localData);
+        formatProperty(writer, object, propertyName, localData, isStatic, false);
         return writer;
     }
 
@@ -81,7 +110,7 @@ public class DeletePropertyAVM2Item extends AVM2Item {
         }
         if (p instanceof PropertyAVM2Item) {
             PropertyAVM2Item prop = (PropertyAVM2Item) p;
-            return toSourceMerge(localData, generator, prop.resolveObject(localData, generator),
+            return toSourceMerge(localData, generator, prop.resolveObject(localData, generator, true),
                     ins(AVM2Instructions.DeleteProperty, prop.resolveProperty(localData))
             );
         }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,25 +16,37 @@
  */
 package com.jpexs.decompiler.flash.gui.generictageditors;
 
+import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.AppStrings;
 import com.jpexs.decompiler.flash.gui.MainPanel;
+import com.jpexs.decompiler.flash.gui.ViewMessages;
 import com.jpexs.helpers.ByteArrayRange;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.ReflectionTools;
 import java.awt.Component;
+import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.Objects;
 import javax.swing.JButton;
+import javax.swing.JFileChooser;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
 
 /**
- *
  * @author JPEXS
  */
-public class BinaryDataEditor extends JButton implements GenericTagEditor {
+public class BinaryDataEditor extends JPanel implements GenericTagEditor {
 
     private final MainPanel mainPanel;
+
+    private final JButton replaceButton;
+
+    private final JButton exportButton;
 
     private final Object obj;
 
@@ -56,8 +68,14 @@ public class BinaryDataEditor extends JButton implements GenericTagEditor {
         this.index = index;
         this.type = type;
         this.fieldName = fieldName;
-        setText(AppStrings.translate("button.replace"));
-        addActionListener(this::buttonActionPerformed);
+        exportButton = new JButton(AppStrings.translate("button.export"));
+        replaceButton = new JButton(AppStrings.translate("button.replace"));
+
+        setLayout(new FlowLayout());
+        add(exportButton);
+        add(replaceButton);
+        exportButton.addActionListener(this::exportActionPerformed);
+        replaceButton.addActionListener(this::replaceActionPerformed);
         reset();
 
     }
@@ -83,8 +101,25 @@ public class BinaryDataEditor extends JButton implements GenericTagEditor {
         }
     }
 
-    private void buttonActionPerformed(ActionEvent evt) {
-        File selectedFile = mainPanel.showImportFileChooser("", false);
+    private void exportActionPerformed(ActionEvent evt) {
+        if (value == null) {
+            return;
+        }
+        JFileChooser fc = new JFileChooser();
+        fc.setCurrentDirectory(new File(Configuration.lastExportDir.get()));
+        if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File selfile = Helper.fixDialogFile(fc.getSelectedFile());
+            ByteArrayRange br = (ByteArrayRange) value;
+            try (FileOutputStream fos = new FileOutputStream(selfile)) {
+                fos.write(br.getArray(), br.getPos(), br.getLength());
+            } catch (IOException ex) {
+                ViewMessages.showMessageDialog(mainPanel, ex.getMessage(), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void replaceActionPerformed(ActionEvent evt) {
+        File selectedFile = mainPanel.showImportFileChooser("", false, "importbinarydata");
         if (selectedFile != null) {
             File selfile = Helper.fixDialogFile(selectedFile);
             byte[] data = Helper.readFile(selfile.getAbsolutePath());
@@ -99,18 +134,24 @@ public class BinaryDataEditor extends JButton implements GenericTagEditor {
     }
 
     @Override
-    public void save() {
+    public boolean save() {
         try {
-            ReflectionTools.setValue(obj, field, index, value);
+            Object oldValue = ReflectionTools.getValue(obj, field, index);
+            Object newValue = value;
+            if (Objects.equals(oldValue, newValue)) {
+                return false;
+            }
+            ReflectionTools.setValue(obj, field, index, newValue);
         } catch (IllegalArgumentException | IllegalAccessException ex) {
             // ignore
         }
+        return true;
     }
 
     @Override
     public void addChangeListener(final ChangeListener l) {
         final GenericTagEditor t = this;
-        addActionListener(new ActionListener() {
+        replaceButton.addActionListener(new ActionListener() {
 
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -153,4 +194,14 @@ public class BinaryDataEditor extends JButton implements GenericTagEditor {
     public void added() {
 
     }
+
+    @Override
+    public Object getObject() {
+        return obj;
+    }
+    
+    @Override
+    public void setValueNormalizer(ValueNormalizer normalizer) {
+    
+    }  
 }

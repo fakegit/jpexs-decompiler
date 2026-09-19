@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,15 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.tags.base.MorphShapeTag;
+import com.jpexs.decompiler.flash.tags.base.ShapeTag;
 import com.jpexs.decompiler.flash.types.BasicType;
 import com.jpexs.decompiler.flash.types.MORPHFILLSTYLE;
 import com.jpexs.decompiler.flash.types.MORPHFILLSTYLEARRAY;
@@ -29,11 +31,14 @@ import com.jpexs.decompiler.flash.types.SHAPE;
 import com.jpexs.decompiler.flash.types.annotations.Reserved;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
+import com.jpexs.decompiler.flash.types.shaperecords.SHAPERECORD;
 import com.jpexs.helpers.ByteArrayRange;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 /**
+ * DefineMorphShape2 tag - defines morph shape. Extends functionality of
+ * DefineMorphshape.
  *
  * @author JPEXS
  */
@@ -59,7 +64,7 @@ public class DefineMorphShape2Tag extends MorphShapeTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineMorphShape2Tag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -79,9 +84,9 @@ public class DefineMorphShape2Tag extends MorphShapeTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineMorphShape2Tag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -109,7 +114,7 @@ public class DefineMorphShape2Tag extends MorphShapeTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -122,7 +127,7 @@ public class DefineMorphShape2Tag extends MorphShapeTag {
         sos.writeUB(1, usesNonScalingStrokes ? 1 : 0);
         sos.writeUB(1, usesScalingStrokes ? 1 : 0);
         ByteArrayOutputStream baos2 = new ByteArrayOutputStream();
-        SWFOutputStream sos2 = new SWFOutputStream(baos2, getVersion());
+        SWFOutputStream sos2 = new SWFOutputStream(baos2, getVersion(), getCharset());
         sos2.writeMORPHFILLSTYLEARRAY(morphFillStyles, 2);
         sos2.writeMORPHLINESTYLEARRAY(morphLineStyles, 2);
         sos2.writeSHAPE(startEdges, 2);
@@ -135,5 +140,28 @@ public class DefineMorphShape2Tag extends MorphShapeTag {
     @Override
     public int getShapeNum() {
         return 2;
+    }
+
+    @Override
+    public void updateStartBounds() {
+        super.updateStartBounds();
+        startEdgeBounds = SHAPERECORD.getBounds(startEdges.shapeRecords, null, 4, true);
+    }
+
+    @Override
+    public void updateEndBounds() {
+        super.updateEndBounds();
+        endEdgeBounds = SHAPERECORD.getBounds(endEdges.shapeRecords, null, 4, true);
+    }
+
+    @Override
+    public ShapeTag getShapeTagAtRatio(int ratio) {
+        DefineShape4Tag ret = new DefineShape4Tag(swf);
+        ret.usesNonScalingStrokes = usesNonScalingStrokes;
+        ret.usesScalingStrokes = usesScalingStrokes;
+        ret.shapes = getShapeAtRatio(ratio);
+        ret.updateBounds();
+        ret.setTimelined(swf);
+        return ret;
     }
 }

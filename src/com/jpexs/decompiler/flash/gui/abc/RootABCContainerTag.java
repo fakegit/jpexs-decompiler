@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@ import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.tags.ABCContainerTag;
 
 /**
- *
  * @author JPEXS
  */
 public class RootABCContainerTag implements ABCContainerTag {
@@ -47,5 +46,9 @@ public class RootABCContainerTag implements ABCContainerTag {
     @Override
     public String toString() {
         return " - all - ";
+    }
+
+    @Override
+    public void setABC(ABC abc) {
     }
 }

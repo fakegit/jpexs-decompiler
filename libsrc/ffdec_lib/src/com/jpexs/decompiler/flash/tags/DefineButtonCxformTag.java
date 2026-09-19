@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,26 +12,30 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
-import com.jpexs.decompiler.flash.tags.base.CharacterIdTag;
+import com.jpexs.decompiler.flash.tags.base.CharacterModifier;
 import com.jpexs.decompiler.flash.types.BasicType;
 import com.jpexs.decompiler.flash.types.CXFORM;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.helpers.ByteArrayRange;
 import java.io.IOException;
+import java.util.Map;
+import java.util.Set;
 
 /**
+ * DefineButtonCxform tag - defines a color transform for a button.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 2)
-public class DefineButtonCxformTag extends Tag implements CharacterIdTag {
+public class DefineButtonCxformTag extends Tag implements CharacterModifier {
 
     public static final int ID = 23;
 
@@ -45,7 +49,7 @@ public class DefineButtonCxformTag extends Tag implements CharacterIdTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineButtonCxformTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -55,9 +59,9 @@ public class DefineButtonCxformTag extends Tag implements CharacterIdTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineButtonCxformTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -74,7 +78,7 @@ public class DefineButtonCxformTag extends Tag implements CharacterIdTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -90,5 +94,17 @@ public class DefineButtonCxformTag extends Tag implements CharacterIdTag {
     @Override
     public void setCharacterId(int characterId) {
         this.buttonId = characterId;
+    }
+
+    @Override
+    public Map<String, String> getNameProperties() {
+        Map<String, String> ret = super.getNameProperties();
+        ret.put("bid", "" + buttonId);
+        return ret;
+    }
+
+    @Override
+    public void getNeededCharacters(Set<Integer> needed, Set<String> neededClasses, SWF swf) {
+        needed.add(buttonId);
     }
 }

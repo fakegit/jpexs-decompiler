@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -28,11 +28,15 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.List;
 
 /**
+ * setglobalslot instruction - set global slot value.
  *
  * @author JPEXS
  */
 public class SetGlobalSlotIns extends InstructionDefinition implements SetTypeIns {
 
+    /**
+     * Constructor
+     */
     public SetGlobalSlotIns() {
         super(0x6f, "setglobalslot", new int[]{AVM2Code.DAT_SLOT_INDEX}, false);
     }
@@ -40,6 +44,7 @@ public class SetGlobalSlotIns extends InstructionDefinition implements SetTypeIn
     @Override
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
         int slotIndex = ins.operands[0];
+        stack.allowSwap(output);        
         GraphTargetItem value = stack.pop();
         GraphTargetItem obj = new GlobalAVM2Item(ins, localData.lineStartInstruction);
         SetSlotIns.handleSetSlot(localData, stack, ins, output, slotIndex, obj, value);

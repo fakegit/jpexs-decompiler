@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,15 +12,30 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.deobfuscation;
 
 /**
+ * Detects if the code is broken.
  *
  * @author JPEXS
  */
 public class BrokenScriptDetector {
 
+    /**
+     * Constructor.
+     */
+    public BrokenScriptDetector() {
+
+    }
+
+    /**
+     * Checks if the code is broken.
+     *
+     * @param code Code
+     * @return True if the code is broken
+     */
     public boolean codeIsBroken(String code) {
         return code.contains("\u00A7\u00A7");
     }

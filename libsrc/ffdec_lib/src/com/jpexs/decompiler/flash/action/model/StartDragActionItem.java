@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,6 +17,7 @@
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.swf4.ActionPush;
 import com.jpexs.decompiler.flash.action.swf4.ActionStartDrag;
 import com.jpexs.decompiler.flash.ecma.Undefined;
@@ -33,25 +34,60 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Start drag.
  *
  * @author JPEXS
  */
 public class StartDragActionItem extends ActionItem {
 
+    /**
+     * Target
+     */
     public GraphTargetItem target;
 
+    /**
+     * Lock center
+     */
     public GraphTargetItem lockCenter;
 
+    /**
+     * Constrain
+     */
     public GraphTargetItem constrain;
 
+    /**
+     * Y2
+     */
     public GraphTargetItem y2;
 
+    /**
+     * X2
+     */
     public GraphTargetItem x2;
 
+    /**
+     * Y1
+     */
     public GraphTargetItem y1;
 
+    /**
+     * X1
+     */
     public GraphTargetItem x1;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param target Target
+     * @param lockCenter Lock center
+     * @param constrain Constrain
+     * @param x1 X1
+     * @param y1 Y1
+     * @param x2 X2
+     * @param y2 Y2
+     */
     public StartDragActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem target, GraphTargetItem lockCenter, GraphTargetItem constrain, GraphTargetItem x1, GraphTargetItem y1, GraphTargetItem x2, GraphTargetItem y2) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.target = target;
@@ -72,7 +108,7 @@ public class StartDragActionItem extends ActionItem {
             }
         }
         writer.append("startDrag");
-        writer.spaceBeforeCallParenthesies(2);
+        writer.spaceBeforeCallParenthesis(2);
         writer.append("(");
         target.toString(writer, localData);
         writer.append(",");
@@ -103,16 +139,20 @@ public class StartDragActionItem extends ActionItem {
     }
 
     @Override
-    public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        return toSource(localData, generator, true);
-    }
-
-    @Override
     public List<GraphSourceItem> toSourceIgnoreReturnValue(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         return toSource(localData, generator, false);
     }
 
+    @Override
+    public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+        return toSource(localData, generator, true);
+    }
+
     private List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator, boolean needsReturn) throws CompilationException {
+
+        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
+
         boolean hasConstrains = true;
         if (constrain instanceof DirectValueActionItem) {
             if (Double.compare(constrain.getResultAsNumber(), 0) == 0) {
@@ -120,9 +160,9 @@ public class StartDragActionItem extends ActionItem {
             }
         }
         if (hasConstrains) {
-            return toSourceMerge(localData, generator, x1, y1, x2, y2, constrain, lockCenter, target, new ActionStartDrag(), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}) : null);
+            return toSourceMerge(localData, generator, x1, y1, x2, y2, constrain, lockCenter, target, new ActionStartDrag(), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}, charset) : null);
         } else {
-            return toSourceMerge(localData, generator, constrain, lockCenter, target, new ActionStartDrag(), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}) : null);
+            return toSourceMerge(localData, generator, constrain, lockCenter, target, new ActionStartDrag(), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}, charset) : null);
         }
     }
 

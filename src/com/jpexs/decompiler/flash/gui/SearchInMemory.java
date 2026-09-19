@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.LimitedInputStream;
 import com.jpexs.helpers.PosMarkedInputStream;
+import com.jpexs.helpers.ProgressListener;
 import com.jpexs.helpers.ReReadableInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -27,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 
 /**
- *
  * @author JPEXS
  */
 public class SearchInMemory {
@@ -54,7 +54,17 @@ public class SearchInMemory {
         List<SwfInMemory> swfStreams = new ArrayList<>();
         for (com.jpexs.process.Process proc : procs) {
             publish(proc);
-            Map<Long, InputStream> ret = proc.search(this::setProgress, "CWS".getBytes(), "FWS".getBytes(), "ZWS".getBytes());
+            Map<Long, InputStream> ret = proc.search(new ProgressListener() {
+                @Override
+                public void progress(int p) {
+                    SearchInMemory.this.setProgress(p);
+                }
+
+                @Override
+                public void status(String status) {
+
+                }
+            }, "CWS".getBytes(), "FWS".getBytes(), "ZWS".getBytes());
             int pos = 0;
             for (Long addr : ret.keySet()) {
                 setProgress(pos * 100 / ret.size());
@@ -75,6 +85,7 @@ public class SearchInMemory {
                 } catch (OutOfMemoryError ome) {
                     Helper.freeMem();
                 } catch (Exception | Error ex) {
+                    //ignored
                 }
 
             }

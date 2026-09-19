@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.flv;
 
 import java.io.ByteArrayOutputStream;
@@ -23,33 +24,80 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Script data.
  *
  * @author JPEXS
  */
 public class SCRIPTDATA extends DATA {
 
-    public List<SCRIPTDATAOBJECT> data;
+    /**
+     * Name
+     */
+    public SCRIPTDATAVALUE name;
+    /**
+     * Value
+     */
+    public SCRIPTDATAVALUE value;
 
-    public SCRIPTDATA(List<SCRIPTDATAOBJECT> data) {
-        this.data = data;
+    /**
+     * Constructor.
+     * @param name Name
+     * @param value Value
+     */
+    public SCRIPTDATA(SCRIPTDATAVALUE name, SCRIPTDATAVALUE value) {
+        this.name = name;
+        this.value = value;
     }
 
     @Override
     public byte[] getBytes() {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (FLVOutputStream fos = new FLVOutputStream(baos)) {
-            for (SCRIPTDATAOBJECT d : data) {
-                fos.writeSCRIPTDATAOBJECT(d);
-            }
-            fos.writeUI24(9); //SCRIPTDATAOBJECTEND
+            fos.writeSCRIPTDATAVALUE(name);
+            fos.writeSCRIPTDATAVALUE(value);
         } catch (IOException ex) {
             Logger.getLogger(SCRIPTDATA.class.getName()).log(Level.SEVERE, "i/o error", ex);
         }
         return baos.toByteArray();
     }
 
+    /**
+     * Creates simple onMetaData script data.
+     * @param duration Duration
+     * @param width Width
+     * @param height Height
+     * @param framerate Framerate
+     * @param videocodecid Video codec id
+     * @return Script data
+     */
+    public static SCRIPTDATA simpleVideOnMetadata(double duration, double width, double height, double framerate, double videocodecid) {
+        List<SCRIPTDATAVARIABLE> values = new ArrayList<>();
+        values.add(new SCRIPTDATAVARIABLE("duration", new SCRIPTDATAVALUE(duration)));
+        values.add(new SCRIPTDATAVARIABLE("width", new SCRIPTDATAVALUE(width)));
+        values.add(new SCRIPTDATAVARIABLE("height", new SCRIPTDATAVALUE(height)));
+        values.add(new SCRIPTDATAVARIABLE("framerate", new SCRIPTDATAVALUE(framerate)));
+        values.add(new SCRIPTDATAVARIABLE("videocodecid", new SCRIPTDATAVALUE(videocodecid)));
+        SCRIPTDATAVALUE valuesList = new SCRIPTDATAVALUE(8, values);
+        SCRIPTDATAVALUE onMetadataKey = new SCRIPTDATAVALUE(2, "onMetaData");
+        return new SCRIPTDATA(onMetadataKey, valuesList);
+    }
+
+    /**
+     * Creates onMetaData script data.
+     * @param duration Duration
+     * @param width Width
+     * @param height Height
+     * @param videodatarate Video data rate
+     * @param framerate Framerate
+     * @param videocodecid Video codec id
+     * @param audiosamplerate Audio sample rate
+     * @param audiosamplesize Audio sample size
+     * @param stereo Stereo
+     * @param audiocodecid Audio codec id
+     * @param filesize File size
+     * @return Script data
+     */
     public static SCRIPTDATA onMetaData(double duration, double width, double height, double videodatarate, double framerate, double videocodecid, double audiosamplerate, double audiosamplesize, boolean stereo, double audiocodecid, double filesize) {
-        List<SCRIPTDATAOBJECT> list = new ArrayList<>();
         List<SCRIPTDATAVARIABLE> values = new ArrayList<>();
         values.add(new SCRIPTDATAVARIABLE("duration", new SCRIPTDATAVALUE(duration)));
         values.add(new SCRIPTDATAVARIABLE("width", new SCRIPTDATAVALUE(width)));
@@ -63,9 +111,7 @@ public class SCRIPTDATA extends DATA {
         values.add(new SCRIPTDATAVARIABLE("audiocodecid", new SCRIPTDATAVALUE(audiocodecid)));
         values.add(new SCRIPTDATAVARIABLE("filesize", new SCRIPTDATAVALUE(filesize)));
         SCRIPTDATAVALUE valuesList = new SCRIPTDATAVALUE(8, values);
-        SCRIPTDATAOBJECT metaData = new SCRIPTDATAOBJECT("onMetaData", valuesList);
-        list.add(metaData);
-        SCRIPTDATA ret = new SCRIPTDATA(list);
-        return ret;
+        SCRIPTDATAVALUE onMetadataKey = new SCRIPTDATAVALUE(2, "onMetaData");
+        return new SCRIPTDATA(onMetadataKey, valuesList);
     }
 }

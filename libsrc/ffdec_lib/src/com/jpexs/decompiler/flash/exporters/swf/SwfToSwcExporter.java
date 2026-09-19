@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -30,6 +30,7 @@ import com.jpexs.decompiler.flash.tags.DoABC2Tag;
 import com.jpexs.decompiler.flash.tags.SymbolClassTag;
 import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.helpers.Helper;
+import com.jpexs.helpers.Reference;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -41,16 +42,32 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+/**
+ * Exports SWF to SWC.
+ */
 public class SwfToSwcExporter {
 
+    /**
+     * Dependency - namespace
+     */
     private static final String DEPENDENCY_NAMESPACE = "n";
+    /**
+     * Dependency - inheritance
+     */
     private static final String DEPENDENCY_INHERITANCE = "i";
+    /**
+     * Dependency - expression
+     */
     private static final String DEPENDENCY_EXPRESSION = "e";
+    /**
+     * Dependency - signature
+     */
     private static final String DEPENDENCY_SIGNATURE = "s";
 
     private static String sha256(InputStream is) {
@@ -76,6 +93,9 @@ public class SwfToSwcExporter {
         return output;
     }
 
+    /**
+     * Constructor.
+     */
     public SwfToSwcExporter() {
 
     }
@@ -144,12 +164,11 @@ public class SwfToSwcExporter {
                 sb.append("        <def id=\"").append(defId).append("\" />\n");
 
                 Set<DottedChain> allDeps = new HashSet<>();
-                allDeps.add(new DottedChain(new String[]{"AS3"}, ""));
+                allDeps.add(new DottedChain(new String[]{"AS3"}, new String[]{""}));
                 sb.append("        <dep id=\"AS3\" type=\"").append(DEPENDENCY_NAMESPACE).append("\" />\n");
                 if (!skipDependencies) {
                     List<Dependency> dependencies = new ArrayList<>();
-                    List<String> uses = new ArrayList<>();
-                    pack.abc.script_info.get(pack.scriptIndex).traits.getDependencies(pack.scriptIndex, -1, false, null, pack.abc, dependencies, uses, new DottedChain(new String[]{"NO:PACKAGE"}, ""), new ArrayList<>());
+                    pack.abc.script_info.get(pack.scriptIndex).traits.getDependencies(new LinkedHashSet<>(), swf.getAbcIndex(), pack.scriptIndex, -1, false, null, pack.abc, dependencies, new DottedChain(new String[]{"NO:PACKAGE"}), new ArrayList<>(), new ArrayList<>(), new Reference<>(null));
 
                     for (Dependency d : dependencies) {
                         if ("*".equals(d.getId().getLast())) {
@@ -208,6 +227,14 @@ public class SwfToSwcExporter {
         //System.out.println("time " + title + ": " + (t2 - t1));
     }
 
+    /**
+     * Exports SWF to SWC.
+     * @param swf SWF to export
+     * @param outSwcFile Output SWC file
+     * @param skipDependencies Skip dependencies
+     * @throws IOException On I/O error
+     * @throws InterruptedException On interrupt
+     */
     public void exportSwf(SWF swf, File outSwcFile, boolean skipDependencies) throws IOException, InterruptedException {
         long t4 = 0;
         //Make local copy of SWF so we do not modify original
@@ -249,15 +276,13 @@ public class SwfToSwcExporter {
             printDelay("swc.documentTag", t2, t3);
 
             if (!documentClassSet) {
-                throw new IOException("Original document class not found!");
+                //throw new IOException("Original document class not found!");
             }
             swf = recompileSWF(swf);
             t4 = System.currentTimeMillis();
             printDelay("swc.recompile2", t3, t4);
 
         } catch (Exception ex) {
-            ex.printStackTrace();
-            System.exit(0);
             throw new RuntimeException(ex);
         }
 

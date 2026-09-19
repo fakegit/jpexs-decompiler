@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -32,20 +32,28 @@ import com.jpexs.decompiler.flash.abc.avm2.model.PostIncrementAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.SetSlotAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.operations.PreDecrementAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.operations.PreIncrementAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.parser.script.AbcIndexing;
 import com.jpexs.decompiler.flash.abc.types.Multiname;
+import com.jpexs.decompiler.flash.abc.types.traits.Trait;
+import com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.CompoundableBinaryOp;
 import com.jpexs.helpers.Reference;
 import java.util.List;
 import java.util.Objects;
 
 /**
+ * setslot instruction - set slot value.
  *
  * @author JPEXS
  */
 public class SetSlotIns extends InstructionDefinition implements SetTypeIns {
 
+    /**
+     * Constructor
+     */
     public SetSlotIns() {
         super(0x6d, "setslot", new int[]{AVM2Code.DAT_SLOT_INDEX}, true);
     }
@@ -53,6 +61,7 @@ public class SetSlotIns extends InstructionDefinition implements SetTypeIns {
     @Override
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
         int slotIndex = ins.operands[0];
+        stack.allowSwap(output);
         GraphTargetItem value = stack.pop();
         GraphTargetItem obj = stack.pop(); //scopeId
         if (obj.getThroughRegister() instanceof NewActivationAVM2Item) {
@@ -77,7 +86,7 @@ public class SetSlotIns extends InstructionDefinition implements SetTypeIns {
         if (slotname != null) {
             if (value instanceof LocalRegAVM2Item) {
                 LocalRegAVM2Item lr = (LocalRegAVM2Item) value;
-                String slotNameStr = slotname.getName(localData.getConstants(), localData.fullyQualifiedNames, true, true);
+                String slotNameStr = slotname.getName(localData.usedDeobfuscations, localData.abc, localData.getConstants(), localData.fullyQualifiedNames, true, true);
                 if (localData.localRegNames.containsKey(lr.regIndex)) {
                     if (localData.localRegNames.get(lr.regIndex).equals(slotNameStr)) {
                         return; //Register with same name to slot
@@ -92,19 +101,25 @@ public class SetSlotIns extends InstructionDefinition implements SetTypeIns {
                 GetSlotAVM2Item slotItem = (GetSlotAVM2Item) inside;
                 if ((slotItem.scope.getThroughRegister() == obj.getThroughRegister())
                         && (slotItem.slotName == slotname)) {
-                    if (stack.size() > 0) {
+                    stack.moveToStack(output);
+                    if (!stack.isEmpty()) {
                         GraphTargetItem top = stack.peek().getNotCoerced().getThroughDuplicate();
                         if (top == inside) {
-                            stack.pop();
-                            stack.push(new PostIncrementAVM2Item(ins, localData.lineStartInstruction, inside));
+                            //GraphTargetItem.checkDup(stack, output, inside, top);
+                            GraphTargetItem.checkDup(stack, output, stack.pop(), value.getNotCoercedNoDup().value);
+                            //stack.pop();
+                            //TestIncDec12 with result
+                            stack.push(new PostIncrementAVM2Item(ins, localData.lineStartInstruction, inside, getNumberType(value)));
                         } else if ((top instanceof IncrementAVM2Item) && (((IncrementAVM2Item) top).value == inside)) {
-                            stack.pop();
-                            stack.push(new PreIncrementAVM2Item(ins, localData.lineStartInstruction, inside));
+                            GraphTargetItem.checkDup(stack, output, stack.pop(), value.getNotCoercedNoDup());
+                            //stack.pop();
+                            //TestIncDec11 with result
+                            stack.push(new PreIncrementAVM2Item(ins, localData.lineStartInstruction, inside, getNumberType(value)));
                         } else {
-                            output.add(new PostIncrementAVM2Item(ins, localData.lineStartInstruction, inside));
+                            stack.addToOutput(new PostIncrementAVM2Item(ins, localData.lineStartInstruction, inside, getNumberType(value)));
                         }
                     } else {
-                        output.add(new PostIncrementAVM2Item(ins, localData.lineStartInstruction, inside));
+                        stack.addToOutput(new PostIncrementAVM2Item(ins, localData.lineStartInstruction, inside, getNumberType(value)));
                     }
                     return;
                 }
@@ -117,32 +132,50 @@ public class SetSlotIns extends InstructionDefinition implements SetTypeIns {
                 GetSlotAVM2Item slotItem = (GetSlotAVM2Item) inside;
                 if ((slotItem.scope.getThroughRegister() == obj.getThroughRegister())
                         && (slotItem.slotName == slotname)) {
-                    if (stack.size() > 0) {
+                    stack.moveToStack(output);                    
+                    if (!stack.isEmpty()) {
                         GraphTargetItem top = stack.peek().getNotCoerced().getThroughDuplicate();
                         if (top == inside) {
-                            stack.pop();
-                            stack.push(new PostDecrementAVM2Item(ins, localData.lineStartInstruction, inside));
+                            GraphTargetItem.checkDup(stack, output, stack.pop(), value.getNotCoercedNoDup().value);
+                            //stack.pop();
+                            //TestIncDec12 with result
+                            stack.push(new PostDecrementAVM2Item(ins, localData.lineStartInstruction, inside, getNumberType(value)));
                         } else if ((top instanceof DecrementAVM2Item) && (((DecrementAVM2Item) top).value == inside)) {
-                            stack.pop();
-                            stack.push(new PreDecrementAVM2Item(ins, localData.lineStartInstruction, inside));
+                            GraphTargetItem.checkDup(stack, output, stack.pop(), value.getNotCoercedNoDup());
+                            //stack.pop();
+                            //TestIncDec11 with result
+                            stack.push(new PreDecrementAVM2Item(ins, localData.lineStartInstruction, inside, getNumberType(value)));
                         } else {
-                            output.add(new PostDecrementAVM2Item(ins, localData.lineStartInstruction, inside));
+                            stack.addToOutput(new PostDecrementAVM2Item(ins, localData.lineStartInstruction, inside, getNumberType(value)));
                         }
                     } else {
-                        output.add(new PostDecrementAVM2Item(ins, localData.lineStartInstruction, inside));
+                        stack.addToOutput(new PostDecrementAVM2Item(ins, localData.lineStartInstruction, inside, getNumberType(value)));
                     }
                     return;
                 }
             }
         }
 
-        SetSlotAVM2Item result = new SetSlotAVM2Item(ins, localData.lineStartInstruction, obj, objnoreg, slotIndex, slotname, value);
+        GraphTargetItem slotType = TypeItem.UNBOUNDED;
+        if (obj instanceof NewActivationAVM2Item) {
+            for (Trait t : localData.methodBody.traits.traits) {
+                if (t instanceof TraitSlotConst) {
+                    TraitSlotConst tsc = (TraitSlotConst) t;
+                    if (tsc.slot_id == slotIndex) {
+                        slotType = AbcIndexing.multinameToType(localData.usedDeobfuscations, tsc.type_index, localData.abc, localData.abc.constants);
+                        break;
+                    }
+                }
+            }
+        }
+
+        SetSlotAVM2Item result = new SetSlotAVM2Item(ins, localData.lineStartInstruction, obj, objnoreg, slotIndex, slotname, value, slotType);
 
         if (value.getNotCoerced() instanceof CompoundableBinaryOp) {
             if (!obj.hasSideEffect()) {
                 CompoundableBinaryOp binaryOp = (CompoundableBinaryOp) value.getNotCoerced();
-                if (binaryOp.getLeftSide() instanceof GetSlotAVM2Item) {
-                    GetSlotAVM2Item getSlot = (GetSlotAVM2Item) binaryOp.getLeftSide();
+                if (binaryOp.getLeftSide().getNotCoerced() instanceof GetSlotAVM2Item) {
+                    GetSlotAVM2Item getSlot = (GetSlotAVM2Item) binaryOp.getLeftSide().getNotCoerced();
                     if (Objects.equals(obj, getSlot.scope.getThroughDuplicate()) && slotIndex == getSlot.slotIndex) {
                         result.compoundValue = binaryOp.getRightSide();
                         result.compoundOperator = binaryOp.getOperator();
@@ -151,7 +184,7 @@ public class SetSlotIns extends InstructionDefinition implements SetTypeIns {
             }
         }
 
-        SetTypeIns.handleResult(value, stack, output, localData, result, -1);
+        SetTypeIns.handleResult(value, stack, output, localData, result, -1, slotType);
     }
 
     @Override

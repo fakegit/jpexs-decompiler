@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,11 +31,15 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Increment.
  *
  * @author JPEXS
  */
 public class IncrementActionItem extends ActionItem {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
     @Override
@@ -43,6 +47,13 @@ public class IncrementActionItem extends ActionItem {
         visitor.visit(object);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     */
     public IncrementActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object) {
         super(instruction, lineStartIns, PRECEDENCE_ADDITIVE);
         this.object = object;
@@ -74,6 +85,11 @@ public class IncrementActionItem extends ActionItem {
         return getResult(object.getResultAsNumber());
     }
 
+    /**
+     * Gets result.
+     * @param num Number
+     * @return Result
+     */
     public static Double getResult(Double num) {
         return num + 1;
     }

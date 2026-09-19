@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.types;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -28,11 +29,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * istype instruction - Check if object is instance of type.
  *
  * @author JPEXS
  */
 public class IsTypeIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public IsTypeIns() {
         super(0xb2, "istype", new int[]{AVM2Code.DAT_MULTINAME_INDEX}, true);
     }
@@ -41,7 +46,7 @@ public class IsTypeIns extends InstructionDefinition {
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
         int multinameIndex = ins.operands[0];
         GraphTargetItem value = stack.pop();
-        stack.push(new IsTypeAVM2Item(ins, localData.lineStartInstruction, value, new FullMultinameAVM2Item(false, ins, localData.lineStartInstruction, multinameIndex, localData.abc.constants.getMultiname(multinameIndex).getName(localData.getConstants(), new ArrayList<>(), true, true))));
+        stack.push(new IsTypeAVM2Item(ins, localData.lineStartInstruction, value, new FullMultinameAVM2Item(false, ins, localData.lineStartInstruction, multinameIndex, localData.abc.constants.getMultiname(multinameIndex).getName(localData.usedDeobfuscations, localData.abc, localData.getConstants(), new ArrayList<>(), true, true))));
     }
 
     @Override

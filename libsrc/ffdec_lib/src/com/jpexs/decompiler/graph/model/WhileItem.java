@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,6 +23,7 @@ import com.jpexs.decompiler.flash.helpers.NulWriter;
 import com.jpexs.decompiler.graph.Block;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.Loop;
@@ -32,15 +33,25 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * While statement.
  *
  * @author JPEXS
  */
 public class WhileItem extends LoopItem implements Block {
 
+    /**
+     * Expression
+     */
     public List<GraphTargetItem> expression;
 
+    /**
+     * Commands
+     */
     public List<GraphTargetItem> commands;
 
+    /**
+     * Label used
+     */
     private boolean labelUsed;
 
     @Override
@@ -72,9 +83,18 @@ public class WhileItem extends LoopItem implements Block {
         }
     }
 
-
-    public WhileItem(GraphSourceItem src, GraphSourceItem lineStartIns, Loop loop, List<GraphTargetItem> expression, List<GraphTargetItem> commands) {
-        super(src, lineStartIns, loop);
+    /**
+     * Constructor.
+     *
+     * @param dialect Dialect
+     * @param src Source
+     * @param lineStartIns Line start instruction
+     * @param loop Loop
+     * @param expression Expression
+     * @param commands Commands
+     */
+    public WhileItem(GraphTargetDialect dialect, GraphSourceItem src, GraphSourceItem lineStartIns, Loop loop, List<GraphTargetItem> expression, List<GraphTargetItem> commands) {
+        super(dialect, src, lineStartIns, loop);
         this.expression = expression;
         this.commands = commands;
     }
@@ -92,13 +112,15 @@ public class WhileItem extends LoopItem implements Block {
             writer.append(" ");
         }
         writer.append("(");
+        boolean first = true;
         for (int i = 0; i < expression.size(); i++) {
             if (expression.get(i).isEmpty()) {
                 continue;
             }
-            if (i != 0) {
+            if (!first) {
                 writer.append(", ");
             }
+            first = false;
             if (i == expression.size() - 1) {
                 expression.get(i).toStringBoolean(writer, localData);
             } else {
@@ -130,6 +152,20 @@ public class WhileItem extends LoopItem implements Block {
     }
 
     @Override
+    public List<BreakItem> getBreaks() {
+        List<BreakItem> ret = new ArrayList<>();
+        for (GraphTargetItem ti : commands) {
+            if (ti instanceof BreakItem) {
+                ret.add((BreakItem) ti);
+            }
+            if (ti instanceof Block) {
+                ret.addAll(((Block) ti).getBreaks());
+            }
+        }
+        return ret;
+    }
+    
+    @Override
     public boolean needsSemicolon() {
         return false;
     }
@@ -147,5 +183,15 @@ public class WhileItem extends LoopItem implements Block {
     @Override
     public GraphTargetItem returnType() {
         return TypeItem.UNBOUNDED;
+    }
+
+    @Override
+    public boolean hasBaseBody() {
+        return true;
+    }
+
+    @Override
+    public List<GraphTargetItem> getBaseBodyCommands() {
+        return commands;
     }
 }

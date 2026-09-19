@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,12 +17,13 @@
 package com.jpexs.decompiler.flash.gui.player;
 
 /**
- *
  * @author JPEXS
  */
 public interface MediaDisplayListener {
 
-    void mediaDisplayStateChanged(MediaDisplay source);
+    public void mediaDisplayStateChanged(MediaDisplay source);
 
-    void playingFinished(MediaDisplay source);
+    public void playingFinished(MediaDisplay source);
+
+    public void statusChanged(String status);
 }

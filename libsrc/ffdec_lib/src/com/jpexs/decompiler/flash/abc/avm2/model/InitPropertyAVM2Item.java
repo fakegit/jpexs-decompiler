@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -27,20 +27,51 @@ import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.Objects;
 
 /**
+ * Initialize property.
  *
  * @author JPEXS
  */
 public class InitPropertyAVM2Item extends AVM2Item implements SetTypeAVM2Item, AssignmentAVM2Item {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
+    /**
+     * Property name
+     */
     public FullMultinameAVM2Item propertyName;
 
+    /**
+     * Declaration
+     */
     public DeclarationAVM2Item declaration;
 
+    /**
+     * Compound value
+     */
     public GraphTargetItem compoundValue;
 
+    /**
+     * Compound operator
+     */
     public String compoundOperator;
+
+    /**
+     * Type
+     */
+    public GraphTargetItem type;
+
+    /**
+     * Call type
+     */
+    public GraphTargetItem callType;
+
+    /**
+     * Is static
+     */
+    public boolean isStatic;
 
     @Override
     public void visit(GraphTargetVisitorInterface visitor) {
@@ -59,15 +90,30 @@ public class InitPropertyAVM2Item extends AVM2Item implements SetTypeAVM2Item, A
         this.declaration = declaration;
     }
 
-    public InitPropertyAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, FullMultinameAVM2Item propertyName, GraphTargetItem value) {
-        super(instruction, lineStartIns, PRECEDENCE_ASSIGMENT, value);
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     * @param propertyName Property name
+     * @param value Value
+     * @param type Type
+     * @param callType Call type
+     * @param isStatic Is static
+     */
+    public InitPropertyAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, FullMultinameAVM2Item propertyName, GraphTargetItem value, GraphTargetItem type, GraphTargetItem callType, boolean isStatic) {
+        super(instruction, lineStartIns, PRECEDENCE_ASSIGNMENT, value);
         this.object = object;
         this.propertyName = propertyName;
+        this.type = type;
+        this.callType = callType;
+        this.isStatic = isStatic;
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        formatProperty(writer, object, propertyName, localData);
+        formatProperty(writer, object, propertyName, localData, isStatic, false);
 
         if (compoundOperator != null) {
             writer.append(" ");
@@ -81,7 +127,7 @@ public class InitPropertyAVM2Item extends AVM2Item implements SetTypeAVM2Item, A
 
     @Override
     public GraphTargetItem getObject() {
-        return new GetPropertyAVM2Item(getInstruction(), getLineStartIns(), object, propertyName);
+        return new GetPropertyAVM2Item(getInstruction(), getLineStartIns(), object, propertyName, type, callType, isStatic);
     }
 
     @Override

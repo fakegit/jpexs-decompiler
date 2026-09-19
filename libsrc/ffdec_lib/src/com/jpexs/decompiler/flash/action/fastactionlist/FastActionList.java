@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.fastactionlist;
 
 import com.jpexs.decompiler.flash.action.Action;
@@ -23,6 +24,7 @@ import com.jpexs.decompiler.flash.action.swf4.ActionIf;
 import com.jpexs.decompiler.flash.action.swf4.ActionJump;
 import com.jpexs.decompiler.flash.action.swf4.ActionPush;
 import com.jpexs.decompiler.graph.GraphSourceItemContainer;
+import com.jpexs.helpers.CancellableWorker;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -32,19 +34,42 @@ import java.util.Map;
 import java.util.Set;
 
 /**
+ * Fast action list implementation.
  *
  * @author JPEXS
  */
 public class FastActionList implements Collection<ActionItem> {
 
+    /**
+     * Number of actions in the list.
+     */
     private int size;
 
+    /**
+     * First action item in the list.
+     */
     private ActionItem firstItem;
 
+    /**
+     * Map of actions to action items.
+     */
     private final Map<Action, ActionItem> actionItemMap;
 
+    /**
+     * Set of action items.
+     */
     private final Set<ActionItem> actionItemSet;
 
+    /**
+     * Charset of the actions.
+     */
+    private String charset;
+
+    /**
+     * Constructs a new fast action list.
+     *
+     * @param actions Action list
+     */
     public FastActionList(ActionList actions) {
         actionItemMap = new HashMap<>(actions.size());
         actionItemSet = new HashSet<>(actions.size());
@@ -55,18 +80,37 @@ public class FastActionList implements Collection<ActionItem> {
         size = actions.size();
         getContainerLastActions(actions, actionItemMap);
         getJumps(actions, actionItemMap);
+        charset = actions.getCharset();
     }
 
+    /**
+     * Gets the charset of the actions.
+     *
+     * @return Charset
+     */
+    public String getCharset() {
+        return charset;
+    }
+
+    /**
+     * Inserts an action before the specified item.
+     *
+     * @param item Item
+     * @param action Action
+     * @return New action item
+     */
     public final ActionItem insertItemBefore(ActionItem item, Action action) {
         ActionItem newItem = new ActionItem(action);
         return insertItemBefore(item, newItem);
     }
 
-    public final ActionItem insertItemAfter(ActionItem item, Action action) {
-        ActionItem newItem = new ActionItem(action);
-        return insertItemAfter(item, newItem);
-    }
-
+    /**
+     * Inserts an action before the specified item.
+     *
+     * @param item Item
+     * @param newItem New action item
+     * @return New action item
+     */
     public final ActionItem insertItemBefore(ActionItem item, ActionItem newItem) {
         insertItemAfter(item.prev, newItem);
         if (item == firstItem) {
@@ -76,6 +120,25 @@ public class FastActionList implements Collection<ActionItem> {
         return newItem;
     }
 
+    /**
+     * Inserts an action after the specified item.
+     *
+     * @param item Item
+     * @param action Action
+     * @return New action item
+     */
+    public final ActionItem insertItemAfter(ActionItem item, Action action) {
+        ActionItem newItem = new ActionItem(action);
+        return insertItemAfter(item, newItem);
+    }
+
+    /**
+     * Inserts an action after the specified item.
+     *
+     * @param item Item
+     * @param newItem New action item
+     * @return New action item
+     */
     public final ActionItem insertItemAfter(ActionItem item, ActionItem newItem) {
         if (item == null && firstItem == null) {
             firstItem = newItem;
@@ -100,6 +163,12 @@ public class FastActionList implements Collection<ActionItem> {
         return newItem;
     }
 
+    /**
+     * Removes the specified item.
+     *
+     * @param item Item
+     * @return Next item
+     */
     public ActionItem removeItem(ActionItem item) {
         ActionItem next = null;
         if (item == firstItem) {
@@ -140,6 +209,12 @@ public class FastActionList implements Collection<ActionItem> {
         return next;
     }
 
+    /**
+     * Removes the item(s) at the specified index.
+     *
+     * @param index Index
+     * @param count Count
+     */
     public void removeItem(int index, int count) {
         FastActionListIterator iterator = new FastActionListIterator(this, index);
         for (int i = 0; i < count; i++) {
@@ -148,11 +223,23 @@ public class FastActionList implements Collection<ActionItem> {
         }
     }
 
+    /**
+     * Gets the item at the specified index.
+     *
+     * @param index Index
+     * @return Item
+     */
     public ActionItem get(int index) {
         FastActionListIterator iterator = new FastActionListIterator(this, index);
         return iterator.next();
     }
 
+    /**
+     * Replaces the jump targets.
+     *
+     * @param target Target
+     * @param newTarget New target
+     */
     public void replaceJumpTargets(ActionItem target, ActionItem newTarget) {
         if (target.jumpsHere != null) {
             for (ActionItem item : new ArrayList<>(target.jumpsHere)) {
@@ -161,6 +248,12 @@ public class FastActionList implements Collection<ActionItem> {
         }
     }
 
+    /**
+     * Gets the last actions.
+     *
+     * @param actions Action list
+     * @param actionItemMap Action item map
+     */
     private void getContainerLastActions(ActionList actions, Map<Action, ActionItem> actionItemMap) {
         ActionItem item = firstItem;
         if (item == null) {
@@ -177,6 +270,14 @@ public class FastActionList implements Collection<ActionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Gets the last actions of a container.
+     *
+     * @param actions Action list
+     * @param action Action
+     * @param actionItemMap Action item map
+     * @return Last actions
+     */
     private List<ActionItem> getContainerLastActions(ActionList actions, Action action, Map<Action, ActionItem> actionItemMap) {
         GraphSourceItemContainer container = (GraphSourceItemContainer) action;
         List<Long> sizes = container.getContainerSizes();
@@ -199,6 +300,14 @@ public class FastActionList implements Collection<ActionItem> {
         return lasts;
     }
 
+    /**
+     * Gets the nearest address.
+     *
+     * @param actions Action list
+     * @param address Address
+     * @param next Next
+     * @return Address
+     */
     private long getNearAddress(ActionList actions, long address, boolean next) {
         int min = 0;
         int max = actions.size() - 1;
@@ -220,6 +329,12 @@ public class FastActionList implements Collection<ActionItem> {
                 : (max >= 0 ? actions.get(max).getAddress() : -1);
     }
 
+    /**
+     * Gets the jumps.
+     *
+     * @param actions Action list
+     * @param actionItemMap Action item map
+     */
     private void getJumps(ActionList actions, Map<Action, ActionItem> actionItemMap) {
         ActionItem item = firstItem;
         if (item == null) {
@@ -257,6 +372,9 @@ public class FastActionList implements Collection<ActionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Updates the action addresses and lengths.
+     */
     private void updateActionAddressesAndLengths() {
         ActionItem item = firstItem;
         if (item == null) {
@@ -273,6 +391,9 @@ public class FastActionList implements Collection<ActionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Updates the jumps.
+     */
     private void updateJumps() {
         ActionItem item = firstItem;
         if (item == null) {
@@ -308,6 +429,9 @@ public class FastActionList implements Collection<ActionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Updates the action stores.
+     */
     private void updateActionStores() {
         ActionItem item = firstItem;
         if (item == null) {
@@ -337,6 +461,9 @@ public class FastActionList implements Collection<ActionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Updates the container sizes.
+     */
     private void updateContainerSizes() {
         ActionItem item = firstItem;
         if (item == null) {
@@ -361,6 +488,12 @@ public class FastActionList implements Collection<ActionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Gets the container.
+     *
+     * @param item Item
+     * @return Container
+     */
     public ActionItem getContainer(ActionItem item) {
         while (!(item.action instanceof GraphSourceItemContainer) && item != firstItem) {
             item = item.prev;
@@ -373,6 +506,9 @@ public class FastActionList implements Collection<ActionItem> {
         return null;
     }
 
+    /**
+     * Expands the pushes.
+     */
     public void expandPushes() {
         ActionItem item = firstItem;
         if (item == null) {
@@ -386,7 +522,7 @@ public class FastActionList implements Collection<ActionItem> {
                 if (push.values.size() > 1) {
                     for (int i = 1; i < push.values.size(); i++) {
                         Object value = push.values.get(i);
-                        ActionPush newPush = new ActionPush(value);
+                        ActionPush newPush = new ActionPush(value, charset);
                         newPush.constantPool = push.constantPool;
                         insertItemAfter(item, newPush);
                         item = item.next;
@@ -402,6 +538,9 @@ public class FastActionList implements Collection<ActionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Removes the unknown actions.
+     */
     public void removeUnknownActions() {
         ActionItem item = firstItem;
         if (item == null) {
@@ -419,6 +558,9 @@ public class FastActionList implements Collection<ActionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Removes the zero jumps.
+     */
     public void removeZeroJumps() {
         ActionItem item = firstItem;
         if (item == null) {
@@ -438,7 +580,10 @@ public class FastActionList implements Collection<ActionItem> {
         } while (item != firstItem);
     }
 
-    public void removeUnreachableActions() {
+    /**
+     * Removes the unreachable actions.
+     */
+    public void removeUnreachableActions() throws InterruptedException {
         ActionItem item = firstItem;
         if (item == null) {
             return;
@@ -456,6 +601,9 @@ public class FastActionList implements Collection<ActionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Removes the included actions.
+     */
     public void removeIncludedActions() {
         ActionItem item = firstItem;
         if (item == null) {
@@ -475,7 +623,14 @@ public class FastActionList implements Collection<ActionItem> {
         }
     }
 
-    public int getUnreachableActionCount(ActionItem jump, ActionItem jumpTarget) {
+    /**
+     * Gets the unreachable action count.
+     *
+     * @param jump Jump
+     * @param jumpTarget Jump target
+     * @return Unreachable action count
+     */
+    public int getUnreachableActionCount(ActionItem jump, ActionItem jumpTarget) throws InterruptedException {
         ActionItem item = firstItem;
         if (item == null) {
             return 0;
@@ -496,6 +651,9 @@ public class FastActionList implements Collection<ActionItem> {
         return count;
     }
 
+    /**
+     * Clears the reachable flags.
+     */
     private void clearReachableFlags() {
         ActionItem item = firstItem;
         if (item == null) {
@@ -508,6 +666,11 @@ public class FastActionList implements Collection<ActionItem> {
         } while (item != firstItem);
     }
 
+    /**
+     * Sets the excluded flags.
+     *
+     * @param value Value
+     */
     public void setExcludedFlags(boolean value) {
         ActionItem item = firstItem;
         if (item == null) {
@@ -520,7 +683,13 @@ public class FastActionList implements Collection<ActionItem> {
         } while (item != firstItem);
     }
 
-    private void updateReachableFlags(ActionItem jump, ActionItem jumpTarget) {
+    /**
+     * Updates the reachable flags.
+     *
+     * @param jump Jump
+     * @param jumpTarget Jump target
+     */
+    private void updateReachableFlags(ActionItem jump, ActionItem jumpTarget) throws InterruptedException {
         if (firstItem == null) {
             return;
         }
@@ -531,6 +700,9 @@ public class FastActionList implements Collection<ActionItem> {
         ActionItem firstItem2 = firstItem;
         boolean modified = true;
         while (modified) {
+            if (CancellableWorker.isInterrupted()) {
+                throw new InterruptedException();
+            }
             modified = false;
             ActionItem item = firstItem2;
             do {
@@ -583,11 +755,16 @@ public class FastActionList implements Collection<ActionItem> {
         }
     }
 
+    /**
+     * Updates the actions.
+     *
+     * @return Action list
+     */
     public ActionList updateActions() {
         List<Action> resultList = new ArrayList<>(size);
         ActionItem item = firstItem;
         if (item == null) {
-            return new ActionList(resultList);
+            return new ActionList(resultList, charset);
         }
 
         do {
@@ -595,7 +772,7 @@ public class FastActionList implements Collection<ActionItem> {
             item = item.next;
         } while (item != firstItem);
 
-        ActionList result = new ActionList(resultList);
+        ActionList result = new ActionList(resultList, charset);
         updateActionAddressesAndLengths();
         updateJumps();
         updateActionStores();
@@ -603,28 +780,59 @@ public class FastActionList implements Collection<ActionItem> {
         return result;
     }
 
+    /**
+     * Gets the first action.
+     *
+     * @return First action
+     */
     public ActionItem first() {
         return firstItem;
     }
 
+    /**
+     * Gets the last action.
+     *
+     * @return Last action
+     */
     public ActionItem last() {
         return firstItem == null ? null : firstItem.prev;
     }
 
+    /**
+     * Converts list to action list.
+     *
+     * @return Action list
+     */
     public ActionList toActionList() {
         return updateActions();
     }
 
+    /**
+     * Gets the size of the list.
+     *
+     * @return Size
+     */
     @Override
     public int size() {
         return size;
     }
 
+    /**
+     * Checks if the list is empty.
+     *
+     * @return True if the list is empty, otherwise false
+     */
     @Override
     public boolean isEmpty() {
         return size == 0;
     }
 
+    /**
+     * Checks if the list contains the specified element.
+     *
+     * @param o element whose presence in this collection is to be tested
+     * @return True if the list contains the specified element, otherwise false
+     */
     @Override
     public boolean contains(Object o) {
         if (o instanceof ActionItem) {
@@ -636,11 +844,21 @@ public class FastActionList implements Collection<ActionItem> {
         return false;
     }
 
+    /**
+     * Gets the iterator.
+     *
+     * @return Iterator
+     */
     @Override
     public FastActionListIterator iterator() {
         return new FastActionListIterator(this);
     }
 
+    /**
+     * Converts the list to an array.
+     *
+     * @return Array
+     */
     @Override
     public Object[] toArray() {
         Object[] result = new Object[size];
@@ -659,33 +877,54 @@ public class FastActionList implements Collection<ActionItem> {
         return null;
     }
 
+    /**
+     * Converts the list to an array.
+     *
+     * @param value the array into which the elements of this collection are to be
+     * stored, if it is big enough; otherwise, a new array of the same runtime
+     * type is allocated for this purpose.
+     * @param <T> Type
+     * @return Array
+     */
     @Override
     @SuppressWarnings("unchecked")
-    public <T> T[] toArray(T[] a) {
-        if (a.length != size) {
-            a = (T[]) new ActionItem[size];
+    public <T> T[] toArray(T[] value) {
+        if (value.length != size) {
+            value = (T[]) new ActionItem[size];
         }
 
         ActionItem item = firstItem;
         if (item == null) {
-            return a;
+            return value;
         }
 
         int i = 0;
         do {
-            a[i] = (T) item;
+            value[i] = (T) item;
             item = item.next;
             i++;
         } while (item != firstItem);
         return null;
     }
 
+    /**
+     * Adds an element to the list.
+     *
+     * @param e element whose presence in this collection is to be ensured
+     * @return True
+     */
     @Override
     public boolean add(ActionItem e) {
         insertItemAfter(null, e);
         return true;
     }
 
+    /**
+     * Removes the specified element from the list.
+     *
+     * @param o element to be removed from this collection, if present
+     * @return True if the list contained the specified element, otherwise false
+     */
     @Override
     public boolean remove(Object o) {
         ActionItem item = null;
@@ -703,6 +942,13 @@ public class FastActionList implements Collection<ActionItem> {
         return true;
     }
 
+    /**
+     * Checks if the list contains all elements of the specified collection.
+     *
+     * @param c collection to be checked for containment in this collection
+     * @return True if the list contains all elements of the specified
+     * collection, otherwise false
+     */
     @Override
     public boolean containsAll(Collection<?> c) {
         for (Object c1 : c) {
@@ -714,6 +960,12 @@ public class FastActionList implements Collection<ActionItem> {
         return true;
     }
 
+    /**
+     * Adds all elements of the specified collection to the list.
+     *
+     * @param c collection containing elements to be added to this collection
+     * @return True
+     */
     @Override
     public boolean addAll(Collection<? extends ActionItem> c) {
         for (ActionItem c1 : c) {
@@ -723,6 +975,14 @@ public class FastActionList implements Collection<ActionItem> {
         return true;
     }
 
+    /**
+     * Removes all elements of the specified collection from the list.
+     *
+     * @param c collection containing elements to be removed from this
+     * collection
+     * @return True if the list contained all elements of the specified
+     * collection, otherwise false
+     */
     @Override
     public boolean removeAll(Collection<?> c) {
         boolean result = false;
@@ -733,6 +993,13 @@ public class FastActionList implements Collection<ActionItem> {
         return result;
     }
 
+    /**
+     * Retains only the elements in the list that are contained in the specified
+     * collection.
+     *
+     * @param c collection containing elements to be retained in this collection
+     * @return True if the list changed as a result of the call, otherwise false
+     */
     @Override
     public boolean retainAll(Collection<?> c) {
         ActionItem item = firstItem;
@@ -753,6 +1020,9 @@ public class FastActionList implements Collection<ActionItem> {
         return modified;
     }
 
+    /**
+     * Clears the list.
+     */
     @Override
     public void clear() {
         firstItem = null;

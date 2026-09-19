@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,13 +31,20 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Multibyte string extract.
  *
  * @author JPEXS
  */
 public class MBStringExtractActionItem extends ActionItem {
 
+    /**
+     * Index - 1 based
+     */
     public GraphTargetItem index;
 
+    /**
+     * Count
+     */
     public GraphTargetItem count;
 
     @Override
@@ -47,6 +54,15 @@ public class MBStringExtractActionItem extends ActionItem {
         visitor.visit(count);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     * @param index Index
+     * @param count Count
+     */
     public MBStringExtractActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value, GraphTargetItem index, GraphTargetItem count) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY, value);
         this.index = index;
@@ -56,7 +72,7 @@ public class MBStringExtractActionItem extends ActionItem {
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("mbsubstring");
-        writer.spaceBeforeCallParenthesies(3);
+        writer.spaceBeforeCallParenthesis(3);
         writer.append("(");
         value.toString(writer, localData);
         writer.append(",");
@@ -80,10 +96,18 @@ public class MBStringExtractActionItem extends ActionItem {
         return getResult(count.getResult(), index.getResult(), value.getResult());
     }
 
+    /**
+     * Gets result.
+     *
+     * @param count Count
+     * @param index Index
+     * @param value Value
+     * @return Result
+     */
     public static String getResult(Object count, Object index, Object value) {
         String str = EcmaScript.toString(value);
         int idx = EcmaScript.toInt32(index);
-        idx--; // index seems to be 1 based
+        idx--; // index is 1 based
 
         int cnt = EcmaScript.toInt32(count);
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,11 +29,17 @@ import java.util.Random;
 import java.util.Set;
 
 /**
+ * Get time.
  *
  * @author JPEXS
  */
 public class GetTimeActionItem extends ActionItem {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     */
     public GetTimeActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
     }
@@ -41,13 +47,13 @@ public class GetTimeActionItem extends ActionItem {
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) {
         writer.append("getTimer");
-        writer.spaceBeforeCallParenthesies(0);
+        writer.spaceBeforeCallParenthesis(0);
         return writer.append("()");
     }
 
     @Override
     public boolean isCompileTime(Set<GraphTargetItem> dependencies) {
-        return true;
+        return false;
     }
 
     @Override

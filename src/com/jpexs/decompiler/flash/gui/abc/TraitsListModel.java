@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@ package com.jpexs.decompiler.flash.gui.abc;
 import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitType;
-import com.jpexs.decompiler.flash.configuration.Configuration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -28,7 +27,6 @@ import javax.swing.ListModel;
 import javax.swing.event.ListDataListener;
 
 /**
- *
  * @author JPEXS
  */
 public final class TraitsListModel implements ListModel<Object> {
@@ -40,6 +38,8 @@ public final class TraitsListModel implements ListModel<Object> {
     private final int classIndex;
 
     private final int scriptIndex;
+
+    private final boolean hasScriptInitializer;
 
     public void setSorted(boolean sorted) {
         if (sorted) {
@@ -77,15 +77,16 @@ public final class TraitsListModel implements ListModel<Object> {
             items.add(new TraitsListItem(TraitType.INITIALIZER, 0, true, abc, classIndex, scriptIndex));
         }
 
-        if (Configuration.enableScriptInitializerDisplay.get()) {
+        if (hasScriptInitializer) {
             items.add(new TraitsListItem(TraitType.SCRIPT_INITIALIZER, 0, true, abc, classIndex, scriptIndex));
         }
     }
 
-    public TraitsListModel(ABC abc, int classIndex, int scriptIndex, boolean sorted) {
+    public TraitsListModel(ABC abc, int classIndex, int scriptIndex, boolean sorted, boolean hasScriptInitializer) {
         this.abc = abc;
         this.classIndex = classIndex;
         this.scriptIndex = scriptIndex;
+        this.hasScriptInitializer = hasScriptInitializer;
         reset();
         if (sorted) {
             setSorted(true);

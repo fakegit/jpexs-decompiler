@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,22 +12,29 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types;
 
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import java.io.Serializable;
 
 /**
- * Well, this structure is undocumented, but exists
+ * Morph focal gradient. Undocumented structure, but it exists.
  *
  * @author JPEXS
  */
 public class MORPHFOCALGRADIENT extends MORPHGRADIENT implements Serializable {
 
+    /**
+     * Start focal point
+     */
     @SWFType(BasicType.FIXED8)
     public float startFocalPoint;
 
+    /**
+     * End focal point
+     */
     @SWFType(BasicType.FIXED8)
     public float endFocalPoint;
 
@@ -35,7 +42,7 @@ public class MORPHFOCALGRADIENT extends MORPHGRADIENT implements Serializable {
     public GRADIENT getEndGradient() {
         FOCALGRADIENT ret = new FOCALGRADIENT();
         ret.spreadMode = spreadMode;
-        ret.interpolationMode = interPolationMode;
+        ret.interpolationMode = interpolationMode;
         ret.gradientRecords = new GRADRECORD[gradientRecords.length];
         for (int m = 0; m < gradientRecords.length; m++) {
             ret.gradientRecords[m] = gradientRecords[m].getEndRecord();
@@ -50,7 +57,7 @@ public class MORPHFOCALGRADIENT extends MORPHGRADIENT implements Serializable {
     public GRADIENT getStartGradient() {
         FOCALGRADIENT ret = new FOCALGRADIENT();
         ret.spreadMode = spreadMode;
-        ret.interpolationMode = interPolationMode;
+        ret.interpolationMode = interpolationMode;
         ret.gradientRecords = new GRADRECORD[gradientRecords.length];
         for (int m = 0; m < gradientRecords.length; m++) {
             ret.gradientRecords[m] = gradientRecords[m].getStartRecord();
@@ -65,7 +72,7 @@ public class MORPHFOCALGRADIENT extends MORPHGRADIENT implements Serializable {
     public GRADIENT getGradientAt(int ratio) {
         FOCALGRADIENT ret = new FOCALGRADIENT();
         ret.spreadMode = spreadMode;
-        ret.interpolationMode = interPolationMode;
+        ret.interpolationMode = interpolationMode;
         ret.gradientRecords = new GRADRECORD[gradientRecords.length];
         for (int m = 0; m < gradientRecords.length; m++) {
 

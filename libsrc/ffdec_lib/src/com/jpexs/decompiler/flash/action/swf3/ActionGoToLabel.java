@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.swf3;
 
 import com.jpexs.decompiler.flash.SWFInputStream;
@@ -20,6 +21,7 @@ import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.DisplayObject;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
+import com.jpexs.decompiler.flash.action.as2.Trait;
 import com.jpexs.decompiler.flash.action.model.GotoLabelActionItem;
 import com.jpexs.decompiler.flash.action.parser.ActionParseException;
 import com.jpexs.decompiler.flash.action.parser.pcode.FlasmLexer;
@@ -33,23 +35,40 @@ import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
+ * GoToLabel action - Jumps to a label in the current timeline.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 3)
 public class ActionGoToLabel extends Action {
 
+    /**
+     * Label
+     */
     public String label;
 
-    public ActionGoToLabel(String label) {
-        super(0x8C, 0);
+    /**
+     * Constructor
+     * @param label Label
+     * @param charset Charset
+     */
+    public ActionGoToLabel(String label, String charset) {
+        super(0x8C, 0, charset);
         this.label = label;
     }
 
-    public ActionGoToLabel(int actionLength, SWFInputStream sis, int version) throws IOException {
-        super(0x8C, actionLength);
+    /**
+     * Constructor
+     * @param actionLength Length of action
+     * @param sis SWF input stream
+     * @throws IOException On I/O error
+     */
+    public ActionGoToLabel(int actionLength, SWFInputStream sis) throws IOException {
+        super(0x8C, actionLength, sis.getCharset());
         //byte[] data = sis.readBytes(actionLength);
         //sis = new SWFInputStream(new ByteArrayInputStream(data), version);
         label = sis.readString("label");
@@ -78,16 +97,23 @@ public class ActionGoToLabel extends Action {
      */
     @Override
     protected int getContentBytesLength() {
-        return Utf8Helper.getBytesLength(label) + 1;
+        return Utf8Helper.getBytesLength(label, charset) + 1;
     }
 
-    public ActionGoToLabel(FlasmLexer lexer) throws IOException, ActionParseException {
-        super(0x8C, -1);
+    /**
+     * Constructor
+     * @param lexer Flasm lexer
+     * @param charset Charset
+     * @throws IOException On I/O error
+     * @throws ActionParseException On action parse error
+     */
+    public ActionGoToLabel(FlasmLexer lexer, String charset) throws IOException, ActionParseException {
+        super(0x8C, -1, charset);
         label = lexString(lexer);
     }
 
     @Override
-    public void translate(SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
-        output.add(new GotoLabelActionItem(this, lineStartAction, label));
+    public void translate(Set<String> usedDeobfuscations, Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+        stack.addToOutput(new GotoLabelActionItem(this, lineStartAction, label));
     }
 }

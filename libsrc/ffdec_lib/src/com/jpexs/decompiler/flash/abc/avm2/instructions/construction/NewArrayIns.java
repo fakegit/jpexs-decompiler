@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.construction;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -33,11 +34,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * newarray instruction - Create a new array.
  *
  * @author JPEXS
  */
 public class NewArrayIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public NewArrayIns() {
         super(0x56, "newarray", new int[]{AVM2Code.DAT_ARG_COUNT}, true);
     }

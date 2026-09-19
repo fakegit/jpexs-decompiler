@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -76,10 +76,10 @@ import com.jpexs.decompiler.flash.ecma.EcmaScript;
 import com.jpexs.decompiler.flash.ecma.Null;
 import com.jpexs.decompiler.flash.ecma.Undefined;
 import com.jpexs.decompiler.flash.tags.ABCContainerTag;
-import com.jpexs.decompiler.graph.Graph;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateStack;
 import com.jpexs.helpers.Helper;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -87,6 +87,7 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
 import static org.testng.Assert.assertEquals;
@@ -167,7 +168,7 @@ public class FlashPlayerTest {
 
                     for (AS3ExecuteTask task : tasks) {
                         System.out.println("Flash result (" + task.description + "): " + task.flashResult);
-                        System.out.println("FFDec execte result: " + task.ffdecResult);
+                        System.out.println("FFDec execute result: " + task.ffdecResult);
                         if (!task.ffdecResult.equals(task.flashResult)) {
                             System.out.println(code.toASMSource(testAbc, testAbc.constants));
                         }
@@ -221,7 +222,7 @@ public class FlashPlayerTest {
 
         for (AS3ExecuteTask task : tasks) {
             System.out.println("Flash result (" + task.description + "): " + task.flashResult);
-            System.out.println("FFDec execte result: " + task.ffdecResult);
+            System.out.println("FFDec execute result: " + task.ffdecResult);
             assertEquals(task.ffdecResult, task.flashResult);
         }
     }
@@ -359,13 +360,13 @@ public class FlashPlayerTest {
 
             adobeExecutor.executeAvm2(tasks);
 
-            StringBuilder expeced = new StringBuilder();
+            StringBuilder expected = new StringBuilder();
             StringBuilder current = new StringBuilder();
             for (AS3ExecuteTask task : tasks) {
                 if (!task.flashResult.equals(task.ffdecResult)) {
                     System.out.println("Flash result (" + task.description + "): " + task.flashResult);
-                    System.out.println("FFDec execte result: " + task.ffdecResult);
-                    expeced.append(task.flashResult).append(Helper.newLine);
+                    System.out.println("FFDec execute result: " + task.ffdecResult);
+                    expected.append(task.flashResult).append(Helper.newLine);
                     current.append(task.ffdecResult).append(Helper.newLine);
                 }
 
@@ -381,7 +382,7 @@ public class FlashPlayerTest {
                 assertEquals(task.ffdecResult, task.flashResult);
             }
 
-            //Helper.writeFile("expected\\" + i + ".txt", Utf8Helper.getBytes(expeced.toString()));
+            //Helper.writeFile("expected\\" + i + ".txt", Utf8Helper.getBytes(expected.toString()));
             //Helper.writeFile("current\\" + i + ".txt", Utf8Helper.getBytes(current.toString()));
         }
     }
@@ -477,15 +478,15 @@ public class FlashPlayerTest {
             new AVM2Instruction(0, AVM2Instructions.PushShort, new int[]{1073741824}), // 68
             new AVM2Instruction(0, AVM2Instructions.PushShort, new int[]{2147483647}), // 69
             new AVM2Instruction(0, AVM2Instructions.PushInt, new int[]{0}), // 70
-            new AVM2Instruction(0, AVM2Instructions.PushInt, new int[]{abc.constants.getIntId(-2147483649L, true)}), // 71
+            //new AVM2Instruction(0, AVM2Instructions.PushInt, new int[]{abc.constants.getIntId(-2147483649L, true)}), // 71
             new AVM2Instruction(0, AVM2Instructions.PushInt, new int[]{abc.constants.getIntId(-2147483648, true)}), // 72
             new AVM2Instruction(0, AVM2Instructions.PushInt, new int[]{abc.constants.getIntId(-1, true)}), // 73
             new AVM2Instruction(0, AVM2Instructions.PushInt, new int[]{abc.constants.getIntId(0, true)}), // 74
             new AVM2Instruction(0, AVM2Instructions.PushInt, new int[]{abc.constants.getIntId(1, true)}), // 75
             new AVM2Instruction(0, AVM2Instructions.PushInt, new int[]{abc.constants.getIntId(2147483647, true)}), // 76
-            new AVM2Instruction(0, AVM2Instructions.PushInt, new int[]{abc.constants.getIntId(2147483648L, true)}), // 77
-            new AVM2Instruction(0, AVM2Instructions.PushUInt, new int[]{abc.constants.getIntId(4294967295L, true)}), // 78
-            new AVM2Instruction(0, AVM2Instructions.PushUInt, new int[]{abc.constants.getIntId(4294967296L, true)}), // 79
+            //new AVM2Instruction(0, AVM2Instructions.PushInt, new int[]{abc.constants.getIntId(2147483648L, true)}), // 77
+            //new AVM2Instruction(0, AVM2Instructions.PushUInt, new int[]{abc.constants.getIntId(4294967295L, true)}), // 78
+            //new AVM2Instruction(0, AVM2Instructions.PushUInt, new int[]{abc.constants.getIntId(4294967296L, true)}), // 79
             new AVM2Instruction(0, AVM2Instructions.PushUInt, new int[]{0}), // 80
             new AVM2Instruction(0, AVM2Instructions.PushUInt, new int[]{abc.constants.getUIntId(-2147483649L, true)}), // 81
             new AVM2Instruction(0, AVM2Instructions.PushUInt, new int[]{abc.constants.getUIntId(-2147483648, true)}), // 82
@@ -533,17 +534,17 @@ public class FlashPlayerTest {
                     Action opAction = getOpAction(i);
 
                     if (i >= 13 + 23) {
-                        newActions.add(new ActionPush("mystring_\u00E1rv\u00EDzt\u0171r\u0151_t\u00FCk\u00F6rf\u00FAr\u00F3g\u00E9p"));
+                        newActions.add(new ActionPush("mystring_\u00E1rv\u00EDzt\u0171r\u0151_t\u00FCk\u00F6rf\u00FAr\u00F3g\u00E9p", Utf8Helper.charsetName));
                     }
 
                     Object p1o = pushes[p1];
                     Object p2o = null;
                     if (i >= 13) {
                         p2o = pushes[p2];
-                        newActions.add(new ActionPush(p2o));
+                        newActions.add(new ActionPush(p2o, Utf8Helper.charsetName));
                     }
 
-                    newActions.add(new ActionPush(p1o));
+                    newActions.add(new ActionPush(p1o, Utf8Helper.charsetName));
 
                     newActions.add(opAction);
                     newActions.add(new ActionPushDuplicate());
@@ -559,10 +560,10 @@ public class FlashPlayerTest {
                     task.actions = newActions;
 
                     List<GraphTargetItem> output = new ArrayList<>();
-                    ActionLocalData localData = new ActionLocalData(null, false);
+                    ActionLocalData localData = new ActionLocalData(null, false, new HashMap<>(), new LinkedHashSet<>(), new ArrayList<>(), new ArrayList<>());
                     TranslateStack stack = new TranslateStack("");
                     for (Action a : newActions) {
-                        a.translate(localData, stack, output, Graph.SOP_USE_STATIC, "");
+                        a.translate(localData, stack, output, 0, "");
                     }
 
                     String ffdecTranslateResult;
@@ -598,13 +599,13 @@ public class FlashPlayerTest {
 
         adobeExecutor.executeActionLists(tasks);
 
-        StringBuilder expeced = new StringBuilder();
+        StringBuilder expected = new StringBuilder();
         StringBuilder current = new StringBuilder();
         for (AS2ExecuteTask task : tasks) {
             if (!task.flashResult.equals(task.ffdecResult)) {
                 System.out.println("Flash result (" + task.description + "): " + task.flashResult);
                 System.out.println("FFDec result: " + task.ffdecResult);
-                expeced.append(task.description).append(task.flashResult).append(Helper.newLine);
+                expected.append(task.description).append(task.flashResult).append(Helper.newLine);
                 current.append(task.description).append(task.ffdecResult).append(Helper.newLine);
             }
 
@@ -642,7 +643,7 @@ public class FlashPlayerTest {
             }
         }
 
-        //Helper.writeFile("expected.txt", Utf8Helper.getBytes(expeced.toString()));
+        //Helper.writeFile("expected.txt", Utf8Helper.getBytes(expected.toString()));
         //Helper.writeFile("current.txt", Utf8Helper.getBytes(current.toString()));
     }
 

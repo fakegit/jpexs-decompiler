@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -49,11 +49,29 @@ import java.util.TreeSet;
  */
 public class ActionDefineFunctionPushRegistersCleaner extends SWFDecompilerAdapter {
 
+    /**
+     * Constructor.
+     */
+    public ActionDefineFunctionPushRegistersCleaner() {
+    }
+
+    /**
+     * Called when an action list is parsed
+     *
+     * @param actions Action list
+     * @param swf SWF object
+     * @throws InterruptedException On interrupt
+     */
     @Override
     public void actionListParsed(ActionList actions, SWF swf) throws InterruptedException {
         cleanActionDefineFunctions(actions);
     }
 
+    /**
+     * Cleans ActionDefineFunctions
+     *
+     * @param actions Action list
+     */
     private void cleanActionDefineFunctions(ActionList actions) {
         for (int i = actions.size() - 1; i >= 0; i--) {
             Action action = actions.get(i);
@@ -71,11 +89,12 @@ public class ActionDefineFunctionPushRegistersCleaner extends SWFDecompilerAdapt
     }
 
     /**
+     * Cleans push registers from ActionDefineFunction
      *
-     * @param code
+     * @param code Action list
      * @param startIndex Index of first Action in DefineFunction body
      * @param count Count of actions in DefineFunction
-     * @return
+     * @return True if registers were cleaned, false otherwise
      */
     private boolean cleanPushRegisters(ActionList code, int startIndex, int count) {
         if (count == 0) {
@@ -293,7 +312,7 @@ public class ActionDefineFunctionPushRegistersCleaner extends SWFDecompilerAdapt
             if (newPushedValues.size() != currentPushedValues.size()) {
                 code.removeAction(pos); //remove that push
                 if (!newPushedValues.isEmpty()) {
-                    ActionPush newPush = new ActionPush(newPushedValues.toArray());
+                    ActionPush newPush = new ActionPush(newPushedValues.toArray(), code.getCharset());
                     newPush.constantPool = currentPush.constantPool;
                     code.addAction(pos, newPush); //replace with different push
                 } else {

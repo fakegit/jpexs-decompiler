@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.iggy;
 
 import com.jpexs.decompiler.flash.iggy.annotations.IggyArrayFieldType;
@@ -24,6 +25,7 @@ import com.jpexs.decompiler.flash.iggy.streams.WriteDataStreamInterface;
 import java.io.IOException;
 
 /**
+ * Declared strings.
  *
  * @author JPEXS
  */
@@ -34,10 +36,10 @@ public class IggyDeclStrings implements StructureInterface {
     //@IggyFieldType(DataType.uint32_t)
     //long size;
     @IggyArrayFieldType(value = DataType.uint8_t, count = 3)
-    byte xxx[];
+    byte[] xxx;
     @IggyArrayFieldType(value = DataType.uint8_t, countField = "size")
-    byte data[];
-    byte padd[];
+    byte[] data;
+    byte[] padd;
     @IggyFieldType(DataType.uint64_t)
     long one2;
     @IggyFieldType(DataType.uint64_t)

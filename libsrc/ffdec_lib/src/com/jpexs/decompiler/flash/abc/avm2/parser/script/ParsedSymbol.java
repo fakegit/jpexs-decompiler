@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,28 +12,59 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.parser.script;
 
 /**
+ * ActionScript 3 parsed symbol.
  *
  * @author JPEXS
  */
 public class ParsedSymbol {
 
+    /**
+     * Group
+     */
     public SymbolGroup group;
 
+    /**
+     * Value
+     */
     public Object value;
 
+    /**
+     * Type
+     */
     public SymbolType type;
+    
+    /**
+     * Position in source text
+     */
+    public int position;
 
-    public ParsedSymbol(SymbolGroup group, SymbolType type) {
+    /**
+     * Constructor.
+     * @param position Position
+     * @param group Group
+     * @param type Type
+     */
+    public ParsedSymbol(int position, SymbolGroup group, SymbolType type) {
+        this.position = position;
         this.group = group;
         this.type = type;
         this.value = null;
     }
 
-    public ParsedSymbol(SymbolGroup group, SymbolType type, Object value) {
+    /**
+     * Constructor.
+     * @param position Position
+     * @param group Group
+     * @param type Type
+     * @param value Value
+     */
+    public ParsedSymbol(int position, SymbolGroup group, SymbolType type, Object value) {
+        this.position = position;
         this.group = group;
         this.type = type;
         this.value = value;
@@ -44,6 +75,11 @@ public class ParsedSymbol {
         return group.toString() + " " + type.toString() + " " + (value != null ? value.toString() : "");
     }
 
+    /**
+     * Check if type is in types.
+     * @param types Types
+     * @return True if type is in types
+     */
     public boolean isType(Object... types) {
         for (Object t : types) {
             if (t instanceof SymbolGroup) {

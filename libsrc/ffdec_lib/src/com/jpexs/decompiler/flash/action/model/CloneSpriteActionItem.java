@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,6 +17,7 @@
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.swf4.ActionCloneSprite;
 import com.jpexs.decompiler.flash.action.swf4.ActionPush;
 import com.jpexs.decompiler.flash.ecma.Undefined;
@@ -32,15 +33,25 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Clone sprite.
  *
  * @author JPEXS
  */
 public class CloneSpriteActionItem extends ActionItem {
 
+    /**
+     * Source
+     */
     public GraphTargetItem source;
 
+    /**
+     * Target
+     */
     public GraphTargetItem target;
 
+    /**
+     * Depth
+     */
     public GraphTargetItem depth;
 
     @Override
@@ -50,6 +61,15 @@ public class CloneSpriteActionItem extends ActionItem {
         visitor.visit(depth);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param source Source
+     * @param target Target
+     * @param depth Depth
+     */
     public CloneSpriteActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem source, GraphTargetItem target, GraphTargetItem depth) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.source = source;
@@ -60,7 +80,7 @@ public class CloneSpriteActionItem extends ActionItem {
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("duplicateMovieClip");
-        writer.spaceBeforeCallParenthesies(3);
+        writer.spaceBeforeCallParenthesis(3);
         writer.append("(");
         target.toString(writer, localData);
         writer.append(",");
@@ -81,14 +101,16 @@ public class CloneSpriteActionItem extends ActionItem {
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        return toSourceMerge(localData, generator, source, target, depth, new ActionCloneSprite(), new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}));
+        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
+
+        return toSourceMerge(localData, generator, source, target, depth, new ActionCloneSprite(), new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}, charset));
     }
 
     @Override
     public List<GraphSourceItem> toSourceIgnoreReturnValue(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         return toSourceMerge(localData, generator, source, target, depth, new ActionCloneSprite());
     }
-
 
     @Override
     public boolean hasReturnValue() {

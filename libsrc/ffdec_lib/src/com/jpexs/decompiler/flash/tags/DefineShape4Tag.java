@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -25,11 +26,15 @@ import com.jpexs.decompiler.flash.types.SHAPEWITHSTYLE;
 import com.jpexs.decompiler.flash.types.annotations.Reserved;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
+import com.jpexs.decompiler.flash.types.shaperecords.SHAPERECORD;
 import com.jpexs.helpers.ByteArrayRange;
 import java.io.IOException;
 
 /**
- *
+ * DefineShape4 tag - defines shape. Extends functionality of DefineShape3.
+ * Adds LINESTYLE2 (joins, caps, scaling), filling stroke, edge bounds,
+ * focal gradient, spread mode, interpolation mode, numgradients &gt; 8.
+ * 
  * @author JPEXS
  */
 @SWFVersion(from = 8)
@@ -54,7 +59,7 @@ public class DefineShape4Tag extends ShapeTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineShape4Tag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -90,7 +95,7 @@ public class DefineShape4Tag extends ShapeTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -107,5 +112,23 @@ public class DefineShape4Tag extends ShapeTag {
     @Override
     public int getShapeNum() {
         return 4;
+    }
+
+    @Override
+    public void updateBounds() {
+        super.updateBounds();
+        updateEdgeBounds();
+    }
+    
+    public void updateEdgeBounds() {
+        edgeBounds = SHAPERECORD.getBounds(shapes.shapeRecords, null, 4, true);
+    }
+
+    @Override
+    public int getWindingRule() {
+        if (usesFillWindingRule) {
+            return WIND_NONZERO;
+        }
+        return WIND_EVEN_ODD;
     }
 }

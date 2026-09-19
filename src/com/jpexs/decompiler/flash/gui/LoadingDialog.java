@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -45,7 +45,7 @@ public class LoadingDialog extends AppDialog {
 
     private final JProgressBar progressBar = new JProgressBar(0, 100);
 
-    public void setWroker(CancellableWorker<?> worker) {
+    public void setWorker(CancellableWorker<?> worker) {
         this.worker = worker;
     }
 
@@ -69,7 +69,6 @@ public class LoadingDialog extends AppDialog {
 
     /**
      * Constructor
-     *
      */
     public LoadingDialog(Window owner) {
         super(owner);
@@ -99,9 +98,7 @@ public class LoadingDialog extends AppDialog {
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                if (Main.shouldCloseWhenClosingLoadingDialog) {
-                    System.exit(0);
-                } else if (worker != null) {
+                if (worker != null) {
                     worker.cancel(true);
                 }
             }
@@ -109,7 +106,7 @@ public class LoadingDialog extends AppDialog {
         pack();
         Dimension siz = getSize();
         setSize(Math.max(300, 150 + getFontMetrics(new JLabel().getFont()).stringWidth(translate("loadingpleasewait"))), siz.height);
-        View.centerScreen(this);
+        View.centerScreenMain(this);
     }
 
     @Override

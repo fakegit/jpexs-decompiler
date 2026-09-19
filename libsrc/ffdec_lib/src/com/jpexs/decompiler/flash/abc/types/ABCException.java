@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,6 +16,7 @@
  */
 package com.jpexs.decompiler.flash.abc.types;
 
+import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
 import com.jpexs.decompiler.flash.abc.avm2.ConvertException;
@@ -23,60 +24,138 @@ import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.helpers.Helper;
 import java.io.Serializable;
 import java.util.List;
+import java.util.Set;
 
 /**
+ * Exception.
  *
  * @author JPEXS
  */
 public class ABCException implements Serializable, Cloneable {
 
+    /**
+     * Start offset
+     */
     public int start;
 
+    /**
+     * End offset
+     */
     public int end;
 
+    /**
+     * Target offset
+     */
     public int target;
 
+    /**
+     * Type index - index to multiname constant pool
+     */
     public int type_index;
 
+    /**
+     * Name index - index to multiname constant pool
+     */
     public int name_index;
 
+    /**
+     * Default exception name
+     */
     public static final String DEFAULT_EXCEPTION_NAME = "_loc_e_";
 
+    /**
+     * Constructs ABCException
+     */
+    public ABCException() {
+    }
+
+    /**
+     * To string.
+     *
+     * @return String
+     */
     @Override
     public String toString() {
         return "Exception: startServer=" + Helper.formatAddress(start) + " end=" + Helper.formatAddress(end) + " target=" + target + " type_index=" + type_index + " name_index=" + name_index;
     }
 
-    public String toString(AVM2ConstantPool constants, List<DottedChain> fullyQualifiedNames) {
-        return "Exception: startServer=" + Helper.formatAddress(start) + " end=" + Helper.formatAddress(end) + " target=" + target + " type=\"" + getTypeName(constants, fullyQualifiedNames) + "\" name=\"" + getVarName(constants, fullyQualifiedNames) + "\"";
+    /**
+     * To string.
+     *
+     * @param usedDeobfuscations Used deobfuscations
+     * @param abc ABC
+     * @param constants AVM2 constant pool
+     * @param fullyQualifiedNames Fully qualified names
+     * @return String
+     */
+    public String toString(Set<String> usedDeobfuscations, ABC abc, AVM2ConstantPool constants, List<DottedChain> fullyQualifiedNames) {
+        return "Exception: startServer=" + Helper.formatAddress(start) + " end=" + Helper.formatAddress(end) + " target=" + target + " type=\"" + getTypeName(usedDeobfuscations, abc, constants, fullyQualifiedNames) + "\" name=\"" + getVarName(usedDeobfuscations, abc, constants, fullyQualifiedNames) + "\"";
     }
 
-    public String toString(AVM2ConstantPool constants, AVM2Code code, List<DottedChain> fullyQualifiedNames) {
+    /**
+     * To string.
+     *
+     * @param usedDeobfuscations Used deobfuscations
+     * @param abc ABC
+     * @param constants AVM2 constant pool
+     * @param code AVM2 code
+     * @param fullyQualifiedNames Fully qualified names
+     * @return String
+     */
+    public String toString(Set<String> usedDeobfuscations, ABC abc, AVM2ConstantPool constants, AVM2Code code, List<DottedChain> fullyQualifiedNames) {
         try {
-            return "Exception: startServer=" + code.adr2pos(start) + ":" + code.code.get(code.adr2pos(start)).toStringNoAddress(constants, fullyQualifiedNames) + " end=" + code.adr2pos(end) + ":" + code.code.get(code.adr2pos(end)).toStringNoAddress(constants, fullyQualifiedNames) + " target=" + code.adr2pos(target) + ":" + code.code.get(code.adr2pos(target)).toStringNoAddress(constants, fullyQualifiedNames) + " type=\"" + getTypeName(constants, fullyQualifiedNames) + "\" name=\"" + getVarName(constants, fullyQualifiedNames) + "\"";
+            return "Exception: startServer=" + code.adr2pos(start) + ":" + code.code.get(code.adr2pos(start)).toStringNoAddress(constants, fullyQualifiedNames) + " end=" + code.adr2pos(end) + ":" + code.code.get(code.adr2pos(end)).toStringNoAddress(constants, fullyQualifiedNames) + " target=" + code.adr2pos(target) + ":" + code.code.get(code.adr2pos(target)).toStringNoAddress(constants, fullyQualifiedNames) + " type=\"" + getTypeName(usedDeobfuscations, abc, constants, fullyQualifiedNames) + "\" name=\"" + getVarName(usedDeobfuscations, abc, constants, fullyQualifiedNames) + "\"";
         } catch (ConvertException ex) {
             return "";
         }
     }
 
+    /**
+     * Checks if exception is finally.
+     *
+     * @return True if exception is finally
+     */
     public boolean isFinally() {
         return (name_index == 0) && (type_index == 0);
     }
 
-    public String getVarName(AVM2ConstantPool constants, List<DottedChain> fullyQualifiedNames) {
+    /**
+     * Gets variable name.
+     *
+     * @param usedDeobfuscations Used deobfuscations
+     * @param abc ABC
+     * @param constants AVM2 constant pool
+     * @param fullyQualifiedNames Fully qualified names
+     * @return Variable name
+     */
+    public String getVarName(Set<String> usedDeobfuscations, ABC abc, AVM2ConstantPool constants, List<DottedChain> fullyQualifiedNames) {
         if (name_index == 0) {
             return DEFAULT_EXCEPTION_NAME;
         }
-        return constants.getMultiname(name_index).getName(constants, fullyQualifiedNames, false, true);
+        return constants.getMultiname(name_index).getName(usedDeobfuscations, abc, constants, fullyQualifiedNames, false, true);
     }
 
-    public String getTypeName(AVM2ConstantPool constants, List<DottedChain> fullyQualifiedNames) {
+    /**
+     * Gets type name.
+     *
+     * @param usedDeobfuscations Used deobfuscations
+     * @param abc ABC
+     * @param constants AVM2 constant pool
+     * @param fullyQualifiedNames Fully qualified names
+     * @return Type name
+     */
+    public String getTypeName(Set<String> usedDeobfuscations, ABC abc, AVM2ConstantPool constants, List<DottedChain> fullyQualifiedNames) {
         if (type_index == 0) {
             return "*";
         }
-        return constants.getMultiname(type_index).getName(constants, fullyQualifiedNames, false, true);
+        return constants.getMultiname(type_index).getName(usedDeobfuscations, abc, constants, fullyQualifiedNames, false, true);
     }
 
+    /**
+     * Clones exception.
+     *
+     * @return Cloned exception
+     */
     @Override
     public ABCException clone() {
         try {

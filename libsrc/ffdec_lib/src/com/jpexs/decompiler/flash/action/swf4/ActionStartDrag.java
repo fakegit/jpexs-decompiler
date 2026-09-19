@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,6 +20,7 @@ import com.jpexs.decompiler.flash.BaseLocalData;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.DisplayObject;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
+import com.jpexs.decompiler.flash.action.as2.Trait;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
 import com.jpexs.decompiler.flash.action.model.StartDragActionItem;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
@@ -29,18 +30,25 @@ import com.jpexs.decompiler.graph.SecondPassData;
 import com.jpexs.decompiler.graph.TranslateStack;
 import com.jpexs.decompiler.graph.model.FalseItem;
 import com.jpexs.decompiler.graph.model.TrueItem;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
+ * StartDrag action - Starts dragging a movie clip.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 4)
 public class ActionStartDrag extends Action {
 
+    /**
+     * Constructor.
+     */
     public ActionStartDrag() {
-        super(0x27, 0);
+        super(0x27, 0, Utf8Helper.charsetName);
     }
 
     @Override
@@ -58,7 +66,7 @@ public class ActionStartDrag extends Action {
     }
 
     @Override
-    public void translate(SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+    public void translate(Set<String> usedDeobfuscations, Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
         GraphTargetItem target = stack.pop();
         GraphTargetItem lockCenter = stack.pop();
         GraphTargetItem constrain = stack.pop();
@@ -81,7 +89,7 @@ public class ActionStartDrag extends Action {
             x1 = stack.pop();
         }
 
-        output.add(new StartDragActionItem(this, lineStartAction, target, lockCenter, constrain, x1, y1, x2, y2));
+        stack.addToOutput(new StartDragActionItem(this, lineStartAction, target, lockCenter, constrain, x1, y1, x2, y2));
     }
 
     @Override

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -32,6 +32,7 @@ import com.jpexs.decompiler.flash.types.ColorTransform;
 import com.jpexs.decompiler.flash.types.FILLSTYLE;
 import com.jpexs.decompiler.flash.types.FILLSTYLEARRAY;
 import com.jpexs.decompiler.flash.types.LINESTYLE;
+import com.jpexs.decompiler.flash.types.LINESTYLE2;
 import com.jpexs.decompiler.flash.types.LINESTYLEARRAY;
 import com.jpexs.decompiler.flash.types.MATRIX;
 import com.jpexs.decompiler.flash.types.RECT;
@@ -52,40 +53,93 @@ import java.util.ArrayList;
 import java.util.Set;
 
 /**
+ * Base class for image tags.
  *
  * @author JPEXS
  */
 public abstract class ImageTag extends DrawableTag {
 
+    /**
+     * Character ID
+     */
     @SWFType(BasicType.UI16)
     public int characterID;
 
+    /**
+     * Cached image
+     */
     protected SerializableImage cachedImage;
 
+    /**
+     * Constructs new ImageTag
+     * @param swf SWF
+     * @param id ID
+     * @param name Name
+     * @param data Data
+     */
     public ImageTag(SWF swf, int id, String name, ByteArrayRange data) {
         super(swf, id, name, data);
     }
 
+    /**
+     * Gets original image data.
+     * @return Original image data
+     */
     public abstract InputStream getOriginalImageData();
 
+    /**
+     * Gets image.
+     * @return Image
+     */
     protected abstract SerializableImage getImage();
 
+    /**
+     * Gets image dimension.
+     * @return Image dimension
+     */
     public abstract Dimension getImageDimension();
 
+    /**
+     * Sets image.
+     * @param data Image data
+     * @throws IOException On I/O error
+     */
     public abstract void setImage(byte[] data) throws IOException;
 
-    public abstract ImageFormat getImageFormat();
-
+    /**
+     * Gets original image format.
+     * @return Original image format
+     */
     public abstract ImageFormat getOriginalImageFormat();
 
+    /**
+     * Checks if import is supported.
+     * @return True if supported, false otherwise
+     */
     public boolean importSupported() {
         return true;
     }
 
+    /**
+     * Gets image format.
+     * @return Image format
+     */
+    public abstract ImageFormat getImageFormat();
+
+    /**
+     * Gets image format.
+     * @param data Data
+     * @return Image format
+     */
     public static ImageFormat getImageFormat(byte[] data) {
         return getImageFormat(new ByteArrayRange(data));
     }
 
+    /**
+     * Gets image format.
+     * @param data Data
+     * @return Image format
+     */
     public static ImageFormat getImageFormat(ByteArrayRange data) {
         if (hasErrorHeader(data)) {
             return ImageFormat.JPEG;
@@ -106,6 +160,10 @@ public abstract class ImageTag extends DrawableTag {
         return ImageFormat.UNKNOWN;
     }
 
+    /**
+     * Gets image. Gets it from cache when available.
+     * @return Image
+     */
     public SerializableImage getImageCached() {
         if (cachedImage != null) {
             return cachedImage;
@@ -119,6 +177,30 @@ public abstract class ImageTag extends DrawableTag {
         return image;
     }
 
+    /**
+     * Gets converted image data. Converted means for example DefineBitsJPEG3
+     * including alpha channel - PNG images.
+     *
+     * @return Converted image data
+     */
+    public InputStream getConvertedImageData() {
+        if (getImageFormat() == getOriginalImageFormat()) { //no need to convert
+            InputStream is = getOriginalImageData();
+            if (is != null) {
+                return is;
+            }
+        }
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ImageHelper.write(getImage().getBufferedImage(), getImageFormat(), baos);
+        return new ByteArrayInputStream(baos.toByteArray());
+    }
+
+    /**
+     * Gets original image data if available, if not, then converted. Original
+     * image data can be for example DefineBitsJPEG3 without transparency.
+     *
+     * @return Image data
+     */
     public InputStream getImageData() {
         InputStream is = getOriginalImageData();
         if (is != null) {
@@ -130,10 +212,20 @@ public abstract class ImageTag extends DrawableTag {
         return new ByteArrayInputStream(baos.toByteArray());
     }
 
+    /**
+     * Checks if data has error header.
+     * @param data Data
+     * @return True if has error header, false otherwise
+     */
     public static boolean hasErrorHeader(byte[] data) {
         return hasErrorHeader(new ByteArrayRange(data));
     }
 
+    /**
+     * Checks if data has error header.
+     * @param data Data
+     * @return True if has error header, false otherwise
+     */
     public static boolean hasErrorHeader(ByteArrayRange data) {
         if (data.getLength() > 4) {
             if ((data.get(0) & 0xff) == 0xff && (data.get(1) & 0xff) == 0xd9
@@ -144,28 +236,41 @@ public abstract class ImageTag extends DrawableTag {
         return false;
     }
 
-    private SHAPEWITHSTYLE getShape() {
+    /**
+     * Gets shape.
+     * @param shapeNum Shape number (DefineShape1, DefineShape2, ...)
+     * @return Shape
+     */
+    private SHAPEWITHSTYLE getShape(int shapeNum) {
         RECT rect = getRect();
-        return getShape(rect, false);
+        return getShape(rect, false, shapeNum);
     }
 
-    public SHAPEWITHSTYLE getShape(RECT rect, boolean fill) {
+    /**
+     * Gets shape.
+     * @param rect Rectangle
+     * @param fill Fill
+     * @param shapeNum Shape number (DefineShape1, DefineShape2, ...)
+     * @return Shape
+     */
+    public SHAPEWITHSTYLE getShape(RECT rect, boolean fill, int shapeNum) {
         boolean translated = rect.Xmin != 0 || rect.Ymin != 0;
         SHAPEWITHSTYLE shape = new SHAPEWITHSTYLE();
         shape.fillStyles = new FILLSTYLEARRAY();
         shape.fillStyles.fillStyles = new FILLSTYLE[1];
         FILLSTYLE fillStyle = new FILLSTYLE();
+        fillStyle.inShape3 = shapeNum >= 3;
         fillStyle.fillStyleType = Configuration.shapeImportUseNonSmoothedFill.get()
-                ? FILLSTYLE.NON_SMOOTHED_REPEATING_BITMAP : FILLSTYLE.REPEATING_BITMAP;
+                ? FILLSTYLE.NON_SMOOTHED_CLIPPED_BITMAP : FILLSTYLE.CLIPPED_BITMAP;
         fillStyle.bitmapId = getCharacterId();
         MATRIX matrix = new MATRIX();
         matrix.hasScale = true;
         if (fill) {
             RECT imageRect = getRect();
-            matrix.scaleX = (int) ((((long) SWF.unitDivisor) << 16) * rect.getWidth() / imageRect.getWidth());
-            matrix.scaleY = (int) ((((long) SWF.unitDivisor) << 16) * rect.getHeight() / imageRect.getHeight());
+            matrix.scaleX = (float) (SWF.unitDivisor * rect.getWidth() / imageRect.getWidth());
+            matrix.scaleY = (float) (SWF.unitDivisor * rect.getHeight() / imageRect.getHeight());
         } else {
-            matrix.scaleX = ((int) SWF.unitDivisor) << 16;
+            matrix.scaleX = (float) SWF.unitDivisor;
             matrix.scaleY = matrix.scaleX;
         }
         if (translated) {
@@ -177,6 +282,7 @@ public abstract class ImageTag extends DrawableTag {
 
         shape.lineStyles = new LINESTYLEARRAY();
         shape.lineStyles.lineStyles = new LINESTYLE[0];
+        shape.lineStyles.lineStyles2 = new LINESTYLE2[0];
         shape.shapeRecords = new ArrayList<>();
         StyleChangeRecord style = new StyleChangeRecord();
         style.stateFillStyle0 = true;
@@ -187,24 +293,42 @@ public abstract class ImageTag extends DrawableTag {
             style.moveDeltaY = rect.Ymin;
         }
         shape.shapeRecords.add(style);
-        StraightEdgeRecord top = new StraightEdgeRecord();
-        top.generalLineFlag = true;
-        top.deltaX = rect.getWidth();
-        StraightEdgeRecord right = new StraightEdgeRecord();
-        right.generalLineFlag = true;
-        right.deltaY = rect.getHeight();
-        StraightEdgeRecord bottom = new StraightEdgeRecord();
-        bottom.generalLineFlag = true;
-        bottom.deltaX = -rect.getWidth();
-        StraightEdgeRecord left = new StraightEdgeRecord();
-        left.generalLineFlag = true;
-        left.deltaY = -rect.getHeight();
-        shape.shapeRecords.add(top);
-        shape.shapeRecords.add(right);
-        shape.shapeRecords.add(bottom);
-        shape.shapeRecords.add(left);
+        
+        addStraightRecord(shape, rect.getWidth(), 0);
+        addStraightRecord(shape, 0, rect.getHeight());
+        addStraightRecord(shape, -rect.getWidth(), 0);
+        addStraightRecord(shape, 0, -rect.getHeight());
+        
         shape.shapeRecords.add(new EndShapeRecord());
         return shape;
+    }
+    
+    private void addStraightRecord(SHAPEWITHSTYLE shape, int deltaX, int deltaY) {
+        StraightEdgeRecord ser = new StraightEdgeRecord();
+        ser.generalLineFlag = true;
+        ser.deltaX = deltaX;
+        ser.deltaY = deltaY;
+        ser.simplify();
+        ser.calculateBits();
+        
+        //Line is too long, split into half
+        if (ser.numBits > StraightEdgeRecord.MAX_NUM_BITS) {
+            int deltaX1 = deltaX / 2;
+            int deltaY1 = deltaY / 2;
+            int deltaX2 = deltaX1;
+            int deltaY2 = deltaY1;
+            
+            if (deltaX1 + deltaX2 < deltaX) {
+                deltaX2++;
+            }
+            if (deltaY1 + deltaY2 < deltaY) {
+                deltaY2++;
+            }
+            addStraightRecord(shape, deltaX1, deltaY1);
+            addStraightRecord(shape, deltaX2, deltaY2);
+            return;
+        }
+        shape.shapeRecords.add(ser);
     }
 
     @Override
@@ -226,24 +350,24 @@ public abstract class ImageTag extends DrawableTag {
     }
 
     @Override
-    public Shape getOutline(int frame, int time, int ratio, RenderContext renderContext, Matrix transformation, boolean stroked) {
-        return transformation.toTransform().createTransformedShape(getShape().getOutline(swf, stroked));
+    public Shape getOutline(boolean fast, int frame, int time, int ratio, RenderContext renderContext, Matrix transformation, boolean stroked, ExportRectangle viewRect, double unzoom) {
+        return transformation.toTransform().createTransformedShape(getShape(1).getOutline(fast, 1, swf, stroked));
     }
 
     @Override
-    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, SerializableImage fullImage, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, Matrix fullTransformation, ColorTransform colorTransform, double unzoom, boolean sameImage, ExportRectangle viewRect, boolean scaleStrokes, int drawMode) {
-        BitmapExporter.export(swf, getShape(), null, image, transformation, strokeTransformation, colorTransform, true);
+    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, SerializableImage fullImage, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, Matrix fullTransformation, ColorTransform colorTransform, double unzoom, boolean sameImage, ExportRectangle viewRect, ExportRectangle viewRectRaw, boolean scaleStrokes, int drawMode, int blendMode, boolean canUseSmoothing, int aaScale) {
+        BitmapExporter.export(ShapeTag.WIND_EVEN_ODD, 1, swf, getShape(1), null, image, unzoom, transformation, strokeTransformation, colorTransform, true, canUseSmoothing, aaScale);
     }
 
     @Override
-    public void toSVG(SVGExporter exporter, int ratio, ColorTransform colorTransform, int level) throws IOException {
-        SVGShapeExporter shapeExporter = new SVGShapeExporter(swf, getShape(), getCharacterId(), exporter, null, colorTransform, 1);
+    public void toSVG(int frame, int time, SVGExporter exporter, int ratio, ColorTransform colorTransform, int level, Matrix transformation, Matrix strokeTransformation) throws IOException {
+        SVGShapeExporter shapeExporter = new SVGShapeExporter(ShapeTag.WIND_EVEN_ODD, 1, swf, getShape(1), getCharacterId(), exporter, null, colorTransform, 1, exporter.getZoom(), strokeTransformation);
         shapeExporter.export();
     }
 
     @Override
     public void toHtmlCanvas(StringBuilder result, double unitDivisor) {
-        CanvasShapeExporter cse = new CanvasShapeExporter(null, unitDivisor, swf, getShape(), null, 0, 0);
+        CanvasShapeExporter cse = new CanvasShapeExporter(ShapeTag.WIND_EVEN_ODD, 1, null, unitDivisor, swf, getShape(1), null, 0, 0);
         cse.export();
         result.append(cse.getShapeData());
     }
@@ -283,5 +407,36 @@ public abstract class ImageTag extends DrawableTag {
     @Override
     public RECT getRectWithStrokes() {
         return getRect();
+    }
+
+    /**
+     * Checks if image is same as other image.
+     * @param otherImage Other image
+     * @return True if same, false otherwise
+     */
+    public boolean isSameImage(ImageTag otherImage) {
+        SerializableImage imgA = getImageCached();
+        SerializableImage imgB = otherImage.getImageCached();
+        if (imgA.getWidth() != imgB.getWidth() || imgA.getHeight() != imgB.getHeight()) {
+            return false;
+        }
+
+        int width = imgA.getWidth();
+        int height = imgA.getHeight();
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                if (imgA.getRGB(x, y) != imgB.getRGB(x, y)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+    
+    @Override
+    public Dimension getFilterDimensions() {
+        return new Dimension(0, 0);                
     }
 }

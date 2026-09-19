@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,15 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.stack;
 
 import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.AVM2LocalData;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
 import com.jpexs.decompiler.flash.abc.avm2.LocalDataArea;
+import com.jpexs.decompiler.flash.abc.avm2.graph.AVM2GraphTargetDialect;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
 import com.jpexs.decompiler.graph.GraphTargetItem;
@@ -27,11 +29,15 @@ import com.jpexs.decompiler.graph.model.FalseItem;
 import java.util.List;
 
 /**
+ * pushfalse instruction - Push a false value onto the stack.
  *
  * @author JPEXS
  */
 public class PushFalseIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public PushFalseIns() {
         super(0x27, "pushfalse", new int[]{}, false);
     }
@@ -44,7 +50,7 @@ public class PushFalseIns extends InstructionDefinition {
 
     @Override
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
-        stack.push(new FalseItem(ins, localData.lineStartInstruction));
+        stack.push(new FalseItem(AVM2GraphTargetDialect.INSTANCE, ins, localData.lineStartInstruction));
     }
 
     @Override

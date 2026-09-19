@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,14 +12,20 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.flv;
 
 /**
+ * Data.
  *
  * @author JPEXS
  */
 public abstract class DATA {
 
+    /**
+     * Gets the data as byte array.
+     * @return Data as byte array
+     */
     public abstract byte[] getBytes();
 }

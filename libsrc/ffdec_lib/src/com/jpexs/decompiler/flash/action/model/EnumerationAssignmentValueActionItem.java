@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,7 +21,6 @@ import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
-import static com.jpexs.decompiler.graph.GraphTargetItem.PRECEDENCE_PRIMARY;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
@@ -29,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Enumeration assignment. Helper item for loop detection.
  *
  * @author JPEXS
  */
@@ -39,6 +39,9 @@ public class EnumerationAssignmentValueActionItem extends ActionItem {
 
     }
 
+    /**
+     * Constructor.
+     */
     public EnumerationAssignmentValueActionItem() {
         super(null, null, PRECEDENCE_PRIMARY);
     }

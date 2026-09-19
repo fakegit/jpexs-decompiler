@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,6 +19,7 @@ package com.jpexs.decompiler.flash.exporters.script;
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.avm2.graph.AVM2Graph;
+import com.jpexs.decompiler.flash.abc.avm2.parser.script.AbcIndexing;
 import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.action.ActionGraph;
 import com.jpexs.decompiler.flash.action.ActionList;
@@ -35,8 +36,8 @@ import com.jpexs.decompiler.graph.GraphException;
 import com.jpexs.decompiler.graph.GraphPart;
 import com.jpexs.decompiler.graph.GraphSource;
 import com.jpexs.decompiler.graph.ScopeStack;
-import com.jpexs.graphs.graphviz.dot.parser.DotId;
 import com.jpexs.helpers.Helper;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
@@ -47,6 +48,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
+ * P-code GraphViz exporter.
  *
  * @author JPEXS
  */
@@ -55,7 +57,7 @@ public class PcodeGraphVizExporter {
     private final String BLOCK_STYLE = "shape=\"box\"";
 
     private static final int INS_LEN_LIMIT = 80;
-    private static final String ELIPSIS = "...";
+    private static final String ELLIPSIS = "...";
 
     private String getBlockName(GraphSource list, GraphPart part) {
         return "loc" + Helper.formatAddress(list.pos2adr(part.start, true));
@@ -78,14 +80,28 @@ public class PcodeGraphVizExporter {
         }
     }
 
+    /**
+     * Exports ActionScript 1.0/2.0 graph to GraphViz format.
+     * @param src ActionScript source
+     * @param writer GraphTextWriter
+     * @throws InterruptedException On interrupt
+     */
     public void exportAs12(ASMSource src, GraphTextWriter writer) throws InterruptedException {
         ActionList alist = src.getActions();
-        ActionGraph gr = new ActionGraph("", false, false, alist, new HashMap<>(), new HashMap<>(), new HashMap<>(), SWF.DEFAULT_VERSION);
+        ActionGraph gr = new ActionGraph(false, new HashMap<>(), "", false, false, alist, new HashMap<>(), new HashMap<>(), new HashMap<>(), src.getSourceTag().getVersion(), Utf8Helper.charsetName, 0);
         export(gr, writer);
     }
 
-    public void exportAs3(ABC abc, MethodBody body, GraphTextWriter writer) throws InterruptedException {
-        AVM2Graph gr = new AVM2Graph(body.getCode(), abc, body, false, -1, -1, new HashMap<>(), new ScopeStack(), new HashMap<>(), new ArrayList<>(), new HashMap<>(), body.getCode().visitCode(body));
+    /**
+     * Exports ActionScript 3.0 graph to GraphViz format.
+     * @param abcIndex ABC indexing
+     * @param abc ABC
+     * @param body Method body
+     * @param writer Writer
+     * @throws InterruptedException On interrupt
+     */
+    public void exportAs3(AbcIndexing abcIndex, ABC abc, MethodBody body, GraphTextWriter writer) throws InterruptedException {
+        AVM2Graph gr = new AVM2Graph(-1, abcIndex, body.getCode(), abc, body, false, -1, -1, new HashMap<>(), new ScopeStack(), new ScopeStack(), new HashMap<>(), new ArrayList<>(), new HashMap<>()); // body.getCode().visitCode(body));
         export(gr, writer);
     }
 
@@ -193,17 +209,17 @@ public class PcodeGraphVizExporter {
         Token t;
         StringBuilder sb = new StringBuilder();
         int lineStart = 0;
-        boolean afterElipsis = false;
+        boolean afterEllipsis = false;
         int rawLen = 0;
         try {
             while ((t = lexer.yylex()) != null) {
                 if (t.type == TokenType.NEWLINE) {
                     sb.append("<BR />");
-                    afterElipsis = false;
+                    afterEllipsis = false;
                     lineStart = rawLen;
                     continue;
                 }
-                if (afterElipsis) {
+                if (afterEllipsis) {
                     continue;
                 }
                 String color = null;
@@ -262,8 +278,8 @@ public class PcodeGraphVizExporter {
                     sb.append("</FONT>");
                 }
                 if (tooLong) {
-                    sb.append(ELIPSIS);
-                    afterElipsis = true;
+                    sb.append(ELLIPSIS);
+                    afterEllipsis = true;
                 }
             }
         } catch (IOException ex) {
@@ -282,6 +298,12 @@ public class PcodeGraphVizExporter {
         return hilight(lexer, code);
     }
 
+    /**
+     * Exports graph to GraphViz format.
+     * @param graph Graph
+     * @param writer Writer
+     * @throws InterruptedException On interrupt
+     */
     public void export(Graph graph, GraphTextWriter writer) throws InterruptedException {
         writer.append("digraph pcode {\r\n");
         exportGraph(graph, writer);

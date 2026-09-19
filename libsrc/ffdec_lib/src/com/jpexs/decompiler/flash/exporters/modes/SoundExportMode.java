@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,18 +12,37 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.modes;
 
 /**
+ * Sound export mode.
  *
  * @author JPEXS
  */
 public enum SoundExportMode {
 
-    MP3_WAV_FLV(true, true, true), FLV(false, false, true), MP3_WAV(true, true, false), WAV(false, true, false);
+    /**
+     * MP3, WAV or FLV, depending on what suits best
+     */
+    MP3_WAV_FLV(true, true, true),
+    /**
+     * FLV - Flash Video
+     */
+    FLV(false, false, true),
+    /**
+     * MP3 or WAV, depending on what suits best.
+     */
+    MP3_WAV(true, true, false),
+    /**
+     * WAV - Uncompressed audio
+     */
+    WAV(false, true, false);
 
-    private final boolean mp3, wav, flv;
+    private final boolean mp3;
+    private final boolean wav;
+    private final boolean flv;
 
     private SoundExportMode(boolean mp3, boolean wav, boolean flv) {
         this.mp3 = mp3;

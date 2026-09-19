@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,27 +12,53 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types;
 
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.tags.base.NeedsCharacters;
 import com.jpexs.decompiler.flash.types.annotations.SWFArray;
 import java.io.Serializable;
 import java.util.Set;
 
 /**
+ * Fill style array.
  *
  * @author JPEXS
  */
 public class FILLSTYLEARRAY implements NeedsCharacters, Serializable {
 
+    /**
+     * Fill styles
+     */
     @SWFArray(value = "fillStyle")
     public FILLSTYLE[] fillStyles;
 
-    @Override
-    public void getNeededCharacters(Set<Integer> needed) {
+    public int getMinShapeNum() {
+        int result = 1;
         for (FILLSTYLE fs : fillStyles) {
-            fs.getNeededCharacters(needed);
+            int sn = fs.getMinShapeNum();
+            if (sn > result) {
+                result = sn;
+            }
+        }
+        return result;
+    }
+    
+    public FILLSTYLEARRAY toShapeNum(int targetShapeNum) {
+        FILLSTYLEARRAY result = new FILLSTYLEARRAY();
+        result.fillStyles = new FILLSTYLE[fillStyles.length];
+        for (int i = 0; i < fillStyles.length; i++) {
+            result.fillStyles[i] = fillStyles[i].toShapeNum(targetShapeNum);
+        }
+        return result;
+    }
+    
+    @Override
+    public void getNeededCharacters(Set<Integer> needed, Set<String> neededClasses, SWF swf) {
+        for (FILLSTYLE fs : fillStyles) {
+            fs.getNeededCharacters(needed, neededClasses, swf);
         }
     }
 
@@ -52,5 +78,18 @@ public class FILLSTYLEARRAY implements NeedsCharacters, Serializable {
             modified |= fs.removeCharacter(characterId);
         }
         return modified;
+    }
+
+    /**
+     * Converts to MORPHFILLSTYLEARRAY.
+     * @return MORPHFILLSTYLEARRAY
+     */
+    public MORPHFILLSTYLEARRAY toMorphFillStyleArray() {
+        MORPHFILLSTYLEARRAY morphFillStyleArray = new MORPHFILLSTYLEARRAY();
+        morphFillStyleArray.fillStyles = new MORPHFILLSTYLE[fillStyles.length];
+        for (int i = 0; i < fillStyles.length; i++) {
+            morphFillStyleArray.fillStyles[i] = fillStyles[i].toMorphStyle();
+        }
+        return morphFillStyleArray;
     }
 }

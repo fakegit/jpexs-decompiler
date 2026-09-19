@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,27 +12,49 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.importers.svg;
 
 import java.awt.Color;
 
 /**
+ * SVG color.
  *
  * @author JPEXS
  */
 class SvgColor extends SvgFill {
 
+    /**
+     * Color
+     */
     public Color color;
 
+    /**
+     * Constructor.
+     * @param r Red
+     * @param g Green
+     * @param b Blue
+     * @param opacity Opacity
+     */
     public SvgColor(int r, int g, int b, int opacity) {
         this(new Color(r, g, b, opacity));
     }
 
+    /**
+     * Constructor.
+     * @param r Red
+     * @param g Green
+     * @param b Blue
+     */
     public SvgColor(int r, int g, int b) {
         this(new Color(r, g, b));
     }
 
+    /**
+     * Constructor.
+     * @param color Color
+     */
     public SvgColor(Color color) {
         this.color = color;
     }
@@ -42,6 +64,11 @@ class SvgColor extends SvgFill {
         return this.color;
     }
 
+    /**
+     * Parse color from string.
+     * @param colorString Color string
+     * @return Color
+     */
     public static SvgColor parse(String colorString) {
         if (colorString == null) {
             return null;

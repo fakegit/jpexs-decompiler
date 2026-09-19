@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types.annotations;
 
 import com.jpexs.decompiler.flash.types.BasicType;
@@ -22,7 +23,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Maps basic java types (int,float,double) to SWF types (UI8,UI16...FLOAT)
+ * Maps basic java types (int,float,double) to SWF types (UI8,UI16...FLOAT).
  *
  * @author JPEXS
  */
@@ -47,4 +48,6 @@ public @interface SWFType {
 
     //Count to add to countField
     int countAdd() default 0;
+
+    boolean canAdd() default true;
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,6 +18,7 @@ package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.model.operations.AddActionItem;
+import com.jpexs.decompiler.flash.action.model.operations.StringAddActionItem;
 import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.swf4.ActionGetURL2;
 import com.jpexs.decompiler.flash.action.swf4.ActionPush;
@@ -33,13 +34,20 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Print num.
  *
  * @author JPEXS
  */
 public class PrintNumActionItem extends ActionItem {
 
+    /**
+     * Number
+     */
     private final GraphTargetItem num;
 
+    /**
+     * Bounding box
+     */
     private final GraphTargetItem boundingBox;
 
     @Override
@@ -48,6 +56,14 @@ public class PrintNumActionItem extends ActionItem {
         visitor.visit(boundingBox);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param num Number
+     * @param boundingBox Bounding box
+     */
     public PrintNumActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem num, GraphTargetItem boundingBox) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.num = num;
@@ -57,7 +73,7 @@ public class PrintNumActionItem extends ActionItem {
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("printNum");
-        writer.spaceBeforeCallParenthesies(2);
+        writer.spaceBeforeCallParenthesis(2);
         writer.append("(");
         num.toString(writer, localData);
         writer.append(",");
@@ -66,24 +82,31 @@ public class PrintNumActionItem extends ActionItem {
     }
 
     @Override
-    public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        return toSource(localData, generator, true);
-    }
-
-    @Override
     public List<GraphSourceItem> toSourceIgnoreReturnValue(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         return toSource(localData, generator, false);
     }
 
+    @Override
+    public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+        return toSource(localData, generator, true);
+    }
+
     private List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator, boolean needsReturn) throws CompilationException {
         ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
         Object lev;
         if ((num instanceof DirectValueActionItem) && (((DirectValueActionItem) num).value instanceof Long)) {
             lev = asGenerator.pushConstTargetItem("_level" + ((DirectValueActionItem) num).value);
         } else {
-            lev = new AddActionItem(getSrc(), getLineStartItem(), asGenerator.pushConstTargetItem("_level"), num, true);
+            lev = new StringAddActionItem(getSrc(), getLineStartItem(), asGenerator.pushConstTargetItem("_level"), num);
         }
-        return toSourceMerge(localData, generator, new AddActionItem(getSrc(), getLineStartItem(), asGenerator.pushConstTargetItem("print:#"), boundingBox, true), lev, new ActionGetURL2(0, false, false), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}) : null);
+        if (boundingBox instanceof DirectValueActionItem) {
+            DirectValueActionItem directValue = ((DirectValueActionItem) boundingBox);
+            if (directValue.isString() && "bmovie".equals(directValue.getAsString())) {
+                return toSourceMerge(localData, generator, asGenerator.pushConstTargetItem("print:"), lev, new ActionGetURL2(0, false, false, charset), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}, charset) : null);
+            }
+        }
+        return toSourceMerge(localData, generator, new AddActionItem(getSrc(), getLineStartItem(), asGenerator.pushConstTargetItem("print:#"), boundingBox, true), lev, new ActionGetURL2(0, false, false, charset), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}, charset) : null);
     }
 
     @Override

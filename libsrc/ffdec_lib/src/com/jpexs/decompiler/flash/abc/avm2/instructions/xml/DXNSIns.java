@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.xml;
 
 import com.jpexs.decompiler.flash.abc.AVM2LocalData;
@@ -28,11 +29,15 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.List;
 
 /**
+ * dxns instruction - Set default XML namespace.
  *
  * @author JPEXS
  */
 public class DXNSIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public DXNSIns() {
         super(0x06, "dxns", new int[]{AVM2Code.DAT_STRING_INDEX}, true);
     }
@@ -48,6 +53,6 @@ public class DXNSIns extends InstructionDefinition {
     @Override
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
         //FIXME!!! -  search namespace
-        output.add(new DefaultXMLNamespace(ins, localData.lineStartInstruction, new StringAVM2Item(ins, localData.lineStartInstruction, localData.getConstants().getString(ins.operands[0]))));
+        stack.addToOutput(new DefaultXMLNamespace(ins, localData.lineStartInstruction, new StringAVM2Item(ins, localData.lineStartInstruction, localData.getConstants().getString(ins.operands[0]))));
     }
 }

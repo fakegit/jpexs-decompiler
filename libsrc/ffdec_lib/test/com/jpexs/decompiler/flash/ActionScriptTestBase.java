@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 /**
@@ -25,6 +26,8 @@ public class ActionScriptTestBase {
         pCode = pCode.replaceAll("\t", "   ").trim();
         pCode = pCode.replaceAll("( *[\r\n]+ *)+", "\n").trim();
         pCode = pCode.replaceAll("  +", " ").trim();
+        //replace ns suffixes, so testCollidingPublicTraits will work even when ns indices change
+        pCode = pCode.replaceAll("#[0-9]+", "#_");
         return pCode;
     }
 }

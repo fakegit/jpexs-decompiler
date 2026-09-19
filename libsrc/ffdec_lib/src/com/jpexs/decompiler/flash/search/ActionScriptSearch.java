@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,6 +26,8 @@ import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.helpers.HighlightedText;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.tags.base.ASMSource;
+import com.jpexs.decompiler.flash.treeitems.Openable;
+import com.jpexs.helpers.CancellableWorker;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -38,11 +40,30 @@ import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 /**
+ * ActionScript search.
  *
  * @author JPEXS
  */
 public class ActionScriptSearch {
 
+    /**
+     * Constructor.
+     */
+    public ActionScriptSearch() {
+
+    }
+
+    /**
+     * Search AS2 code.
+     * @param swf SWF
+     * @param txt Text to search
+     * @param ignoreCase Ignore case
+     * @param regexp Regular expression
+     * @param pcode P-code
+     * @param listener Listener
+     * @param scope Scope
+     * @return List of search results
+     */
     public List<ActionSearchResult> searchAs2(SWF swf, final String txt, boolean ignoreCase, boolean regexp, boolean pcode, ScriptSearchListener listener, Map<String, ASMSource> scope) {
         if (txt != null && !txt.isEmpty()) {
             Map<String, ASMSource> asms;
@@ -71,6 +92,7 @@ public class ActionScriptSearch {
 
                         HighlightedTextWriter writer = new HighlightedTextWriter(Configuration.getCodeFormatting(), true);
                         asm.getASMSource(ScriptExportMode.PCODE, writer, null);
+                        writer.finishHilights();
                         String text = writer.toString();
                         if (pat.matcher(text).find()) {
                             found.add(new ActionSearchResult(asm, pcode, item.getKey()));
@@ -106,7 +128,10 @@ public class ActionScriptSearch {
                         } catch (CancellationException ex) {
                             throw new InterruptedException();
                         } catch (ExecutionException ex) {
-                            Logger.getLogger(ActionScriptSearch.class.getName()).log(Level.SEVERE, null, ex);
+                            if (ex.getCause() instanceof InterruptedException) {
+                                throw (InterruptedException) ex.getCause();
+                            }
+                            Logger.getLogger(ActionScriptSearch.class.getName()).log(Level.SEVERE, "Execution exception during search", ex);                            
                         }
                     }
                 }
@@ -121,20 +146,38 @@ public class ActionScriptSearch {
         return null;
     }
 
-    public List<ABCSearchResult> searchAs3(final SWF swf, final String txt, boolean ignoreCase, boolean regexp, boolean pcode, ScriptSearchListener listener, List<ScriptPack> scope) {
-        // todo: pcode seach
+    /**
+     * Search AS3 code.
+     * @param openable Openable
+     * @param txt Text to search
+     * @param ignoreCase Ignore case
+     * @param regexp Regular expression
+     * @param pcode P-code
+     * @param listener Listener
+     * @param scope Scope
+     * @return List of search results
+     */
+    public List<ABCSearchResult> searchAs3(final Openable openable, final String txt, boolean ignoreCase, boolean regexp, boolean pcode, ScriptSearchListener listener, List<ScriptPack> scope) {
+        // todo: pcode search
         if (txt != null && !txt.isEmpty()) {
             List<String> ignoredClasses = new ArrayList<>();
             List<String> ignoredNss = new ArrayList<>();
 
-            if (Configuration._ignoreAdditionalFlexClasses.get()) {
-                swf.getFlexMainClass(ignoredClasses, ignoredNss);
+            if (Configuration._ignoreAdditionalFlexClasses.get() && (openable instanceof SWF)) {
+                ((SWF) openable).getFlexMainClass(ignoredClasses, ignoredNss);
             }
 
             final List<ABCSearchResult> found = Collections.synchronizedList(new ArrayList<>());
             final List<ScriptPack> fscope;
             if (scope == null) {
-                fscope = swf.getAS3Packs();
+                if (openable instanceof SWF) {
+                    fscope = ((SWF) openable).getAS3Packs();
+                } else {
+                    ABC abc = (ABC) openable;
+                    List<ABC> allAbcs = new ArrayList<>();
+                    allAbcs.add(abc);
+                    fscope = abc.getScriptPacks(null, allAbcs);
+                }
             } else {
                 fscope = scope;
             }
@@ -179,6 +222,7 @@ public class ActionScriptSearch {
                                 MethodBody body = abc.bodies.get(bodyIndex);
                                 HighlightedTextWriter writer = new HighlightedTextWriter(Configuration.getCodeFormatting(), true);
                                 abc.bodies.get(bodyIndex).getCode().toASMSource(abc, abc.constants, abc.method_info.get(body.method_info), body, ScriptExportMode.PCODE, writer);
+                                writer.finishHilights();
                                 String text = writer.toString();
                                 if (pat.matcher(text).find()) {
                                     ABCSearchResult searchResult = new ABCSearchResult(pack, methodInfo.getClassIndex(), methodInfo.getTraitId());
@@ -191,7 +235,7 @@ public class ActionScriptSearch {
                         Future<HighlightedText> text = SWF.getCachedFuture(pack, new ScriptDecompiledListener<HighlightedText>() {
                             @Override
                             public void onStart() {
-                                if (Thread.currentThread().isInterrupted()) {
+                                if (CancellableWorker.isInterrupted()) {
                                     return;
                                 }
                                 if (listener != null) {
@@ -202,7 +246,7 @@ public class ActionScriptSearch {
                             @Override
                             public void onComplete(HighlightedText result) {
 
-                                if (!Thread.currentThread().isInterrupted()) {
+                                if (!CancellableWorker.isInterrupted()) {
                                     if (listener != null) {
                                         listener.onSearch(fpos, fscope.size(), pack.getClassPath().toString());
                                     }
@@ -225,7 +269,10 @@ public class ActionScriptSearch {
                     } catch (CancellationException ex) {
                         throw new InterruptedException();
                     } catch (ExecutionException ex) {
-                        Logger.getLogger(ActionScriptSearch.class.getName()).log(Level.SEVERE, null, ex);
+                        if (ex.getCause() instanceof InterruptedException) {
+                            throw (InterruptedException) ex.getCause();
+                        }
+                        Logger.getLogger(ActionScriptSearch.class.getName()).log(Level.SEVERE, "Execution exception during search", ex);
                     }
                 }
             } catch (InterruptedException ex) {

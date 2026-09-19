@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,15 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.parser.script;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Bufferer for lexer.
  *
  * @author JPEXS
  */
@@ -33,6 +35,9 @@ public class LexBufferer implements LexListener {
 
     @Override
     public void onPushBack(ParsedSymbol s) {
+        if (items.isEmpty()) {
+            return;
+        }
         if (items.get(items.size() - 1) == s) {
             items.remove(items.size() - 1);
         }

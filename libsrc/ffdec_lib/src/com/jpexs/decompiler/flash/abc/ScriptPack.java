@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,13 +16,19 @@
  */
 package com.jpexs.decompiler.flash.abc;
 
+import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.abc.avm2.ConvertException;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instructions;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.IfTypeIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.debug.DebugFileIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.debug.DebugIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.debug.DebugLineIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.jumps.LookupSwitchIns;
+import com.jpexs.decompiler.flash.abc.avm2.model.GlobalAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.parser.script.AbcIndexing;
+import com.jpexs.decompiler.flash.abc.types.ABCException;
 import com.jpexs.decompiler.flash.abc.types.ConvertData;
 import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.abc.types.Multiname;
@@ -30,9 +36,7 @@ import com.jpexs.decompiler.flash.abc.types.Namespace;
 import com.jpexs.decompiler.flash.abc.types.ScriptInfo;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitClass;
-import com.jpexs.decompiler.flash.abc.types.traits.TraitFunction;
-import com.jpexs.decompiler.flash.abc.types.traits.TraitMethodGetterSetter;
-import com.jpexs.decompiler.flash.abc.types.traits.Traits;
+import com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.exporters.settings.ScriptExportSettings;
@@ -44,6 +48,7 @@ import com.jpexs.decompiler.flash.helpers.hilight.Highlighting;
 import com.jpexs.decompiler.flash.search.MethodId;
 import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.decompiler.flash.treeitems.AS3ClassTreeItem;
+import com.jpexs.decompiler.flash.treeitems.Openable;
 import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.ScopeStack;
 import com.jpexs.helpers.CancellableWorker;
@@ -57,6 +62,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -71,36 +77,85 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Script pack class. A script pack is a collection of traits that are in the
+ * same script. It can be a simple script pack (contains only one externally
+ * visible definition) or a compound script pack (contains more than one
+ * externally visible definitions).
  *
  * @author JPEXS
  */
 public class ScriptPack extends AS3ClassTreeItem {
 
+    /**
+     * Logger
+     */
     private static final Logger logger = Logger.getLogger(ScriptPack.class.getName());
 
+    /**
+     * ABC file
+     */
     public final ABC abc;
 
+    /**
+     * All ABC files
+     */
     public List<ABC> allABCs;
 
+    /**
+     * Script index
+     */
     public final int scriptIndex;
 
+    /**
+     * Trait indices
+     */
     public final List<Integer> traitIndices;
 
+    /**
+     * Class path
+     */
     private final ClassPath path;
 
+    /**
+     * Whether the scriptpack is simple. ScriptPack can be either simple or
+     * compound. Compound = Contains more than one externally visible
+     * definitions.
+     */
     public boolean isSimple = false;
 
+    /**
+     * Whether the script initializer is empty
+     */
     public boolean scriptInitializerIsEmpty = false;
 
+    /**
+     * Gets openable.
+     *
+     * @return Openable
+     */
     @Override
-    public SWF getSwf() {
-        return abc.getSwf();
+    public Openable getOpenable() {
+        return abc.getOpenable();
     }
 
+    /**
+     * Gets class path.
+     *
+     * @return Class path
+     */
     public ClassPath getClassPath() {
         return path;
     }
 
+    /**
+     * Constructs a new script pack.
+     *
+     * @param path Class path
+     * @param abc ABC file
+     * @param allAbcs All ABC files
+     * @param scriptIndex Script index
+     * @param traitIndices Trait indices
+     */
     public ScriptPack(ClassPath path, ABC abc, List<ABC> allAbcs, int scriptIndex, List<Integer> traitIndices) {
         super(path.className, path.namespaceSuffix, path);
         this.abc = abc;
@@ -110,50 +165,79 @@ public class ScriptPack extends AS3ClassTreeItem {
         this.allABCs = allAbcs;
     }
 
+    /**
+     * Gets path package.
+     *
+     * @return Dotted chain
+     */
     public DottedChain getPathPackage() {
         DottedChain packageName = DottedChain.TOPLEVEL;
         for (int t : traitIndices) {
             Multiname name = abc.script_info.get(scriptIndex).traits.traits.get(t).getName(abc);
-            Namespace ns = name.getNamespace(abc.constants);
-            if ((ns.kind == Namespace.KIND_PACKAGE) || (ns.kind == Namespace.KIND_PACKAGE_INTERNAL)) {
-                packageName = ns.getName(abc.constants); // assume not null
+            int nskind = name.getSimpleNamespaceKind(abc.constants);
+            if ((nskind == Namespace.KIND_PACKAGE) || (nskind == Namespace.KIND_PACKAGE_INTERNAL)) {
+                packageName = name.getSimpleNamespaceName(abc.constants); // assume not null
             }
         }
         return packageName;
     }
 
-    public Trait getPublicTrait() {        
+    /**
+     * Gets public trait.
+     *
+     * @return Trait or null if not found
+     */
+    public Trait getPublicTrait() {
         for (int t : traitIndices) {
             Multiname name = abc.script_info.get(scriptIndex).traits.traits.get(t).getName(abc);
-            Namespace ns = name.getNamespace(abc.constants);
-            if ((ns.kind == Namespace.KIND_PACKAGE) || (ns.kind == Namespace.KIND_PACKAGE_INTERNAL)) {
+            int nskind = name.getSimpleNamespaceKind(abc.constants);
+            if ((nskind == Namespace.KIND_PACKAGE) || (nskind == Namespace.KIND_PACKAGE_INTERNAL)) {
                 return abc.script_info.get(scriptIndex).traits.traits.get(t);
             }
         }
         return null;
     }
 
+    /**
+     * Gets path script name.
+     *
+     * @return Script name
+     */
     public String getPathScriptName() {
-        String scriptName = "";
+        String scriptName = "script_" + scriptIndex;
         for (int t : traitIndices) {
             Multiname name = abc.script_info.get(scriptIndex).traits.traits.get(t).getName(abc);
-            Namespace ns = name.getNamespace(abc.constants);
-            if ((ns.kind == Namespace.KIND_PACKAGE) || (ns.kind == Namespace.KIND_PACKAGE_INTERNAL)) {
-                scriptName = name.getName(abc.constants, null, false, true);
+            int nskind = name.getSimpleNamespaceKind(abc.constants);
+            if ((nskind == Namespace.KIND_PACKAGE) || (nskind == Namespace.KIND_PACKAGE_INTERNAL)) {
+                scriptName = name.getName(new LinkedHashSet<>(), abc, abc.constants, null, false, true);
             }
         }
         return scriptName;
     }
 
+    /**
+     * Gets export file.
+     *
+     * @param directory Directory
+     * @param extension Extension including dot
+     * @return File
+     */
     public File getExportFile(String directory, String extension) {
 
         String scriptName = getPathScriptName();
         DottedChain packageName = getPathPackage();
-        File outDir = new File(directory + File.separatorChar + packageName.toFilePath());
+        File outDir = new File(directory + File.separatorChar + packageName.toFilePath(abc.getSwf()));
         String fileName = outDir.toString() + File.separator + Helper.makeFileName(scriptName) + extension;
         return new File(fileName);
     }
 
+    /**
+     * Gets export file.
+     *
+     * @param directory Directory
+     * @param exportSettings Export settings
+     * @return File
+     */
     public File getExportFile(String directory, ScriptExportSettings exportSettings) {
         if (exportSettings.singleFile) {
             return null;
@@ -162,110 +246,268 @@ public class ScriptPack extends AS3ClassTreeItem {
         return getExportFile(directory, exportSettings.getFileExtension());
     }
 
-    /*public String getPath() {
-     String packageName = "";
-     String scriptName = "";
-     for (int t : traitIndices) {
-     Multiname name = abc.script_info[scriptIndex].traits.traits.get(t).getName(abc);
-     Namespace ns = name.getNamespace(abc.constants);
-     if ((ns.kind == Namespace.KIND_PACKAGE) || (ns.kind == Namespace.KIND_PACKAGE_INTERNAL)) {
-     packageName = ns.getName(abc.constants);
-     scriptName = name.getName(abc.constants, new ArrayList<>());
-     }
-     }
-     return packageName.equals("") ? scriptName : packageName + "." + scriptName;
-     }*/
-    public void convert(final NulWriter writer, final List<Trait> traits, final ConvertData convertData, final ScriptExportMode exportMode, final boolean parallel) throws InterruptedException {
+    /**
+     * Converts the script pack.
+     *
+     * @param usedDeobfuscations Used deobfuscations
+     * @param abcIndex Abc indexing
+     * @param writer Writer
+     * @param traits Traits
+     * @param convertData Convert data
+     * @param exportMode Export mode
+     * @param parallel Parallel
+     * @throws InterruptedException On interrupt
+     */
+    public void convert(Set<String> usedDeobfuscations, AbcIndexing abcIndex, final NulWriter writer, final List<Trait> traits, final ConvertData convertData, final ScriptExportMode exportMode, final boolean parallel) throws InterruptedException {
+
+        int swfVersion = -1;
+        if (getOpenable() instanceof SWF) {
+            swfVersion = ((SWF) getOpenable()).version;
+        }
 
         int sinit_index = abc.script_info.get(scriptIndex).init_index;
         int sinit_bodyIndex = abc.findBodyIndex(sinit_index);
-        if (sinit_bodyIndex != -1) {
-            List<Traits> ts = new ArrayList<>();
-            //initialize all classes traits
+        if (sinit_bodyIndex != -1 && (isSimple || traitIndices.isEmpty())) {
+            List<Integer> initClasses = new ArrayList<>();
             for (Trait t : traits) {
                 if (t instanceof TraitClass) {
-                    ts.add(abc.class_info.get(((TraitClass) t).class_info).static_traits);
+                    initClasses.add(((TraitClass) t).class_info);
                 }
             }
-            ts.add(abc.script_info.get(scriptIndex).traits);
             writer.mark();
-            abc.bodies.get(sinit_bodyIndex).convert(convertData, path +/*packageName +*/ "/.scriptinitializer", exportMode, true, sinit_index, scriptIndex, -1, abc, null, new ScopeStack(), GraphTextWriter.TRAIT_SCRIPT_INITIALIZER, writer, new ArrayList<>(), ts, true, new HashSet<>());
+            List<MethodBody> callStack = new ArrayList<>();
+            callStack.add(abc.bodies.get(sinit_bodyIndex));
+            abc.bodies.get(sinit_bodyIndex).convert(swfVersion, callStack, abcIndex, convertData, path + "/.scriptinitializer", exportMode, true, sinit_index, scriptIndex, -1, abc, null, new ScopeStack(), GraphTextWriter.TRAIT_SCRIPT_INITIALIZER, writer, new ArrayList<>(), abc.script_info.get(scriptIndex).traits, true, new HashSet<>(), initClasses, usedDeobfuscations);
             scriptInitializerIsEmpty = !writer.getMark();
 
         }
+        ScopeStack scopeStack = new ScopeStack();
+        scopeStack.push(new GlobalAVM2Item(null, null));
+
         for (int t : traitIndices) {
             Trait trait = traits.get(t);
             Multiname name = trait.getName(abc);
-            Namespace ns = name.getNamespace(abc.constants);
-            if ((ns.kind == Namespace.KIND_PACKAGE) || (ns.kind == Namespace.KIND_PACKAGE_INTERNAL)) {
-                trait.convertPackaged(null, convertData, "", abc, false, exportMode, scriptIndex, -1, writer, new ArrayList<>(), parallel);
+            int nskind = name.getSimpleNamespaceKind(abc.constants);
+            if ((nskind == Namespace.KIND_PACKAGE) || (nskind == Namespace.KIND_PACKAGE_INTERNAL)) {
+                trait.convertPackaged(usedDeobfuscations, swfVersion, abcIndex, null, convertData, "", abc, false, exportMode, scriptIndex, -1, writer, new ArrayList<>(), parallel, scopeStack);
             } else {
-                trait.convert(null, convertData, "", abc, false, exportMode, scriptIndex, -1, writer, new ArrayList<>(), parallel);
+                trait.convert(usedDeobfuscations, swfVersion, abcIndex, null, convertData, "", abc, false, exportMode, scriptIndex, -1, writer, new ArrayList<>(), parallel, scopeStack);
             }
         }
     }
 
-    private void appendTo(GraphTextWriter writer, List<Trait> traits, ConvertData convertData, ScriptExportMode exportMode, boolean parallel) throws InterruptedException {
+    /**
+     * Append script to writer.
+     *
+     * @param usedDeobfuscations Used deobfuscations
+     * @param abcIndex Abc indexing
+     * @param writer Writer
+     * @param traits Traits
+     * @param convertData Convert data
+     * @param exportMode Export mode
+     * @param parallel Parallel
+     * @param exportAllClasses Export all classes - reference it in document
+     * class
+     * @throws InterruptedException On interrupt
+     */
+    @SuppressWarnings("unchecked")
+    private void appendTo(Set<String> usedDeobfuscations, AbcIndexing abcIndex, GraphTextWriter writer, List<Trait> traits, ConvertData convertData, ScriptExportMode exportMode, boolean parallel, boolean exportAllClasses) throws InterruptedException {
+
+        int swfVersion = -1;
+        if (getOpenable() instanceof SWF) {
+            swfVersion = ((SWF) getOpenable()).version;
+        }
+
         boolean first = true;
         //script initializer
         int script_init = abc.script_info.get(scriptIndex).init_index;
         int bodyIndex = abc.findBodyIndex(script_init);
-        if (bodyIndex != -1 && Configuration.enableScriptInitializerDisplay.get()) {
+
+        if (!isSimple && traitIndices.isEmpty()) {
+            for (Trait t : abc.script_info.get(scriptIndex).traits.traits) {
+
+                if (t instanceof TraitSlotConst) {
+                    continue;
+                }
+                
+                Multiname mn = t.getName(abc);
+                Namespace ns = mn.getNamespace(abc.constants);
+                int nskind = ns.kind;
+                
+                if ((nskind != Namespace.KIND_PACKAGE) && (nskind != Namespace.KIND_PACKAGE_INTERNAL)) {
+                    continue;
+                }
+
+                String fullName = mn.getNameWithNamespace(usedDeobfuscations, abc, abc.constants, false).toPrintableString(usedDeobfuscations, abc.getSwf(), true);
+                writer.appendNoHilight("include \"" + fullName.replace(".", "/") + ".as\";").newLine();
+            }
+            writer.newLine();
+        }
+
+        DottedChain pkg = getPathPackage();
+
+        List<Trait> traitList = new ArrayList<>();
+        List<Integer> traitIndicesList = new ArrayList<>(traitIndices);
+        for (int t : traitIndices) {
+            Trait trait = traits.get(t);
+            traitList.add(trait);
+        }
+
+        List<DottedChain> fullyQualifiedNames = new ArrayList<>();
+
+        for (int t = 0; t < traitList.size(); t++) {
+
+            Trait trait = traitList.get(t);
+
+            int nskind = trait.getName(abc).getSimpleNamespaceKind(abc.constants);
+            if ((nskind != Namespace.KIND_PACKAGE) && (nskind != Namespace.KIND_PACKAGE_INTERNAL)) {
+                continue;
+            }
+
+            if (!first) {
+                writer.newLine();
+            }
+            writer.startTrait(traitIndicesList.get(t));
+            trait.toStringPackaged(usedDeobfuscations, swfVersion, abcIndex, null, convertData, "", abc, false, exportMode, scriptIndex, -1, writer, fullyQualifiedNames, parallel, false);
+
+            if (!(trait instanceof TraitClass)) {
+                writer.endTrait();
+            }
+            first = false;
+            traitList.remove(t);
+            traitIndicesList.remove(t);
+            t--;
+        }
+
+        if (!first) {
+            writer.newLine();
+        }
+        // Remaining traits are outside the package block (file-private classes /
+        // script functions). They are not in getPathPackage(), so same-package
+        // public types must still be imported (ignorePackage = null).
+        //
+        // Only scan script_init when a TraitSlotConst remains: ASC wires
+        // file-private functions via newfunction there, and top-level script
+        // code shares that initializer. writeImports then drops same-script
+        // public self-imports that only come from class registration.
+        if (!traitList.isEmpty()) {
+            boolean needsScriptInitDeps = false;
+            for (Trait t : traitList) {
+                if (t instanceof TraitSlotConst) {
+                    needsScriptInitDeps = true;
+                    break;
+                }
+            }
+            Trait.writeImports(usedDeobfuscations, traitList, needsScriptInitDeps ? script_init : -1, abcIndex, scriptIndex, -1, true, abc, writer, null, fullyQualifiedNames);
+        }
+        first = true;
+
+        for (int t = 0; t < traitList.size(); t++) {
+            Trait trait = traitList.get(t);
+            if (trait instanceof TraitSlotConst) {
+                continue;
+            }
+            if (!first) {
+                writer.newLine();
+            }
+            writer.startTrait(traitIndicesList.get(t));
+            trait.toString(usedDeobfuscations, swfVersion, abcIndex, pkg, null, convertData, "", abc, false, exportMode, scriptIndex, -1, writer, new ArrayList<>(), parallel, false);
+
+            if (!(trait instanceof TraitClass)) {
+                writer.endTrait();
+            }
+            first = false;
+            traitList.remove(t);
+            traitIndicesList.remove(t);
+            t--;
+        }
+
+        //Slot const last
+        for (int t = 0; t < traitList.size(); t++) {
+
+            Trait trait = traitList.get(t);
+
+            if (!(trait instanceof TraitSlotConst)) {
+                continue;
+            }
+
+            if (convertData.assignedValues.containsKey((TraitSlotConst) trait)) {
+                continue;
+            }
+
+            if (!first) {
+                writer.newLine();
+            }
+            writer.startTrait(traitIndicesList.get(t));
+            Multiname name = trait.getName(abc);
+            int nskind = name.getSimpleNamespaceKind(abc.constants);
+            if ((nskind == Namespace.KIND_PACKAGE) || (nskind == Namespace.KIND_PACKAGE_INTERNAL)) {
+                trait.toStringPackaged(usedDeobfuscations, swfVersion, abcIndex, null, convertData, "", abc, false, exportMode, scriptIndex, -1, writer, new ArrayList<>(), parallel, false);
+            } else {
+                trait.toString(usedDeobfuscations, swfVersion, abcIndex, pkg, null, convertData, "", abc, false, exportMode, scriptIndex, -1, writer, new ArrayList<>(), parallel, false);
+            }
+            writer.endTrait();
+            first = false;
+        }
+
+        if (bodyIndex != -1 && (isSimple || traitIndices.isEmpty())) {
             //Note: There must be trait/method highlight even if the initializer is empty to TraitList in GUI to work correctly
-            //TODO: handle this better in GUI(?)
             writer.startTrait(GraphTextWriter.TRAIT_SCRIPT_INITIALIZER);
-            writer.startMethod(script_init);
+            writer.startMethod(script_init, null);
             if (exportMode != ScriptExportMode.AS_METHOD_STUBS) {
                 if (!scriptInitializerIsEmpty) {
-                    writer.startBlock();
-                    abc.bodies.get(bodyIndex).toString(path +/*packageName +*/ "/.scriptinitializer", exportMode, abc, null, writer, new ArrayList<>(), new HashSet<>());
-                    writer.endBlock();
+                    List<MethodBody> callStack = new ArrayList<>();
+                    callStack.add(abc.bodies.get(bodyIndex));
+                    if (!first) {
+                        writer.newLine();
+                    }
+                    abc.bodies.get(bodyIndex).toString(usedDeobfuscations, swfVersion, callStack, abcIndex, path + "/.scriptinitializer", exportMode, abc, null, writer, fullyQualifiedNames, new HashSet<>(), -1);
                 } else {
-                    writer.append(" ");
+                    writer.append("");
                 }
             }
             writer.endMethod();
             writer.endTrait();
             if (!scriptInitializerIsEmpty) {
                 writer.newLine();
+                first = false;
             }
-            first = false;
-        } else {
-            //"/*classInitializer*/";
         }
 
-        for (int t : traitIndices) {
-            if (!first) {
-                writer.newLine();
+        if (exportAllClasses) {
+            String documentClass = abc.getSwf().getDocumentClass();
+            if (documentClass != null) {
+                if (path.toRawString().equals(documentClass)) {
+                    writer.append("//Include all classes in the build").append("\r\n");
+                    writer.append("function __ffdec_include_classes():void { FFDecIncludeClasses; }");
+                }
             }
-
-            Trait trait = traits.get(t);
-
-            if (!(trait instanceof TraitClass)) {
-                writer.startTrait(t);
-            }
-            Multiname name = trait.getName(abc);
-            Namespace ns = name.getNamespace(abc.constants);
-            if ((ns.kind == Namespace.KIND_PACKAGE) || (ns.kind == Namespace.KIND_PACKAGE_INTERNAL)) {
-                trait.toStringPackaged(null, convertData, "", abc, false, exportMode, scriptIndex, -1, writer, new ArrayList<>(), parallel);
-            } else {
-                trait.toString(null, convertData, "", abc, false, exportMode, scriptIndex, -1, writer, new ArrayList<>(), parallel);
-            }
-            if (!(trait instanceof TraitClass)) {
-                writer.endTrait();
-            }
-            first = false;
         }
+        IdentifiersDeobfuscation.writeCurrentScriptReplacements(writer, usedDeobfuscations, abc.getSwf());
     }
 
-    public void toSource(GraphTextWriter writer, final List<Trait> traits, final ConvertData convertData, final ScriptExportMode exportMode, final boolean parallel, boolean ignoreFrameScripts) throws InterruptedException {
+    /**
+     * Converts the script pack to source.
+     *
+     * @param abcIndex Abc indexing
+     * @param writer Writer
+     * @param traits Traits
+     * @param convertData Convert data
+     * @param exportMode Export mode
+     * @param parallel Parallel
+     * @param ignoreFrameScripts Whether to ignore frame scripts
+     * @param exportAllClasses Export all classes
+     * @throws InterruptedException On interrupt
+     */
+    public void toSource(AbcIndexing abcIndex, GraphTextWriter writer, final List<Trait> traits, final ConvertData convertData, final ScriptExportMode exportMode, final boolean parallel, boolean ignoreFrameScripts, boolean exportAllClasses) throws InterruptedException {
         writer.suspendMeasure();
+        Set<String> usedDeobfuscations = Collections.synchronizedSet(new LinkedHashSet<>());
         int timeout = Configuration.decompilationTimeoutFile.get();
         try {
-            CancellableWorker.call(new Callable<Void>() {
+            CancellableWorker.call("script.scriptPack.toSource", new Callable<Void>() {
                 @Override
                 public Void call() throws Exception {
-                    convert(new NulWriter(), traits, convertData, exportMode, parallel);
+                    convert(usedDeobfuscations, abcIndex, new NulWriter(), traits, convertData, exportMode, parallel);
                     return null;
                 }
             }, timeout, TimeUnit.SECONDS);
@@ -296,10 +538,21 @@ public class ScriptPack extends AS3ClassTreeItem {
         }
         writer.continueMeasure();
 
-        appendTo(writer, traits, convertData, exportMode, parallel);
+        appendTo(usedDeobfuscations, abcIndex, writer, traits, convertData, exportMode, parallel, exportAllClasses);
     }
 
-    public File export(File file, ScriptExportSettings exportSettings, boolean parallel) throws IOException, InterruptedException {
+    /**
+     * Exports the script pack.
+     *
+     * @param abcIndex Abc indexing
+     * @param file File
+     * @param exportSettings Export settings
+     * @param parallel Parallel
+     * @return File
+     * @throws IOException On I/O error
+     * @throws InterruptedException On interrupt
+     */
+    public File export(AbcIndexing abcIndex, File file, ScriptExportSettings exportSettings, boolean parallel) throws IOException, InterruptedException {
         if (!exportSettings.singleFile) {
             if (file.exists() && !Configuration.overwriteExistingFiles.get()) {
                 return file;
@@ -314,7 +567,11 @@ public class ScriptPack extends AS3ClassTreeItem {
             FileTextWriter writer2 = exportSettings.singleFile ? exportSettings.singleFileWriter : writer;
             ConvertData convertData = new ConvertData();
             convertData.ignoreFrameScripts = exportSettings.ignoreFrameScripts;
-            toSource(writer2, abc.script_info.get(scriptIndex).traits.traits, convertData, exportSettings.mode, parallel, exportSettings.ignoreFrameScripts);
+            convertData.ignoreAccessibility = exportSettings.ignoreAccessibility;
+            convertData.exportEmbed = exportSettings.exportEmbed;
+            convertData.exportEmbedFlaMode = exportSettings.exportEmbedFlaMode;
+            convertData.assetsDir = exportSettings.assetsDir;
+            toSource(abcIndex, writer2, abc.script_info.get(scriptIndex).traits.traits, convertData, exportSettings.mode, parallel, exportSettings.ignoreFrameScripts, exportSettings.includeAllClasses);
         } catch (FileNotFoundException ex) {
             logger.log(Level.SEVERE, "The file path is probably too long", ex);
         }
@@ -322,6 +579,11 @@ public class ScriptPack extends AS3ClassTreeItem {
         return file;
     }
 
+    /**
+     * Hash code.
+     *
+     * @return Hash code
+     */
     @Override
     public int hashCode() {
         int hash = 7;
@@ -331,6 +593,12 @@ public class ScriptPack extends AS3ClassTreeItem {
         return hash;
     }
 
+    /**
+     * Equals.
+     *
+     * @param obj Object
+     * @return True if equals
+     */
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -349,6 +617,11 @@ public class ScriptPack extends AS3ClassTreeItem {
         return Objects.equals(path, other.path);
     }
 
+    /**
+     * Gets modified flag.
+     *
+     * @return True if modified
+     */
     @Override
     public boolean isModified() {
         if (scriptIndex >= abc.script_info.size()) {
@@ -358,18 +631,67 @@ public class ScriptPack extends AS3ClassTreeItem {
     }
 
     /**
-     * Injects debugfile, debugline instructions into the code
+     * Clears modified flag.
+     */
+    public void clearModified() {
+        if (scriptIndex >= abc.script_info.size()) {
+            return;
+        }
+        abc.script_info.get(scriptIndex).setModified(false);
+    }
+
+    @Override
+    protected SWF getSwf() {
+        return abc.getSwf();
+    }
+
+    /**
+     * Label with address.
+     */
+    private class Label {
+
+        /**
+         * Address
+         */
+        public long addr;
+
+        /**
+         * Constructs a new label.
+         *
+         * @param addr Address
+         */
+        public Label(long addr) {
+            this.addr = addr;
+        }
+
+    }
+
+    /**
+     * Injects debugfile, debugline instructions into the code.
      *
+     * <p>
      * Based on idea of Jacob Thompson
      * http://securityevaluators.com/knowledge/flash/
      */
     public void injectDebugInfo(File directoryPath) {
+        injectDebugInfo(directoryPath, "main");
+    }
+
+    /**
+     * Injects debugfile, debugline instructions into the code.
+     *
+     * @param directoryPath Directory path
+     * @param swfHash SWF identifier
+     */
+    public void injectDebugInfo(File directoryPath, String swfHash) {
         Map<Integer, Map<Integer, Integer>> bodyToPosToLine = new HashMap<>();
         Map<Integer, Map<Integer, Integer>> bodyLineToPos = new HashMap<>();
         Map<Integer, Map<Integer, String>> bodyToRegToName = new HashMap<>();
         Map<Integer, Map<Integer, Integer>> bodyToRegToLine = new HashMap<>();
-
+        Map<Integer, Integer> bodyToActivationReg = new HashMap<>();
         Set<Integer> lonelyBody = new HashSet<>();
+        Map<Integer, Integer> bodyLines = new HashMap<>();
+        Map<Integer, String> bodyToFunctionName = new HashMap<>();
         try {
             HighlightedText decompiled = SWF.getCached(this);
             int line = 1;
@@ -377,8 +699,12 @@ public class ScriptPack extends AS3ClassTreeItem {
             txt = txt.replace("\r", "");
 
             for (int i = 0; i < txt.length(); i++) {
+                /*if ((i % 1000) == 0) {
+                    int percent = i * 100 / txt.length();
+                    System.err.println("" + i + "/" + txt.length() + " (" + percent + "%)");
+                }*/
                 blk:
-                {
+                while (true) {
                     Highlighting sh = Highlighting.searchPos(decompiled.getSpecialHighlights(), i);
 
                     Highlighting cls = Highlighting.searchPos(decompiled.getClassHighlights(), i);
@@ -393,7 +719,7 @@ public class ScriptPack extends AS3ClassTreeItem {
                     if (method == null) {
                         break blk;
                     }
-                    Highlighting instr = Highlighting.searchPos(decompiled.getInstructionHighlights(), i); //h
+                    Highlighting instr = Highlighting.searchPos(decompiled.getInstructionHighlights(), i); //h                    
                     /*if (instr == null) {
                      continue;
                      }*/
@@ -403,6 +729,14 @@ public class ScriptPack extends AS3ClassTreeItem {
                     if (bodyIndex == -1) {
                         break blk;
                     }
+                    if (!bodyLines.containsKey(bodyIndex)) {
+                        bodyLines.put(bodyIndex, line);
+                    }
+                    if (!bodyToFunctionName.containsKey(bodyIndex)) {
+                        bodyToFunctionName.put(bodyIndex, method.getProperties().localName);
+                    }
+
+                    bodyToActivationReg.put(bodyIndex, method.getProperties().activationRegIndex);
                     int pos = -1;
                     int regIndex = -1;
                     String regName = null;
@@ -417,16 +751,6 @@ public class ScriptPack extends AS3ClassTreeItem {
                         }
 
                         long instrOffset = instr.getProperties().firstLineOffset;
-                        if (trt != null && cls != null) {
-                            int traitIndex = (int) trt.getProperties().index;
-
-                            Trait trait = abc.findTraitByTraitId(classIndex, traitIndex);
-                            if (((trait instanceof TraitMethodGetterSetter) && (((TraitMethodGetterSetter) trait).method_info != methodIndex))
-                                    || ((trait instanceof TraitFunction) && (((TraitFunction) trait).method_info != methodIndex))) {
-                                //continue; //inner anonymous function - ignore. TODO: make work
-                            }
-                        }
-
                         if (instrOffset == -1) {
                             lonelyBody.add(bodyIndex);
                             break blk;
@@ -461,6 +785,7 @@ public class ScriptPack extends AS3ClassTreeItem {
                             bodyToRegToLine.get(bodyIndex).put(regIndex, line);
                         }
                     }
+                    break;
                 }
                 if (txt.charAt(i) == '\n') {
                     line++;
@@ -478,7 +803,14 @@ public class ScriptPack extends AS3ClassTreeItem {
         //String filepath = path.toString().replace('.', '/') + ".as";
         String pkg = path.packageStr.toString();
         String cls = path.className;
-        String filename = new File(directoryPath, path.packageStr.toFilePath()) + ";" + pkg.replace(".", File.separator) + ";" + cls + ".as";
+        String filename = new File(directoryPath, path.packageStr.toFilePath(abc.getSwf())).getPath().replace(";", "{{semicolon}}")
+                + ";"
+                + swfHash + ":"
+                + pkg.replace(".", File.separator).replace(";", "{{semicolon}}")
+                + ";"
+                + cls.replace(";", "{{semicolon}}")
+                + ".as";
+        filename = filename.replaceAll("\\{(invalid_utf8=[0-9]+)\\}", "[$1]");
 
         //Remove debug info from lonely bodies
         for (int bodyIndex : lonelyBody) {
@@ -519,48 +851,138 @@ public class ScriptPack extends AS3ClassTreeItem {
                     delIns.add(ins);
                 }
             }
-            int dpos = 0;
-            b.insertInstruction(0, new AVM2Instruction(0, AVM2Instructions.DebugFile, new int[]{abc.constants.getStringId(filename, true)}), true);
-            dpos++;
+            List<Object> code2 = new ArrayList<>();
+
+            code2.add(new AVM2Instruction(0, AVM2Instructions.DebugFile, new int[]{abc.constants.getStringId(filename, true)}));
             Set<Integer> regs = bodyToRegToName.containsKey(bodyIndex) ? bodyToRegToName.get(bodyIndex).keySet() : new TreeSet<>();
             for (int r : regs) {
                 String name = bodyToRegToName.get(bodyIndex).get(r);
                 int line = bodyToRegToLine.get(bodyIndex).get(r);
-                b.insertInstruction(dpos++, new AVM2Instruction(0, AVM2Instructions.Debug, new int[]{1, abc.constants.getStringId(name, true), r - 1, line}));
+                code2.add(new AVM2Instruction(0, AVM2Instructions.Debug, new int[]{1, abc.constants.getStringId(name, true), r - 1, line}));
+            }
+            int activationReg = -1;
+            if (bodyToActivationReg.containsKey(bodyIndex)) {
+                activationReg = bodyToActivationReg.get(bodyIndex);
+            }
+            if (activationReg > -1) {
+                int bodyLine = bodyLines.containsKey(bodyIndex) ? bodyLines.get(bodyIndex) : 0;
+                String activationRegName = "anonymous$0";
+                if (bodyToFunctionName.containsKey(bodyIndex) && bodyToFunctionName.get(bodyIndex) != null) {
+                    activationRegName = bodyToFunctionName.get(bodyIndex) + "$0";
+                }
+                code2.add(new AVM2Instruction(0, AVM2Instructions.Debug, new int[]{1, abc.constants.getStringId(activationRegName, true), activationReg - 1, bodyLine}));
             }
             List<Integer> pos = new ArrayList<>(bodyToPosToLine.get(bodyIndex).keySet());
             Collections.sort(pos);
             Collections.reverse(pos);
             Set<Integer> addedLines = new HashSet<>();
-            loopi:
+            Set<Long> importantOffsets = b.getCode().getImportantOffsets(b, true);
+            Map<Integer, Integer> origPosToNewPos = new HashMap<>();
+            for (int i = 0; i < code.size(); i++) {
+                long adr = b.getCode().pos2adr(i);
+                if (importantOffsets.contains(adr)) {
+                    code2.add(new Label(adr));
+                }
+                origPosToNewPos.put(i, code2.size());
+                if (delIns.contains(code.get(i))) {
+                    continue;
+                }
+                code2.add(code.get(i));
+            }
             for (int i : pos) {
                 int line = bodyToPosToLine.get(bodyIndex).get(i);
                 if (addedLines.contains(line)) {
                     continue;
                 }
+                if (!origPosToNewPos.containsKey(i)) {
+                    continue;
+                }
                 addedLines.add(line);
                 logger.log(Level.FINE, "Script {0}: Insert debugline({1}) at pos {2} to body {3}", new Object[]{path, line, i, bodyIndex});
-                b.insertInstruction(i + dpos, new AVM2Instruction(0, AVM2Instructions.DebugLine, new int[]{line}));
+                code2.add(origPosToNewPos.get(i), new AVM2Instruction(0, AVM2Instructions.DebugLine, new int[]{line}));
             }
-            //remove old debug instructions
-            for (int i = 0; i < code.size(); i++) {
-                AVM2Instruction ins = code.get(i);
-                for (AVM2Instruction d : delIns) {
-                    if (ins == d) {
-                        b.removeInstruction(i);
-                        i--;
-                        break;
-                    }
+            long adr = 0;
+            Map<Long, Long> mapOffsets = new HashMap<>();
+            for (int i = 0; i < code2.size(); i++) {
+                Object obj = code2.get(i);
+                if (obj instanceof AVM2Instruction) {
+                    AVM2Instruction ins = (AVM2Instruction) obj;
+                    adr += ins.getBytesLength();
+                }
+                if (obj instanceof Label) {
+                    Label lab = (Label) obj;
+                    mapOffsets.put(lab.addr, adr);
                 }
             }
+            code.clear();
 
+            adr = 0;
+            for (int i = 0; i < code2.size(); i++) {
+                Object obj = code2.get(i);
+                if (obj instanceof AVM2Instruction) {
+                    AVM2Instruction ins = (AVM2Instruction) obj;
+                    long targetAddr;
+                    long changedAddr;
+                    int changedOperand;
+                    if (ins.definition instanceof IfTypeIns) {
+                        targetAddr = ins.getTargetAddress();
+                        if (mapOffsets.containsKey(targetAddr)) {
+                            changedAddr = mapOffsets.get(targetAddr);
+                            changedOperand = (int) (changedAddr - adr - 4);
+                            ins.operands[0] = changedOperand;
+                        } else {
+                            logger.log(Level.WARNING, "Invalid jump target in script {0}, bodyIndex {1}", new Object[]{toString(), bodyIndex});
+                        }
+                    }
+                    if (ins.definition instanceof LookupSwitchIns) {
+                        targetAddr = ins.getAddress() + ins.operands[0];
+                        if (mapOffsets.containsKey(targetAddr)) {
+                            changedAddr = mapOffsets.get(targetAddr);
+                            changedOperand = (int) (changedAddr - adr);
+                            ins.operands[0] = changedOperand;
+                        } else {
+                            logger.log(Level.WARNING, "Invalid jump target in script {0}, bodyIndex {1}", new Object[]{toString(), bodyIndex});
+                        }
+                        for (int k = 2; k < ins.operands.length; k++) {
+                            targetAddr = ins.getAddress() + ins.operands[k];
+                            if (mapOffsets.containsKey(targetAddr)) {
+                                changedAddr = mapOffsets.get(targetAddr);
+                                changedOperand = (int) (changedAddr - adr);
+                                ins.operands[k] = changedOperand;
+                            } else {
+                                logger.log(Level.WARNING, "Invalid jump target in script {0}, bodyIndex {1}", new Object[]{toString(), bodyIndex});
+                            }
+                        }
+                    }
+                    ins.setAddress(adr);
+                    adr += ins.getBytesLength();
+                    code.add(ins);
+                }
+            }
+            for (ABCException ex : b.exceptions) {
+                long lstart = ex.start;
+                long ltarget = ex.target;
+                long lend = ex.end;
+                lstart = mapOffsets.get(lstart);
+                ltarget = mapOffsets.get(ltarget);
+                lend = mapOffsets.get(lend);
+                ex.start = (int) lstart;
+                ex.target = (int) ltarget;
+                ex.end = (int) lend;
+            }
             b.setModified();
         }
 
         ((Tag) abc.parentTag).setModified(true);
     }
 
-    public void injectPCodeDebugInfo(int abcIndex) {
+    /**
+     * Injects P-code debugfile, debugline instructions into the code.
+     *
+     * @param abcIndex Abc indexing
+     * @param swfHash SWF identifier
+     */
+    public void injectPCodeDebugInfo(int abcIndex, String swfHash) {
 
         Map<Integer, String> bodyToIdentifier = new HashMap<>();
 
@@ -571,7 +993,7 @@ public class ScriptPack extends AS3ClassTreeItem {
 
             for (int i = 0; i < txt.length(); i++) {
                 blk:
-                {
+                while (true) {
                     Highlighting sh = Highlighting.searchPos(decompiled.getSpecialHighlights(), i);
 
                     Highlighting cls = Highlighting.searchPos(decompiled.getClassHighlights(), i);
@@ -592,14 +1014,9 @@ public class ScriptPack extends AS3ClassTreeItem {
                     int traitIndex = -10;
                     if (trt != null && cls != null) {
                         traitIndex = (int) trt.getProperties().index;
-
-                        trait = abc.findTraitByTraitId(classIndex, traitIndex);
-                        if (((trait instanceof TraitMethodGetterSetter) && (((TraitMethodGetterSetter) trait).method_info != methodIndex))
-                                || ((trait instanceof TraitFunction) && (((TraitFunction) trait).method_info != methodIndex))) {
-                            continue; //inner anonymous function - ignore. TODO: make work
-                        }
                     }
                     bodyToIdentifier.put(bodyIndex, "abc:" + abcIndex + ",script:" + scriptIndex + ",class:" + classIndex + ",trait:" + traitIndex + ",method:" + methodIndex + ",body:" + bodyIndex);
+                    break;
                 }
             }
         } catch (InterruptedException ex) {
@@ -641,7 +1058,9 @@ public class ScriptPack extends AS3ClassTreeItem {
                     i -= 2;
                 }
             }
-            String filename = "#PCODE " + bodyName + ";" + pkg.replace(".", File.separator) + ";" + cls + ".as";
+            String filename = swfHash + ":" + "#PCODE " + bodyName + ";" + pkg.replace(".", File.separator).replace(";", "{{semicolon}}") + ";" + cls.replace(";", "{{semicolon}}") + ".as";
+            
+            filename = filename.replaceAll("\\{(invalid_utf8=[0-9]+)\\}", "[$1]");
 
             b.insertInstruction(0, new AVM2Instruction(0, AVM2Instructions.DebugFile, new int[]{abc.constants.getStringId(filename, true)}));
             b.setModified();
@@ -650,6 +1069,11 @@ public class ScriptPack extends AS3ClassTreeItem {
         ((Tag) abc.parentTag).setModified(true);
     }
 
+    /**
+     * Gets method ids.
+     *
+     * @param methodInfos Result list of MethodIds
+     */
     public void getMethodInfos(List<MethodId> methodInfos) {
         int script_init = abc.script_info.get(scriptIndex).init_index;
         methodInfos.add(new MethodId(GraphTextWriter.TRAIT_SCRIPT_INITIALIZER, -1, script_init));
@@ -661,6 +1085,12 @@ public class ScriptPack extends AS3ClassTreeItem {
         }
     }
 
+    /**
+     * Deletes the script pack.
+     *
+     * @param abc ABC file
+     * @param d Whether to delete
+     */
     public void delete(ABC abc, boolean d) {
         ScriptInfo si = abc.script_info.get(scriptIndex);
         if (isSimple) {
@@ -670,5 +1100,15 @@ public class ScriptPack extends AS3ClassTreeItem {
                 si.traits.traits.get(t).delete(abc, d);
             }
         }
+    }
+
+    public boolean isDocumentClass() {
+        String documentClass = abc.getSwf().getDocumentClass();
+        if (documentClass != null) {
+            if (documentClass.equals(getClassPath().toRawString())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

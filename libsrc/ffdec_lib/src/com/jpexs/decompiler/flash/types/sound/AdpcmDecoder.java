@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types.sound;
 
 import com.jpexs.decompiler.flash.EndOfStreamException;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 /**
+ * ADPCM sound decoder.
  *
  * @author JPEXS
  */
@@ -55,6 +57,10 @@ public class AdpcmDecoder extends SoundDecoder {
         27086, 29794, 32767
     };
 
+    /**
+     * Constructor.
+     * @param soundFormat Sound format
+     */
     public AdpcmDecoder(SoundFormat soundFormat) {
         super(soundFormat);
     }
@@ -64,7 +70,7 @@ public class AdpcmDecoder extends SoundDecoder {
         public int index;
 
         public int sample;
-    };
+    }
 
     private static int decode2bit(int deltaCode, AdpcmState state) {
         assert (deltaCode == (deltaCode & 3));
@@ -208,7 +214,7 @@ public class AdpcmDecoder extends SoundDecoder {
     @Override
     public void decode(SWFInputStream sis, OutputStream os) throws IOException {
         int adpcm_code_size;
-        SWFOutputStream sos = new SWFOutputStream(os, SWF.DEFAULT_VERSION);
+        SWFOutputStream sos = new SWFOutputStream(os, SWF.DEFAULT_VERSION, sis.getCharset());
         adpcm_code_size = (int) sis.readUB(2, "adpcm_code_size");
         int bits_per_code = adpcm_code_size + 2;
         try {
@@ -278,6 +284,7 @@ public class AdpcmDecoder extends SoundDecoder {
                 }
             } while (sis.available() > 0);
         } catch (EndOfStreamException eos) {
+            //ignored
         }
     }
 }

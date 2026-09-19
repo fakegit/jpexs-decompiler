@@ -1,15 +1,28 @@
+/*
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
+ * 
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.0 of the License, or (at your option) any later version.
+ * 
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.importers.svg.css;
 
 import com.jpexs.helpers.Reference;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
- *
  * CSS Stylesheet parser. Based on https://www.w3.org/TR/CSS21/grammar.html
  *
  * @author JPEXS
@@ -25,14 +38,23 @@ public class CssParser {
     private final List<List<String>> propNames = new ArrayList<>();
     private final List<List<String>> propValues = new ArrayList<>();
 
-    private final List<Integer> specifities = new ArrayList<>();
+    private final List<Integer> specificities = new ArrayList<>();
 
+    /**
+     * Constructor.
+     * @param s CSS string
+     */
     public CssParser(String s) {
         this.s = s;
         this.lexer = new CssLexer(new StringReader(s));
     }
 
-    public void styleshet() throws IOException, CssParseException {
+    /**
+     * Parse CSS stylesheet.
+     * @throws IOException On I/O error
+     * @throws CssParseException On parse error
+     */
+    public void stylesheet() throws IOException, CssParseException {
         CssParsedSymbol symb = lex();
         if (symb.type == CssSymbolType.CHARSET_SYM) {
             expect(CssSymbolType.STRING);
@@ -85,14 +107,14 @@ public class CssParser {
 
     private boolean ruleset() throws IOException, CssParseException {
         int posSelectorStart = lexer.getPos();
-        int specifity = selector();
-        if (specifity == -1) {
+        int specificity = selector();
+        if (specificity == -1) {
             return false;
         }
         CssParsedSymbol symb = lex();
         while (symb.isType(",")) {
             sstar();
-            specifity += selector();
+            specificity += selector();
             symb = lex();
         }
         expect(symb, "{");
@@ -100,7 +122,7 @@ public class CssParser {
         int posSelectorEnd = lexer.getPos() - 1;
         String selectorStr = s.substring(posSelectorStart, posSelectorEnd).trim();
         selectors.add(selectorStr);
-        specifities.add(specifity);
+        specificities.add(specificity);
 
         int declarationsStart = lexer.getPos();
         Reference<String> propName = new Reference<>("");
@@ -142,8 +164,8 @@ public class CssParser {
     }
 
     private int selector() throws IOException, CssParseException {
-        int specifity = simple_selector();
-        if (specifity == -1) {
+        int specificity = simple_selector();
+        if (specificity == -1) {
             return -1;
         }
 
@@ -154,44 +176,44 @@ public class CssParser {
             }
             if (symb.isType("+", ">")) {
                 sstar();
-                specifity += selector();
+                specificity += selector();
             } else {
                 lexer.pushback(symb);
                 if (symb.isType("*", ".", "[", ":") || symb.isType(CssSymbolType.IDENT, CssSymbolType.HASH)) {
-                    specifity += selector();
+                    specificity += selector();
                 }
             }
         } else if (symb.isType("+", ">")) {
             sstar();
-            specifity += selector();
+            specificity += selector();
         } else {
             lexer.pushback(symb);
         }
-        return specifity;
+        return specificity;
     }
 
     private int simple_selector() throws IOException, CssParseException {
         CssParsedSymbol symb = lex();
-        int specifity = 0;
+        int specificity = 0;
         if (symb.isType(CssSymbolType.IDENT) || symb.isType("*")) {
             if (symb.isType(CssSymbolType.IDENT)) {
-                specifity += 1;
+                specificity += 1;
             }
             while (true) {
                 symb = lex();
                 if (symb.type == CssSymbolType.HASH) {
-                    specifity += 100;
+                    specificity += 100;
                 } else if (symb.isType(".")) {
                     expect(CssSymbolType.IDENT);
-                    specifity += 10;
+                    specificity += 10;
                 } else if (symb.isType("[")) {
                     lexer.pushback(symb);
                     attrib();
-                    specifity += 10;
+                    specificity += 10;
                 } else if (symb.isType(":")) {
                     lexer.pushback(symb);
                     pseudo();
-                    specifity += 10;
+                    specificity += 10;
                 } else {
                     lexer.pushback(symb);
                     break;
@@ -201,21 +223,21 @@ public class CssParser {
             int count = 0;
             while (true) {
                 if (symb.type == CssSymbolType.HASH) {
-                    specifity += 100;
+                    specificity += 100;
                     count++;
                 } else if (symb.isType(".")) {
                     expect(CssSymbolType.IDENT);
-                    specifity += 10;
+                    specificity += 10;
                     count++;
                 } else if (symb.isType("[")) {
                     lexer.pushback(symb);
                     attrib();
-                    specifity += 10;
+                    specificity += 10;
                     count++;
                 } else if (symb.isType(":")) {
                     lexer.pushback(symb);
                     pseudo();
-                    specifity += 10;
+                    specificity += 10;
                     count++;
                 } else {
                     if (count == 0) {
@@ -228,7 +250,7 @@ public class CssParser {
             }
             lexer.pushback(symb);
         }
-        return specifity;
+        return specificity;
     }
 
     private void pseudo() throws IOException, CssParseException {
@@ -356,7 +378,6 @@ public class CssParser {
         return true;
     }
 
-
     private void media() throws IOException, CssParseException {
         expect(CssSymbolType.MEDIA_SYM);
         sstar();
@@ -447,31 +468,67 @@ public class CssParser {
         throw new CssParseException(String.join(",", toPrint) + " expected but " + symb + " found");
     }
 
+    /**
+     * Gets count of rulesets.
+     * @return Count of rulesets
+     */
     public int getCountRulesets() {
         return declarations.size();
     }
 
+    /**
+     * Gets selector.
+     * @param index Index of selector
+     * @return Selector
+     */
     public String getSelector(int index) {
         return selectors.get(index);
     }
 
+    /**
+     * Gets declarations.
+     * @param index Index of declarations
+     * @return Declarations
+     */
     public String getDeclarations(int index) {
         return declarations.get(index);
     }
 
+    /**
+     * Gets count of properties in ruleset.
+     * @param index Index of ruleset
+     * @return Count of properties
+     */
     public int getPropertyCount(int index) {
         return propNames.get(index).size();
     }
 
+    /**
+     * Gets property name.
+     * @param ruleSetIndex Index of ruleset
+     * @param propertyIndex Index of property
+     * @return Property name
+     */
     public String getPropertyName(int ruleSetIndex, int propertyIndex) {
         return propNames.get(ruleSetIndex).get(propertyIndex);
     }
 
+    /**
+     * Gets property value.
+     * @param ruleSetIndex Index of ruleset
+     * @param propertyIndex Index of property
+     * @return Property value
+     */
     public String getPropertyValue(int ruleSetIndex, int propertyIndex) {
         return propValues.get(ruleSetIndex).get(propertyIndex);
     }
 
-    public int getSpecifity(int index) {
-        return specifities.get(index);
+    /**
+     * Gets specificity of ruleset.
+     * @param index Index of ruleset
+     * @return Specificity
+     */
+    public int getSpecificity(int index) {
+        return specificities.get(index);
     }
 }

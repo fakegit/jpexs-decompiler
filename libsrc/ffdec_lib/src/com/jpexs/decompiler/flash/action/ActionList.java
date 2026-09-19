@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,12 +12,11 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action;
 
 import com.jpexs.decompiler.flash.SWF;
-import static com.jpexs.decompiler.flash.action.Action.actionsToSource;
-import static com.jpexs.decompiler.flash.action.Action.actionsToString;
 import com.jpexs.decompiler.flash.action.special.ActionNop;
 import com.jpexs.decompiler.flash.action.special.ActionStore;
 import com.jpexs.decompiler.flash.action.swf4.ActionIf;
@@ -42,35 +41,106 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * List of actions.
  *
  * @author JPEXS
  */
 public class ActionList extends ArrayList<Action> {
 
+    /**
+     * Deobfuscation mode
+     */
     public int deobfuscationMode;
 
+    /**
+     * File data
+     */
     public byte[] fileData;
 
-    public ActionList() {
+    /**
+     * Charset - SWF version 5 or lower does not have UTF-8 charset
+     */
+    private String charset;
+    
+    /**
+     * SWF version
+     */
+    private int version;
+
+    /**
+     * Constructs a new action list with the specified charset.
+     *
+     * @param charset Charset
+     * @param version SWF version
+     */
+    public ActionList(String charset, int version) {
+        this.charset = charset;
+        this.version = version;
     }
 
-    public ActionList(Collection<Action> actions) {
+    /**
+     * Gets the charset.
+     *
+     * @return Charset
+     */
+    public String getCharset() {
+        return charset;
+    }
+
+    /**
+     * Gets SWF version.
+     * 
+     * @return SWF version
+     */
+    public int getVersion() {
+        return version;
+    }        
+
+    /**
+     * Constructs a new action list with the specified actions and charset.
+     *
+     * @param actions Actions
+     * @param charset Charset
+     */
+    public ActionList(Collection<Action> actions, String charset) {
         super(actions);
+        this.charset = charset;
     }
 
+    /**
+     * Sets actions.
+     *
+     * @param list Actions
+     */
     public void setActions(List<Action> list) {
         clear();
         addAll(list);
     }
 
-    public void removeAction(int index) {
-        ActionListReader.removeAction(this, index, true);
-    }
-
+    /**
+     * Removes actions.
+     *
+     * @param actionsToRemove Actions to remove
+     */
     public void removeActions(List<Action> actionsToRemove) {
         ActionListReader.removeActions(this, actionsToRemove, true);
     }
 
+    /**
+     * Removes action.
+     *
+     * @param index Index
+     */
+    public void removeAction(int index) {
+        ActionListReader.removeAction(this, index, true);
+    }
+
+    /**
+     * Removes action.
+     *
+     * @param index Index
+     * @param count Count
+     */
     public void removeAction(int index, int count) {
         if (size() <= index + count - 1) {
             // Can't remove count elements, only size - index is available
@@ -82,22 +152,49 @@ public class ActionList extends ArrayList<Action> {
         }
     }
 
+    /**
+     * Adds action.
+     *
+     * @param index Index
+     * @param action Action
+     */
     public void addAction(int index, Action action) {
         ActionListReader.addAction(this, index, action, false, false);
     }
 
+    /**
+     * Adds actions.
+     *
+     * @param index Index
+     * @param actions Actions
+     */
     public void addActions(int index, List<Action> actions) {
         ActionListReader.addActions(this, index, actions);
     }
 
+    /**
+     * Fixes action list.
+     */
     public void fixActionList() {
         ActionListReader.fixActionList(this, null);
     }
 
+    /**
+     * Gets container last actions.
+     *
+     * @param action Action
+     * @return Container last actions
+     */
     public List<Action> getContainerLastActions(Action action) {
         return ActionListReader.getContainerLastActions(this, action);
     }
 
+    /**
+     * Gets references for action.
+     *
+     * @param target Target
+     * @return References
+     */
     public Iterator<Action> getReferencesFor(final Action target) {
         return new Iterator<Action>() {
             private final Iterator<Action> iterator = ActionList.this.iterator();
@@ -160,6 +257,11 @@ public class ActionList extends ArrayList<Action> {
         };
     }
 
+    /**
+     * Gets constant pools.
+     *
+     * @return Constant pools
+     */
     public Iterable<ActionConstantPool> getConstantPools() {
         return () -> new Iterator<ActionConstantPool>() {
             private final Iterator<Action> iterator = ActionList.this.iterator();
@@ -196,6 +298,11 @@ public class ActionList extends ArrayList<Action> {
         };
     }
 
+    /**
+     * Gets pushes.
+     *
+     * @return Pushes
+     */
     public Iterable<ActionPush> getPushes() {
         return () -> new Iterator<ActionPush>() {
             private final Iterator<Action> iterator = ActionList.this.iterator();
@@ -232,6 +339,12 @@ public class ActionList extends ArrayList<Action> {
         };
     }
 
+    /**
+     * Gets constant pool index reference count.
+     *
+     * @param index Index
+     * @return Constant pool index reference count
+     */
     public int getConstantPoolIndexReferenceCount(int index) {
         int count = 0;
         for (Action action : this) {
@@ -251,6 +364,12 @@ public class ActionList extends ArrayList<Action> {
         return count;
     }
 
+    /**
+     * Gets inline constant pool string.
+     *
+     * @param index Index
+     * @param str String
+     */
     public void inlineConstantPoolString(int index, String str) {
         for (ActionPush push : getPushes()) {
             for (int i = 0; i < push.values.size(); i++) {
@@ -265,6 +384,9 @@ public class ActionList extends ArrayList<Action> {
         }
     }
 
+    /**
+     * Removes non-referenced constant pool items.
+     */
     public void removeNonReferencedConstantPoolItems() {
         int maxSize = 0;
         for (ActionConstantPool constantPool : getConstantPools()) {
@@ -314,6 +436,9 @@ public class ActionList extends ArrayList<Action> {
         }
     }
 
+    /**
+     * Removes nops.
+     */
     public void removeNops() {
         for (int i = 0; i < size(); i++) {
             if (get(i) instanceof ActionNop) {
@@ -322,15 +447,33 @@ public class ActionList extends ArrayList<Action> {
         }
     }
 
+    /**
+     * Gets action by address.
+     *
+     * @param address Address
+     * @return Action
+     */
     public Action getByAddress(long address) {
         int idx = getIndexByAddress(address);
         return idx == -1 ? null : get(idx);
     }
 
+    /**
+     * Gets index by action.
+     *
+     * @param action Action
+     * @return Index
+     */
     public int getIndexByAction(Action action) {
         return getIndexByAddress(action.getAddress());
     }
 
+    /**
+     * Gets index by address.
+     *
+     * @param address Address
+     * @return Index
+     */
     public int getIndexByAddress(long address) {
         int min = 0;
         int max = size() - 1;
@@ -350,6 +493,12 @@ public class ActionList extends ArrayList<Action> {
         return -1;
     }
 
+    /**
+     * Gets container.
+     *
+     * @param idx Index
+     * @return Container
+     */
     public GraphSourceItemContainer getContainer(int idx) {
         Action action = get(idx);
         int i = idx - 1;
@@ -369,6 +518,12 @@ public class ActionList extends ArrayList<Action> {
         return null;
     }
 
+    /**
+     * Gets container end index.
+     *
+     * @param idx Index
+     * @return Container end index
+     */
     public int getContainerEndIndex(int idx) {
         Action action = get(idx);
         int i = idx - 1;
@@ -388,6 +543,11 @@ public class ActionList extends ArrayList<Action> {
         return -1;
     }
 
+    /**
+     * Gets unreachable actions.
+     *
+     * @return Unreachable actions
+     */
     public List<Action> getUnreachableActions() {
         int[] isReachable = getUnreachableActionsMap(-1, 0);
         List<Action> unreachableActions = new ArrayList<>();
@@ -404,6 +564,13 @@ public class ActionList extends ArrayList<Action> {
         return unreachableActions;
     }
 
+    /**
+     * Gets unreachable actions.
+     *
+     * @param jumpIndex Jump index
+     * @param jumpTargetIndex Jump target index
+     * @return Unreachable actions
+     */
     public List<Action> getUnreachableActions(int jumpIndex, int jumpTargetIndex) {
         int[] isReachable = getUnreachableActionsMap(jumpIndex, jumpTargetIndex);
         isReachable[jumpIndex] = 0;
@@ -421,6 +588,13 @@ public class ActionList extends ArrayList<Action> {
         return unreachableActions;
     }
 
+    /**
+     * Gets unreachable actions map.
+     *
+     * @param jumpIndex Jump index
+     * @param jumpTargetIndex Jump target index
+     * @return Unreachable actions array - ip to reachable
+     */
     private int[] getUnreachableActionsMap(int jumpIndex, int jumpTargetIndex) {
         int size = size();
 
@@ -491,6 +665,9 @@ public class ActionList extends ArrayList<Action> {
         return isReachable;
     }
 
+    /**
+     * Combines pushes.
+     */
     public void combinePushes() {
         for (int i = 0; i < size() - 1; i++) {
             Action action = get(i);
@@ -500,7 +677,7 @@ public class ActionList extends ArrayList<Action> {
                     ActionPush push = (ActionPush) action;
                     ActionPush push2 = (ActionPush) action2;
                     if (!(push.constantPool != null && push2.constantPool != null && push.constantPool != push2.constantPool)) {
-                        ActionPush newPush = new ActionPush(0);
+                        ActionPush newPush = new ActionPush(0, charset);
                         newPush.constantPool = push.constantPool == null ? push2.constantPool : push.constantPool;
                         newPush.values.clear();
                         newPush.values.addAll(push.values);
@@ -515,6 +692,9 @@ public class ActionList extends ArrayList<Action> {
         }
     }
 
+    /**
+     * Expands pushes.
+     */
     public void expandPushes() {
         for (int i = 0; i < size(); i++) {
             Action action = get(i);
@@ -524,7 +704,7 @@ public class ActionList extends ArrayList<Action> {
                     int j = 0;
                     for (Object value : push.values) {
                         j++;
-                        ActionPush newPush = new ActionPush(value);
+                        ActionPush newPush = new ActionPush(value, charset);
                         newPush.constantPool = push.constantPool;
                         addAction(i + j, newPush);
                     }
@@ -536,30 +716,30 @@ public class ActionList extends ArrayList<Action> {
         }
     }
 
+    /**
+     * Saves to file.
+     *
+     * @param fileName File name
+     */
     public void saveToFile(String fileName) {
         File file = new File(fileName);
         try (FileTextWriter writer = new FileTextWriter(Configuration.getCodeFormatting(), new FileOutputStream(file))) {
-            Action.actionsToString(new ArrayList<>(), 0, this, SWF.DEFAULT_VERSION, ScriptExportMode.PCODE, writer);
+            Action.actionsToString(new ArrayList<>(), 0, this, version, ScriptExportMode.PCODE, writer);
         } catch (IOException ex) {
             Logger.getLogger(ActionList.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
 
+    /**
+     * Converts to string.
+     *
+     * @return String
+     */
     @Override
     public String toString() {
         HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
-        actionsToString(new ArrayList<>(), 0, this, SWF.DEFAULT_VERSION, ScriptExportMode.PCODE, writer);
+        Action.actionsToString(new ArrayList<>(), 0, this, version, ScriptExportMode.PCODE, writer);
+        writer.finishHilights();
         return writer.toString();
-    }
-
-    public String toSource() {
-        try {
-            HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
-            actionsToSource(null, this, "", writer);
-            return writer.toString();
-        } catch (InterruptedException ex) {
-            Logger.getLogger(ActionList.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        return null;
     }
 }

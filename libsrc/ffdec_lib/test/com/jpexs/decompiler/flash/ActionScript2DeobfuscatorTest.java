@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -27,12 +27,17 @@ import com.jpexs.decompiler.flash.helpers.CodeFormatting;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.tags.DoActionTag;
 import com.jpexs.decompiler.graph.CompilationException;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.testng.Assert;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 import org.testng.annotations.BeforeClass;
@@ -57,11 +62,24 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
         swf.version = SWF.DEFAULT_VERSION;
         ActionScript2Parser par = new ActionScript2Parser(swf, new DoActionTag(swf));
         HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
-        List<Action> actions = par.actionsFromString(str);
+        List<Action> actions = par.actionsFromString(str, Utf8Helper.charsetName);
         byte[] hex = Action.actionsToBytes(actions, true, SWF.DEFAULT_VERSION);
-        ActionList list = ActionListReader.readActionListTimeout(new ArrayList<>(), new SWFInputStream(swf, hex), SWF.DEFAULT_VERSION, 0, hex.length, "", 1);
-        Action.actionsToSource(null, list, "", writer);
+        DoActionTag doA = new DoActionTag(swf);
+        ActionList list = ActionListReader.readActionListTimeout(doA, new ArrayList<>(), new SWFInputStream(swf, hex), SWF.DEFAULT_VERSION, 0, hex.length, "", 1);
+        Action.actionsToSource(new HashMap<>(), null, list, "", writer, Utf8Helper.charsetName);
+        writer.finishHilights();
         return writer.toString();
+    }
+
+    private String decompilePCode(String str) throws Exception {
+        List<Action> actions = ASMParser.parse(0, true, str, swf.version, false, swf.getCharset());
+
+        DoActionTag doa = getFirstActionTag();
+        doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
+        HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
+        Action.actionsToSource(new HashMap<>(), doa, doa.getActions(), "", writer, swf.getCharset());
+        writer.finishHilights();
+        return writer.toString().trim().replace("\r\n", "\n");
     }
 
     @DataProvider(name = "provideBasicTrueExpressions")
@@ -134,7 +152,7 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
             fail("if false OnTrue not removed");
         }
         if (res.contains("var ")) {
-            fail("variables for obsucation not removed");
+            fail("variables for obfuscation not removed");
         }
         if (res.contains("if")) {
             fail("if clauses not removed");
@@ -173,7 +191,7 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
     }
 
     @Test
-    public void testEvailExpressionAfterWhile() throws Exception {
+    public void testEvalExpressionAfterWhile() throws Exception {
         String res = recompile("var a = 5;"
                 + "while(true){"
                 + "if(a==73){"
@@ -215,7 +233,7 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
             fail("unreachable if onTrue 3 not removed");
         }
         if (!res.contains("\"OK\"")) {
-            fail("reachable of onTrue removed");
+            fail("reachable if onTrue removed");
         }
     }
 
@@ -249,12 +267,13 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
                 + "Jump loc0084\n"
                 + "loc0084:";
         try {
-            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false);
+            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false, swf.getCharset());
 
             DoActionTag doa = getFirstActionTag();
             doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
             HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
-            Action.actionsToSource(doa, doa.getActions(), "", writer);
+            Action.actionsToSource(new HashMap<>(), doa, doa.getActions(), "", writer, swf.getCharset());
+            writer.finishHilights();
             String actualResult = writer.toString();
 
             assertTrue(actualResult.contains("case \"c\":"));
@@ -274,12 +293,45 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
                 + "Trace\n"
                 + "loc2:";
         try {
-            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false);
+            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false, swf.getCharset());
 
             DoActionTag doa = getFirstActionTag();
             doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
             HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
-            Action.actionsToSource(doa, doa.getActions(), "", writer);
+            Action.actionsToSource(new HashMap<>(), doa, doa.getActions(), "", writer, swf.getCharset());
+            writer.finishHilights();
+            String actualResult = writer.toString();
+
+            assertTrue(!actualResult.contains("FAIL"));
+            assertTrue(actualResult.contains("OK"));
+        } catch (IOException | ActionParseException | InterruptedException ex) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testRemoveGetTimeWithJumpTo() {
+        String actionsString = "ConstantPool \"a\"\n"
+                + "Jump loc3\n"
+                + "loc4:Push 1\n"
+                + "Trace\n"
+                + "Jump loc5\n"
+                + "loc3:GetTime\n"
+                + "If loc1\n"
+                + "Push \"FAIL\"\n"
+                + "Trace\n"
+                + "loc1:Push \"OK\"\n"
+                + "Trace\n"
+                + "loc2:Jump loc4\n"
+                + "loc5:";
+        try {
+            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false, swf.getCharset());
+
+            DoActionTag doa = getFirstActionTag();
+            doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
+            HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
+            Action.actionsToSource(new HashMap<>(), doa, doa.getActions(), "", writer, swf.getCharset());
+            writer.finishHilights();
             String actualResult = writer.toString();
 
             assertTrue(!actualResult.contains("FAIL"));
@@ -301,12 +353,13 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
                 + "Trace\n"
                 + "loc2:";
         try {
-            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false);
+            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false, swf.getCharset());
 
             DoActionTag doa = getFirstActionTag();
             doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
             HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
-            Action.actionsToSource(doa, doa.getActions(), "", writer);
+            Action.actionsToSource(new HashMap<>(), doa, doa.getActions(), "", writer, swf.getCharset());
+            writer.finishHilights();
             String actualResult = writer.toString();
 
             assertTrue(!actualResult.contains("FAIL"));
@@ -314,5 +367,156 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
         } catch (IOException | ActionParseException | InterruptedException ex) {
             fail();
         }
+    }
+
+    @Test
+    public void testRemoveGetTimeAndIncrementWithJumpTo() {
+        String actionsString = "ConstantPool \"a\"\n"
+                + "Jump loc3\n"
+                + "loc4: Push 1\n"
+                + "Trace\n"
+                + "Jump loc5\n"
+                + "loc3:GetTime\n"
+                + "Increment\n"
+                + "If loc1\n"
+                + "Push \"FAIL\"\n"
+                + "Trace\n"
+                + "loc1:Push \"OK\"\n"
+                + "Trace\n"
+                + "loc2:Jump loc4\n"
+                + "loc5:\n";
+        try {
+            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false, swf.getCharset());
+
+            DoActionTag doa = getFirstActionTag();
+            doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
+            HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
+            Action.actionsToSource(new HashMap<>(), doa, doa.getActions(), "", writer, swf.getCharset());
+            writer.finishHilights();
+            String actualResult = writer.toString();
+
+            assertTrue(!actualResult.contains("FAIL"));
+            assertTrue(actualResult.contains("OK"));
+        } catch (IOException | ActionParseException | InterruptedException ex) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testJumpAfterFunctionEnd() {
+        String actionsString = "ConstantPool \"a\", \"b\", \"c\", \"d\"\n"
+                + "Jump loc0026\n"
+                + "loc0012:Push \"once\"\n"
+                + "Trace\n"
+                + "Jump loc0058\n"
+                + "loc0021:Jump loc0053\n"
+                + "loc0026:DefineFunction \"f\", 0 {\n"
+                + "Push \"a\"\n"
+                + "Trace\n"
+                + "Push register1\n"
+                + "Push 2\n"
+                + "Equals\n"
+                + "If loc004d\n"
+                + "Jump loc0021\n"
+                + "loc004d:Push \"b\"\n"
+                + "Trace\n"
+                + "}\n"
+                + "loc0053:Jump loc0012\n"
+                + "loc0058:Push \"c\"\n"
+                + "Trace";
+        try {
+            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false, swf.getCharset());
+
+            DoActionTag doa = getFirstActionTag();
+            doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
+            HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
+            Action.actionsToSource(new HashMap<>(), doa, doa.getActions(), "", writer, swf.getCharset());
+            writer.finishHilights();
+            String actualResult = writer.toString();
+
+            Pattern patOnce = Pattern.compile("\"once\"");
+            Matcher m = patOnce.matcher(actualResult);
+            int count = 0;
+            while (m.find()) {
+                count++;
+            }
+
+            Assert.assertEquals(count, 1, "The string \"once\" should only appear once.");
+        } catch (IOException | ActionParseException | InterruptedException ex) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testRemoveForInReturnsWithJumpsEnd() {
+        String actionsString = "Jump locA\n"
+                + "locC: Not\n"
+                + "Jump locD\n"
+                + "locB: Equals2\n"
+                + "Jump locC\n"
+                + "locA: Push null\n"
+                + "Jump locB\n"
+                + "locD: If locA\n"
+                + "Push 1\n"
+                + "Trace\n";
+        try {
+            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false, swf.getCharset());
+
+            DoActionTag doa = getFirstActionTag();
+            doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
+            HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
+            Action.actionsToSource(new HashMap<>(), doa, doa.getActions(), "", writer, swf.getCharset());
+            writer.finishHilights();
+            String actualResult = writer.toString().trim();
+
+            Assert.assertEquals(actualResult, "trace(1);");
+        } catch (IOException | ActionParseException | InterruptedException ex) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testRemoveAnd() throws Exception {
+        String pcode = "ConstantPool \"v\"\n"
+                + "Push \"v\"\n"
+                + "Push 1\n"
+                + "Push 2\n"
+                + "Less2\n"
+                + "PushDuplicate\n"
+                + "Not\n"
+                + "If loc0036\n"
+                + "Pop\n"
+                + "Push 2\n"
+                + "Push 8\n"
+                + "Less2\n"
+                + "loc0036:DefineLocal\n";
+        String actualResult = decompilePCode(pcode);
+        Assert.assertEquals(actualResult, "var v = true;");
+    }
+
+    @Test
+    public void testRemoveOr() throws Exception {
+        String pcode = "ConstantPool \"v\"\n"
+                + "Push \"v\"\n"
+                + "Push 1\n"
+                + "Push 2\n"
+                + "Less2\n"
+                + "PushDuplicate\n"
+                + "If loc0035\n"
+                + "Pop\n"
+                + "Push 2\n"
+                + "Push 8\n"
+                + "Less2\n"
+                + "loc0035:DefineLocal\n";
+        String actualResult = decompilePCode(pcode);
+        Assert.assertEquals(actualResult, "var v = true;");
+    }
+
+    @Test
+    public void testPopMustStayIntact() throws Exception {
+        String expected = "test < 100 ? (test > -100 ? 0 : f()) : g();";
+        String actual = recompile(expected);
+        actual = actual.trim();
+        Assert.assertEquals(actual, expected);
     }
 }

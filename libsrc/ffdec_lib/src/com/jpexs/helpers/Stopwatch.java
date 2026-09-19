@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,22 +12,26 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.helpers;
 
 import java.util.Date;
 
 /**
+ * Stopwatch class for measuring time.
  *
  * @author JPEXS
  */
 public class Stopwatch {
 
-    private long startTime, elapsedTime;
+    private long startTime;
+    private long elapsedTime;
 
     private boolean running;
 
-    public Date startDate, endDate;
+    public Date startDate;
+    public Date endDate;
 
     public static Stopwatch startNew() {
         Stopwatch sw = new Stopwatch();

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,19 +12,31 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.amf.amf3.types;
 
 import com.jpexs.decompiler.flash.exporters.amf.amf3.Amf3Exporter;
 
+/**
+ * AMF3 byte array type.
+ */
 public class ByteArrayType {
 
     private byte[] data;
 
+    /**
+     * Constructor.
+     * @param data Byte array data
+     */
     public ByteArrayType(byte[] data) {
         this.data = data;
     }
 
+    /**
+     * Gets byte array data.
+     * @return Byte array data
+     */
     public byte[] getData() {
         return data;
     }

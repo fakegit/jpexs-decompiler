@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.dynamictext;
 
 import com.jpexs.decompiler.flash.types.GLYPHENTRY;
@@ -20,38 +21,67 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Paragraph.
  *
  * @author JPEXS
  */
 public class Paragraph {
 
+    /**
+     * Words
+     */
     public List<Word> words = new ArrayList<>();
 
+    /**
+     *
+     */
     private Word word;
 
+    /**
+     * Model
+     */
     private final DynamicTextModel model;
 
+    /**
+     * Width
+     */
     public int width;
 
+    /**
+     * Constructor.
+     * @param model Model
+     */
     public Paragraph(DynamicTextModel model) {
 
         this.model = model;
     }
 
-    public void addGlyph(char character, GLYPHENTRY glyphEntry) {
+    /**
+     * Add glyph.
+     * @param character Character
+     * @param glyphEntry Glyph entry
+     * @param htmlSourcePosition Position in HTML source
+     */
+    public void addGlyph(char character, GLYPHENTRY glyphEntry, int htmlSourcePosition) {
 
         if (word == null) {
             word = new Word(model);
             words.add(word);
         }
-        word.addGlyph(character, glyphEntry);
+        word.addGlyph(character, glyphEntry, htmlSourcePosition);
     }
 
+    /**
+     * New word.
+     */
     public void newWord() {
 
         word = null;
     }
 
+    /**
+     * New record.
+     */
     public void newRecord() {
 
         if (word != null) {
@@ -59,6 +89,10 @@ public class Paragraph {
         }
     }
 
+    /**
+     * Calculates text widths.
+     * @return Width
+     */
     public int calculateTextWidths() {
 
         int width = 0;

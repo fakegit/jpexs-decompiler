@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,22 +12,35 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.base;
 
 import java.awt.Font;
 import java.util.Map;
 
 /**
+ * Handler for missing characters in fonts.
  *
  * @author JPEXS
  */
 public class MissingCharacterHandler {
 
+    /**
+     * Checks if missing characters should be ignored.
+     * @return True if missing characters should be ignored, false otherwise.
+     */
     public boolean getIgnoreMissingCharacters() {
         return false;
     }
 
+    /**
+     * Handles missing character.
+     * @param textTag Text tag
+     * @param font Font tag
+     * @param character Missing character
+     * @return True if character was handled, false otherwise.
+     */
     public boolean handle(TextTag textTag, FontTag font, char character) {
         String fontName = font.getFontNameIntag();
         if (!FontTag.getInstalledFontsByFamily().containsKey(fontName)) {
@@ -49,7 +62,6 @@ public class MissingCharacterHandler {
         if (!f.canDisplay(character)) {
             return false;
         }
-        font.addCharacter(character, f);
-        return true;
+        return font.addCharacter(character, f);
     }
 }

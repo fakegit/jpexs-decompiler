@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -38,7 +38,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- *
+ * New object.
  * @author JPEXS
  */
 public class NewObjectAVM2Item extends AVM2Item {

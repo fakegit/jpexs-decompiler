@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.xml;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -27,11 +28,16 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.List;
 
 /**
+ * dxnslate instruction - Set default XML namespace, with a value determined at
+ * runtime.
  *
  * @author JPEXS
  */
 public class DXNSLateIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public DXNSLateIns() {
         super(0x07, "dxnslate", new int[]{}, true);
     }
@@ -46,7 +52,7 @@ public class DXNSLateIns extends InstructionDefinition {
     @Override
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
         GraphTargetItem xmlns = stack.pop();
-        output.add(new DefaultXMLNamespace(ins, localData.lineStartInstruction, xmlns));
+        stack.addToOutput(new DefaultXMLNamespace(ins, localData.lineStartInstruction, xmlns));
 
     }
 

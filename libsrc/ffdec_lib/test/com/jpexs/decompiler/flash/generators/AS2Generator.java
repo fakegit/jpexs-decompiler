@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.generators;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -24,10 +25,11 @@ import com.jpexs.decompiler.flash.tags.DoABC2Tag;
 import com.jpexs.decompiler.flash.tags.DoActionTag;
 import com.jpexs.decompiler.flash.tags.ShowFrameTag;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.util.HashMap;
 
 /**
  *
@@ -39,6 +41,7 @@ public class AS2Generator {
 
     public static void main(String[] args) throws Exception {
         Configuration.autoDeobfuscate.set(false);
+        Configuration.simplifyExpressions.set(false);
         SWF swf = new SWF(new BufferedInputStream(new FileInputStream("testdata/as2/as2.swf")), false);
         DoABC2Tag tag = null;
         DoActionTag doa = null;
@@ -54,7 +57,8 @@ public class AS2Generator {
                     continue;
                 }
                 HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
-                Action.actionsToSource(doa, doa.getActions(), "", writer);
+                Action.actionsToSource(new HashMap<>() /*FIXME*/,doa, doa.getActions(), "", writer, Utf8Helper.charsetName);
+                writer.finishHilights();
                 String src = writer.toString();
                 if (src.trim().isEmpty()) {
                     doa = null;
@@ -91,9 +95,22 @@ public class AS2Generator {
                 doa = null;
             }
         }
-        try (FileOutputStream fos = new FileOutputStream("as2_teststub.java")) {
+        
+        String testFile = "test/com/jpexs/decompiler/flash/ActionScript2Test.java";
+        String txt = Helper.readTextFile(testFile);
+        
+        String startString = "//--FRAMES-START--";
+        String endString = "//--FRAMES-END--";
+        
+        String before = txt.substring(0, txt.indexOf(startString) + startString.length());
+        String after = txt.substring(txt.indexOf(endString));
+        
+        String result = before + "\r\n" + s.toString() + "\r\n    " + after;
+        Helper.writeFile(testFile, result.getBytes("UTF-8"));
+        
+        /*try (FileOutputStream fos = new FileOutputStream("as2_teststub.java")) {
             fos.write(Utf8Helper.getBytes(s.toString()));
-        }
+        }*/
         System.exit(0);
     }
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.font;
 
 import java.io.BufferedReader;
@@ -24,19 +25,37 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Unicode character ranges.
  *
  * @author JPEXS
  */
 public class CharacterRanges {
 
+    /**
+     * Returns the number of available character ranges.
+     *
+     * @return Number of available character ranges
+     */
     public static int rangeCount() {
         return languages.size();
     }
 
+    /**
+     * Returns the name of the character range at the specified index.
+     *
+     * @param index Index of the character range
+     * @return Name of the character range
+     */
     public static String rangeName(int index) {
         return languages.get(index).name;
     }
 
+    /**
+     * Returns the number of glyphs in the character range at the specified index.
+     *
+     * @param index Index of the character range
+     * @return Number of glyphs in the character range
+     */
     public static int glyphCount(int index) {
         List<Range> ranges = languages.get(index).ranges;
         int cnt = 0;
@@ -48,6 +67,11 @@ public class CharacterRanges {
         return cnt;
     }
 
+    /**
+     * Returns the names of all available character ranges.
+     *
+     * @return Names of all available character ranges
+     */
     public static List<String> rangeNames() {
         List<String> ret = new ArrayList<>();
         for (int i = 0; i < rangeCount(); i++) {
@@ -56,6 +80,12 @@ public class CharacterRanges {
         return ret;
     }
 
+    /**
+     * Returns the unicode codes of all glyphs in the character range at the specified index.
+     *
+     * @param index Index of the character range
+     * @return Unicode codes of all glyphs in the character range
+     */
     public static int[] rangeCodes(int index) {
         List<Range> ranges = languages.get(index).ranges;
         List<Integer> ret = new ArrayList<>();

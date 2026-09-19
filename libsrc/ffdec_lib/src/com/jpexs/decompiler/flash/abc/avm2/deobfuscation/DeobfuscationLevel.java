@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,33 +12,46 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.deobfuscation;
 
 /**
+ * Level of deobfuscation enum.
  *
  * @author JPEXS
  */
 public enum DeobfuscationLevel {
 
     LEVEL_REMOVE_DEAD_CODE(1),
-    LEVEL_REMOVE_TRAPS(2),
-    LEVEL_RESTORE_CONTROL_FLOW(3);
+    LEVEL_REMOVE_TRAPS(2);
 
+    /**
+     * Level of deobfuscation as number
+     */
     private final int level;
 
+    /**
+     * Get level of deobfuscation as number
+     *
+     * @return Level of deobfuscation as number
+     */
     public int getLevel() {
         return level;
     }
 
+    /**
+     * Get deobfuscation level by level number.
+     *
+     * @param level Level number
+     * @return Deobfuscation level or null if not found
+     */
     public static DeobfuscationLevel getByLevel(int level) {
         switch (level) {
             case 1:
                 return LEVEL_REMOVE_DEAD_CODE;
             case 2:
                 return LEVEL_REMOVE_TRAPS;
-            case 3:
-                return LEVEL_RESTORE_CONTROL_FLOW;
         }
 
         return null;

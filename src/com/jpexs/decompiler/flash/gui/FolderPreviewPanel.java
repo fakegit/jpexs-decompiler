@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,11 +22,12 @@ import com.jpexs.decompiler.flash.exporters.commonshape.ExportRectangle;
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.decompiler.flash.tags.base.BoundedTag;
-import com.jpexs.decompiler.flash.tags.base.CharacterTag;
 import com.jpexs.decompiler.flash.tags.base.DrawableTag;
 import com.jpexs.decompiler.flash.tags.base.ImageTag;
 import com.jpexs.decompiler.flash.tags.base.RenderContext;
 import com.jpexs.decompiler.flash.timeline.Frame;
+import com.jpexs.decompiler.flash.timeline.Scene;
+import com.jpexs.decompiler.flash.timeline.SceneFrame;
 import com.jpexs.decompiler.flash.timeline.Timeline;
 import com.jpexs.decompiler.flash.treeitems.TreeItem;
 import com.jpexs.decompiler.flash.types.RECT;
@@ -37,6 +38,7 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.SystemColor;
 import java.awt.event.MouseAdapter;
@@ -44,13 +46,15 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.SwingUtilities;
 import org.pushingpixels.substance.api.ColorSchemeAssociationKind;
 import org.pushingpixels.substance.api.ComponentState;
 import org.pushingpixels.substance.api.DecorationAreaType;
@@ -58,7 +62,6 @@ import org.pushingpixels.substance.api.SubstanceLookAndFeel;
 import org.pushingpixels.substance.api.SubstanceSkin;
 
 /**
- *
  * @author JPEXS
  */
 public class FolderPreviewPanel extends JPanel {
@@ -71,13 +74,11 @@ public class FolderPreviewPanel extends JPanel {
 
     private boolean repaintQueued;
 
-    private int lastWidth;
-
-    private int lastHeight;
-
-    public Map<Integer, TreeItem> selectedItems = new HashMap<>();
+    private Map<Integer, TreeItem> selectedItems = new TreeMap<>();
 
     private Cache<Integer, SerializableImage> cachedPreviews;
+
+    private MainPanel mainPanel;
 
     private static final int PREVIEW_SIZE = 150;
 
@@ -98,20 +99,20 @@ public class FolderPreviewPanel extends JPanel {
 
     public FolderPreviewPanel(final MainPanel mainPanel, List<TreeItem> items) {
         this.items = items;
-        cachedPreviews = Cache.getInstance(false, false, "preview");
+        this.mainPanel = mainPanel;
+        cachedPreviews = Cache.getInstance(false, false, "preview", true);
 
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() > 1) {
-                    if (selectedIndex > -1) {
-                        mainPanel.setTagTreeSelectedNode(FolderPreviewPanel.this.items.get(selectedIndex));
-                    }
+                    goToSelection();
                 }
             }
 
             @Override
             public void mousePressed(MouseEvent e) {
+                requestFocusInWindow();
                 int width = getWidth();
 
                 int cols = width / CELL_WIDTH;
@@ -123,7 +124,7 @@ public class FolderPreviewPanel extends JPanel {
                     return;
                 }
 
-                if (e.getButton() == MouseEvent.BUTTON1 || selectedItems.isEmpty()) {
+                if (SwingUtilities.isLeftMouseButton(e) || selectedItems.isEmpty()) {
                     if (!e.isControlDown()) {
                         selectedItems.clear();
                     }
@@ -148,13 +149,20 @@ public class FolderPreviewPanel extends JPanel {
                     }
                 }
 
-                if (e.getButton() == MouseEvent.BUTTON3) {
-                    mainPanel.tagTree.contextPopupMenu.update(new ArrayList<>(selectedItems.values()));
-                    mainPanel.tagTree.contextPopupMenu.show(FolderPreviewPanel.this, e.getX(), e.getY());
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    mainPanel.getContextPopupMenu().update(getSelectedItemsSorted(), true);
+                    mainPanel.getContextPopupMenu().show(FolderPreviewPanel.this, e.getX(), e.getY());
                 }
                 repaint();
             }
         });
+        setFocusable(true);
+    }
+    
+    public void goToSelection() {
+        if (selectedIndex > -1) {
+            mainPanel.setTagTreeSelectedNode(mainPanel.getCurrentTree(), FolderPreviewPanel.this.items.get(selectedIndex));
+        }
     }
 
     public synchronized void setItems(List<TreeItem> items) {
@@ -162,12 +170,13 @@ public class FolderPreviewPanel extends JPanel {
         executor.shutdownNow();
         executor = Executors.newFixedThreadPool(Configuration.parallelSpeedUp.get() ? Configuration.getParallelThreadCount() : 1);
         cachedPreviews.clear();
-        revalidate();
-        repaint();
         selectedItems.clear();
         selectedIndex = -1;
+        revalidate();
+        repaint();
+        ((JScrollPane) getParent().getParent()).getVerticalScrollBar().setValue(0);
     }
-
+            
     public void clear() {
         items = new ArrayList<>();
         executor.shutdownNow();
@@ -178,11 +187,12 @@ public class FolderPreviewPanel extends JPanel {
 
     @Override
     public Dimension getPreferredSize() {
-        int width = getParent().getSize().width - 20;
+        int width = getParent().getSize().width - 1;
         int cols = width / CELL_WIDTH;
         int rows = (int) Math.ceil(items.size() / (float) cols);
         int height = rows * CELL_HEIGHT;
-        return new Dimension(width, height);
+        int prefWidth = cols * CELL_WIDTH;
+        return new Dimension(prefWidth, height);
     }
 
     @Override
@@ -191,11 +201,7 @@ public class FolderPreviewPanel extends JPanel {
         repaintQueued = false;
         Rectangle r = getVisibleRect();
         int width = getWidth();
-
         int cols = width / CELL_WIDTH;
-        int rows = (int) Math.ceil(items.size() / (float) cols);
-        int height = rows * CELL_HEIGHT;
-
         int start_y = r.y / CELL_HEIGHT;
         JLabel l = new JLabel();
         Font f = l.getFont().deriveFont(AffineTransform.getScaleInstance(0.8, 0.8));
@@ -244,13 +250,21 @@ public class FolderPreviewPanel extends JPanel {
                     String s;
                     TreeItem treeItem = items.get(index);
                     if (treeItem instanceof Tag) {
+                        Tag t = (Tag) treeItem;
+                        String uniqueId = t.getUniqueId();
                         s = ((Tag) treeItem).getTagName();
-                        if (treeItem instanceof CharacterTag) {
-                            s = s + " (" + ((CharacterTag) treeItem).getCharacterId() + ")";
+                        if (uniqueId != null) {
+                            s = s + " (" + uniqueId + ")";
                         }
                     } else {
                         s = treeItem.toString();
                     }
+
+                    int itemIndex = mainPanel.getCurrentTree().getFullModel().getItemIndex(treeItem);
+                    if (itemIndex > 1) {
+                        s += " [" + itemIndex + "]";
+                    }
+
                     g.setFont(f);
                     g.setColor(borderColor);
                     g.drawLine(x * CELL_WIDTH, y * CELL_HEIGHT + BORDER_SIZE + PREVIEW_SIZE, x * CELL_WIDTH + CELL_WIDTH, y * CELL_HEIGHT + BORDER_SIZE + PREVIEW_SIZE);
@@ -264,17 +278,11 @@ public class FolderPreviewPanel extends JPanel {
                 }
             }
         }
-
-        if (lastWidth != width || lastHeight != height) {
-            lastWidth = width;
-            lastHeight = height;
-            setSize(new Dimension(width, height));
-        }
     }
 
     private synchronized void renderImageTask(final int index, final TreeItem treeItem) {
         executor.submit(() -> {
-            cachedPreviews.put(index, renderImage(treeItem.getSwf(), treeItem));
+            cachedPreviews.put(index, renderImage((SWF) treeItem.getOpenable(), treeItem));
             if (!repaintQueued) {
                 repaintQueued = true;
                 View.execInEventDispatchLater(() -> {
@@ -293,6 +301,15 @@ public class FolderPreviewPanel extends JPanel {
         Matrix m = new Matrix();
         double ow = 1;
         double oh = 1;
+        if (treeItem instanceof Scene) {
+            treeItem = ((Scene) treeItem).getSceneFrame(0);
+        }
+        if (treeItem instanceof SceneFrame) {
+            treeItem = ((SceneFrame) treeItem).getFrame();
+        }
+        
+        int aaScale = Configuration.useMsaaForDisplay.get() ? Configuration.msaaGridForDisplay.get() : 1;
+                
         if (treeItem instanceof Frame) {
             Frame fn = (Frame) treeItem;
             RECT rect = swf.displayRect;
@@ -315,8 +332,8 @@ public class FolderPreviewPanel extends JPanel {
             Timeline timeline = swf.getTimeline();
             String key = "frame_" + fn.frame + "_" + timeline.id + "_" + zoom;
             imgSrc = swf.getFromCache(key);
-            if (imgSrc == null) {
-                imgSrc = SWF.frameToImageGet(timeline, fn.frame, 0, null, 0, rect, new Matrix(), null, null, zoom);
+            if (imgSrc == null) {            
+                imgSrc = SWF.frameToImageGet(timeline, fn.frame, 0, null, 0, rect, new Matrix(), null, swf.getBackgroundColor() == null ? null : swf.getBackgroundColor().backgroundColor.toColor(), zoom, !Configuration.disableBitmapSmoothing.get(), aaScale);
                 swf.putToCache(key, imgSrc);
             }
 
@@ -330,7 +347,7 @@ public class FolderPreviewPanel extends JPanel {
             oh = height * SWF.unitDivisor;
         } else if (treeItem instanceof BoundedTag) {
             BoundedTag boundedTag = (BoundedTag) treeItem;
-            RECT rect = boundedTag.getRect();
+            RECT rect = boundedTag.getRectWithFilters();
             ow = rect.getWidth();
             oh = rect.getHeight();
             width = (int) (rect.getWidth() / SWF.unitDivisor) + 1;
@@ -360,24 +377,47 @@ public class FolderPreviewPanel extends JPanel {
             scale = 1;
         }
 
-        m = m.preConcatenate(Matrix.getScaleInstance(scale));
         width = (int) (scale * width);
         height = (int) (scale * height);
         if (width == 0 || height == 0) {
             return null;
         }
 
-        SerializableImage image = new SerializableImage(width, height, SerializableImage.TYPE_INT_ARGB);
-        image.fillTransparent();
         if (imgSrc == null) {
+            m = m.preConcatenate(Matrix.getScaleInstance(scale));        
             DrawableTag drawable = (DrawableTag) treeItem;
             ExportRectangle viewRectangle = new ExportRectangle(0, 0, ow, oh);
-            drawable.toImage(0, 0, 0, new RenderContext(), image, image, false, m, m, m, m, null, scale, false, viewRectangle, true, Timeline.DRAW_MODE_ALL);
-        } else {
-            Graphics2D g = (Graphics2D) image.getGraphics();
-            g.setTransform(m.toTransform());
-            g.drawImage(imgSrc.getBufferedImage(), 0, 0, null);
-        }
+            
+            SerializableImage imageLarger = new SerializableImage(width, height, SerializableImage.TYPE_INT_ARGB);
+            imageLarger.fillTransparent();                    
+            drawable.toImage(0, 0, 0, new RenderContext(), imageLarger, imageLarger, false, m, new Matrix(), m, m, null, scale, false, viewRectangle, viewRectangle, true, Timeline.DRAW_MODE_ALL, 0, !Configuration.disableBitmapSmoothing.get(), aaScale);            
+            return imageLarger;
+        } 
+        
+        m = m.preConcatenate(Matrix.getScaleInstance(scale));
+        
+        SerializableImage image = new SerializableImage(width, height, SerializableImage.TYPE_INT_ARGB);
+        image.fillTransparent();
+        Graphics2D g = (Graphics2D) image.getGraphics();
+        g.setTransform(m.toTransform());
+        g.drawImage(imgSrc.getBufferedImage(), 0, 0, null);        
         return image;
     }
+
+    public List<TreeItem> getSelectedItemsSorted() {
+        return new ArrayList<>(selectedItems.values());
+    }
+
+    public boolean isSomethingSelected() {
+        return !selectedItems.isEmpty();
+    }
+
+    public Map<Integer, TreeItem> getSelectedItems() {
+        return selectedItems;
+    }
+
+    public void setSelectedItems(Map<Integer, TreeItem> selectedItems) {
+        this.selectedItems = selectedItems;
+    }
+
 }

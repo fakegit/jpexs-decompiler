@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,10 +12,12 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.importers.svg;
 
 /**
+ * SVG path reader.
  *
  * @author JPEXS
  */
@@ -25,24 +27,44 @@ public class SvgPathReader {
 
     private int pos;
 
+    /**
+     * Constructor.
+     * @param str String to read.
+     */
     public SvgPathReader(String str) {
         this.str = str;
     }
 
+    /**
+     * Checks if there are more characters to read.
+     * @return True if there are more characters to read.
+     */
     public boolean hasNext() {
         return pos < str.length();
     }
 
+    /**
+     * Peeks the next character.
+     * @return Next character.
+     */
     public char peek() {
         return str.charAt(pos);
     }
 
+    /**
+     * Reads character.
+     * @return Next character.
+     */
     public char readChar() {
         char ch = str.charAt(pos);
         pos++;
         return ch;
     }
 
+    /**
+     * Reads command.
+     * @return Next command.
+     */
     public char readCommand() {
         if (!hasNext()) {
             return 0;
@@ -65,6 +87,7 @@ public class SvgPathReader {
             char ch = str.charAt(pos);
 
             if (ch >= '0' && ch <= '9') {
+                //empty
             } else {
                 break;
             }
@@ -73,6 +96,10 @@ public class SvgPathReader {
         }
     }
 
+    /**
+     * Reads double.
+     * @return Double.
+     */
     public double readDouble() {
         int startPos = pos;
 

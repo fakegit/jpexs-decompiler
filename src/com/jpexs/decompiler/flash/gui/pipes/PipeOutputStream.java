@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,15 +16,14 @@
  */
 package com.jpexs.decompiler.flash.gui.pipes;
 
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.Kernel32;
+import com.jpexs.decompiler.flash.gui.jna.platform.win32.WinNT.HANDLE;
 import com.sun.jna.Platform;
-import com.sun.jna.platform.win32.Kernel32;
-import com.sun.jna.platform.win32.WinNT.HANDLE;
 import com.sun.jna.ptr.IntByReference;
 import java.io.IOException;
 import java.io.OutputStream;
 
 /**
- *
  * @author JPEXS
  */
 public class PipeOutputStream extends OutputStream {

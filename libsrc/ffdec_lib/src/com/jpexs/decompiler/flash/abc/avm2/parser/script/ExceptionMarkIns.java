@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,12 +12,14 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.parser.script;
 
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
 
 /**
+ * Exception mark instruction.
  *
  * @author JPEXS
  */
@@ -25,6 +27,10 @@ public class ExceptionMarkIns extends InstructionDefinition {
 
     private static final ExceptionMarkIns instance = new ExceptionMarkIns();
 
+    /**
+     * Gets the instance of this class.
+     * @return The instance of this class
+     */
     public static final ExceptionMarkIns getInstance() {
         return instance;
     }

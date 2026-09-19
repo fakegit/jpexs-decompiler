@@ -1,11 +1,27 @@
+/*
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
+ * 
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3.0 of the License, or (at your option) any later version.
+ * 
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.exporters.modes.FontExportMode;
-import com.jpexs.decompiler.flash.tags.DefineTextTag;
 import com.jpexs.decompiler.flash.tags.base.FontTag;
 import com.jpexs.decompiler.flash.tags.base.StaticTextTag;
+import com.jpexs.decompiler.flash.tags.base.TextTag;
 import com.jpexs.decompiler.flash.types.ColorTransform;
 import com.jpexs.decompiler.flash.types.DynamicTextGlyphEntry;
 import com.jpexs.decompiler.flash.types.GLYPHENTRY;
@@ -28,7 +44,6 @@ import java.awt.Stroke;
 import java.awt.font.FontRenderContext;
 import java.awt.font.GlyphVector;
 import java.awt.geom.AffineTransform;
-import java.awt.geom.PathIterator;
 import java.awt.image.BufferedImage;
 import java.awt.image.BufferedImageOp;
 import java.awt.image.ImageObserver;
@@ -37,22 +52,28 @@ import java.awt.image.renderable.RenderableImage;
 import java.io.File;
 import java.io.IOException;
 import java.text.AttributedCharacterIterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Dual PDF and image graphics 2D implementation. Applies all drawing operations
+ * to both image and PDF graphics.
  *
  * @author JPEXS
  */
-public class DualPdfGraphics2D extends Graphics2D implements BlendModeSetable, GraphicsGroupable, GraphicsTextDrawable {
+public class DualPdfGraphics2D extends Graphics2D implements BlendModeSettable, GraphicsGroupable, GraphicsTextDrawable, RequiresNormalizedFonts {
 
     private final Graphics2D imageGraphics;
 
     private final PDFGraphics pdfGraphics;
     private final Map<Integer, Font> existingFonts;
 
+    private Map<Integer, FontTag> normalizedFonts = new LinkedHashMap<>();
+    private Map<Integer, TextTag> normalizedTexts = new LinkedHashMap<>();
+    
     public DualPdfGraphics2D(Graphics2D first, PDFGraphics second, Map<Integer, Font> existingFonts) {
         this.imageGraphics = first;
         this.pdfGraphics = second;
@@ -76,6 +97,48 @@ public class DualPdfGraphics2D extends Graphics2D implements BlendModeSetable, G
     public void drawImage(BufferedImage img, BufferedImageOp op, int x, int y) {
         imageGraphics.drawImage(img, op, x, y);
         pdfGraphics.drawImage(img, op, x, y);
+    }
+
+    @Override
+    public boolean drawImage(Image img, int x, int y, ImageObserver observer) {
+        boolean ok1 = imageGraphics.drawImage(img, x, y, observer);
+        boolean ok2 = pdfGraphics.drawImage(img, x, y, observer);
+        return ok1 && ok2;
+    }
+
+    @Override
+    public boolean drawImage(Image img, int x, int y, int width, int height, ImageObserver observer) {
+        boolean ok1 = imageGraphics.drawImage(img, x, y, width, height, observer);
+        boolean ok2 = pdfGraphics.drawImage(img, x, y, width, height, observer);
+        return ok1 && ok2;
+    }
+
+    @Override
+    public boolean drawImage(Image img, int x, int y, Color bgcolor, ImageObserver observer) {
+        boolean ok1 = imageGraphics.drawImage(img, x, y, bgcolor, observer);
+        boolean ok2 = pdfGraphics.drawImage(img, x, y, bgcolor, observer);
+        return ok1 && ok2;
+    }
+
+    @Override
+    public boolean drawImage(Image img, int x, int y, int width, int height, Color bgcolor, ImageObserver observer) {
+        boolean ok1 = imageGraphics.drawImage(img, x, y, width, height, bgcolor, observer);
+        boolean ok2 = pdfGraphics.drawImage(img, x, y, width, height, bgcolor, observer);
+        return ok1 && ok2;
+    }
+
+    @Override
+    public boolean drawImage(Image img, int dx1, int dy1, int dx2, int dy2, int sx1, int sy1, int sx2, int sy2, ImageObserver observer) {
+        boolean ok1 = imageGraphics.drawImage(img, dx1, dy1, dx2, dy2, sx1, sy1, sx2, sy2, observer);
+        boolean ok2 = pdfGraphics.drawImage(img, dx1, dy1, dx2, dy2, sx1, sy1, sx2, sy2, observer);
+        return ok1 && ok2;
+    }
+
+    @Override
+    public boolean drawImage(Image img, int dx1, int dy1, int dx2, int dy2, int sx1, int sy1, int sx2, int sy2, Color bgcolor, ImageObserver observer) {
+        boolean ok1 = imageGraphics.drawImage(img, dx1, dy1, dx2, dy2, sx1, sy1, sx2, sy2, bgcolor, observer);
+        boolean ok2 = pdfGraphics.drawImage(img, dx1, dy1, dx2, dy2, sx1, sy1, sx2, sy2, bgcolor, observer);
+        return ok1 && ok2;
     }
 
     @Override
@@ -330,14 +393,14 @@ public class DualPdfGraphics2D extends Graphics2D implements BlendModeSetable, G
     }
 
     @Override
-    public void setClip(int x, int y, int width, int height) {
-        imageGraphics.setClip(x, y, width, height);
-        pdfGraphics.setClip(x, y, width, height);
+    public Shape getClip() {
+        return pdfGraphics.getClip();
     }
 
     @Override
-    public Shape getClip() {
-        return pdfGraphics.getClip();
+    public void setClip(int x, int y, int width, int height) {
+        imageGraphics.setClip(x, y, width, height);
+        pdfGraphics.setClip(x, y, width, height);
     }
 
     @Override
@@ -425,48 +488,6 @@ public class DualPdfGraphics2D extends Graphics2D implements BlendModeSetable, G
     }
 
     @Override
-    public boolean drawImage(Image img, int x, int y, ImageObserver observer) {
-        boolean ok1 = imageGraphics.drawImage(img, x, y, observer);
-        boolean ok2 = pdfGraphics.drawImage(img, x, y, observer);
-        return ok1 && ok2;
-    }
-
-    @Override
-    public boolean drawImage(Image img, int x, int y, int width, int height, ImageObserver observer) {
-        boolean ok1 = imageGraphics.drawImage(img, x, y, width, height, observer);
-        boolean ok2 = pdfGraphics.drawImage(img, x, y, width, height, observer);
-        return ok1 && ok2;
-    }
-
-    @Override
-    public boolean drawImage(Image img, int x, int y, Color bgcolor, ImageObserver observer) {
-        boolean ok1 = imageGraphics.drawImage(img, x, y, bgcolor, observer);
-        boolean ok2 = pdfGraphics.drawImage(img, x, y, bgcolor, observer);
-        return ok1 && ok2;
-    }
-
-    @Override
-    public boolean drawImage(Image img, int x, int y, int width, int height, Color bgcolor, ImageObserver observer) {
-        boolean ok1 = imageGraphics.drawImage(img, x, y, width, height, bgcolor, observer);
-        boolean ok2 = pdfGraphics.drawImage(img, x, y, width, height, bgcolor, observer);
-        return ok1 && ok2;
-    }
-
-    @Override
-    public boolean drawImage(Image img, int dx1, int dy1, int dx2, int dy2, int sx1, int sy1, int sx2, int sy2, ImageObserver observer) {
-        boolean ok1 = imageGraphics.drawImage(img, dx1, dy1, dx2, dy2, sx1, sy1, sx2, sy2, observer);
-        boolean ok2 = pdfGraphics.drawImage(img, dx1, dy1, dx2, dy2, sx1, sy1, sx2, sy2, observer);
-        return ok1 && ok2;
-    }
-
-    @Override
-    public boolean drawImage(Image img, int dx1, int dy1, int dx2, int dy2, int sx1, int sy1, int sx2, int sy2, Color bgcolor, ImageObserver observer) {
-        boolean ok1 = imageGraphics.drawImage(img, dx1, dy1, dx2, dy2, sx1, sy1, sx2, sy2, bgcolor, observer);
-        boolean ok2 = pdfGraphics.drawImage(img, dx1, dy1, dx2, dy2, sx1, sy1, sx2, sy2, bgcolor, observer);
-        return ok1 && ok2;
-    }
-
-    @Override
     public void dispose() {
         imageGraphics.dispose();
         pdfGraphics.dispose();
@@ -547,10 +568,14 @@ public class DualPdfGraphics2D extends Graphics2D implements BlendModeSetable, G
         Matrix mat0 = mat.concatenate(textMatrix);
         Matrix trans = mat0.preConcatenate(Matrix.getScaleInstance(1 / SWF.unitDivisor));
         FontTag font = null;
+        int fontId = -1;
         int textHeight = 12;
         int x = 0;
         int y = 0;
         int textColor = 0;
+        Map<Integer, Character> glyphToPuaChar = new LinkedHashMap<>();
+        Map<Character, String> puaCharToOrigChar = new LinkedHashMap<>();
+                
         for (TEXTRECORD rec : textRecords) {
 
             if (rec.styleFlagsHasColor) {
@@ -566,8 +591,15 @@ public class DualPdfGraphics2D extends Graphics2D implements BlendModeSetable, G
             }
 
             if (rec.styleFlagsHasFont) {
-                font = swf.getFont(rec.fontId);
+                font = rec.getFont(swf);                
+                fontId = swf.getCharacterId(font);
+                if (normalizedFonts.containsKey(fontId)) {
+                    font = normalizedFonts.get(fontId);
+                }
                 textHeight = rec.textHeight;
+                glyphToPuaChar = new LinkedHashMap<>();
+                puaCharToOrigChar = new LinkedHashMap<>();                
+                font.getCharactersPuaMap(glyphToPuaChar, puaCharToOrigChar);
             }
             if (rec.styleFlagsHasXOffset) {
                 int offsetX = rec.xOffset;
@@ -584,7 +616,6 @@ public class DualPdfGraphics2D extends Graphics2D implements BlendModeSetable, G
 
             StringBuilder text = new StringBuilder();
             int deltaX = 0;
-            setColor(Color.green);
             for (int i = 0; i < rec.glyphEntries.size(); i++) {
                 GLYPHENTRY entry = rec.glyphEntries.get(i);
                 GLYPHENTRY nextEntry = i < rec.glyphEntries.size() - 1 ? rec.glyphEntries.get(i + 1) : null;
@@ -595,17 +626,16 @@ public class DualPdfGraphics2D extends Graphics2D implements BlendModeSetable, G
                     int calcAdvance = StaticTextTag.getAdvance(font, entry.glyphIndex, textHeight, currentChar, nextChar);
                     int spacing = entry.glyphAdvance - calcAdvance;
                     char ch = font.glyphToChar(entry.glyphIndex);
+                    if (glyphToPuaChar.containsKey(entry.glyphIndex)) {
+                        ch = glyphToPuaChar.get(entry.glyphIndex);
+                    }
+                    text.append(ch);
                     if (spacing != 0) {
-                        if (text.length() > 0) {
-                            drawText(x, y, trans, textColor, existingFonts, font, text.toString(), textHeight, pdfGraphics);
-                        }
-                        drawText(x + deltaX, y, trans, textColor, existingFonts, font, "" + currentChar, textHeight, pdfGraphics);
-
+                        drawText(swf, x, y, trans, textColor, existingFonts, fontId, font, text.toString(), textHeight, pdfGraphics);
                         text = new StringBuilder();
                         x = x + deltaX + entry.glyphAdvance;
                         deltaX = 0;
                     } else {
-                        text.append(ch);
                         deltaX += entry.glyphAdvance;
                     }
 
@@ -616,14 +646,13 @@ public class DualPdfGraphics2D extends Graphics2D implements BlendModeSetable, G
                 }
             }
             if (text.length() > 0) {
-                drawText(x, y, trans, textColor, existingFonts, font, text.toString(), textHeight, pdfGraphics);
+                drawText(swf, x, y, trans, textColor, existingFonts, fontId, font, text.toString(), textHeight, pdfGraphics);
             }
             x = x + deltaX;
         }
     }
 
-    private static void drawText(float x, float y, Matrix trans, int textColor, Map<Integer, Font> existingFonts, FontTag font, String text, int textHeight, PDFGraphics g) {
-        int fontId = font.getFontId();
+    private static void drawText(SWF swf, float x, float y, Matrix trans, int textColor, Map<Integer, Font> existingFonts, int fontId, FontTag font, String text, int textHeight, PDFGraphics g) {
         if (existingFonts.containsKey(fontId)) {
             g.setExistingTtfFont(existingFonts.get(fontId).deriveFont((float) textHeight));
         } else {
@@ -648,15 +677,22 @@ public class DualPdfGraphics2D extends Graphics2D implements BlendModeSetable, G
                 }
             } else {
                 FontExporter fe = new FontExporter();
-                File tempFile;
+                File tempFile = null;
                 try {
                     tempFile = File.createTempFile("ffdec_font_export_", ".ttf");
+                    Map<Integer, Character> glyphToPuaChar = new LinkedHashMap<>();
+                    Map<Character, String> puaCharToOrigChar = new LinkedHashMap<>();
+                    font.getCharactersPuaMap(glyphToPuaChar, puaCharToOrigChar);
+                    
                     fe.exportFont(font, FontExportMode.TTF, tempFile);
                     Font f = new Font("/MYFONT" + fontId, font.getFontStyle(), textHeight);
                     existingFonts.put(fontId, f);
-                    g.setTtfFont(f, tempFile);
+                    g.setTtfFont(f, tempFile, puaCharToOrigChar);
                 } catch (IOException ex) {
                     Logger.getLogger(FrameExporter.class.getName()).log(Level.SEVERE, null, ex);
+                }
+                if (tempFile != null && tempFile.exists()) {
+                    tempFile.delete();
                 }
             }
         }
@@ -664,6 +700,25 @@ public class DualPdfGraphics2D extends Graphics2D implements BlendModeSetable, G
         g.setTransform(trans.toTransform());
         Color textColor2 = new Color(textColor, true);
         g.setColor(textColor2);
+        
+        text = text.replaceAll("\\p{Cc}", " "); //Replace control characters with space
+        
         g.drawString(text, (float) x, (float) y);
+    }
+
+    @Override
+    public void setNormalizedFonts(Map<Integer, FontTag> normalizedFonts, Map<Integer, TextTag> normalizedTexts) {
+        this.normalizedFonts = normalizedFonts;
+        this.normalizedTexts = normalizedTexts;
+    }
+
+    @Override
+    public Map<Integer, FontTag> getNormalizedFonts() {
+        return normalizedFonts;
+    }
+
+    @Override
+    public Map<Integer, TextTag> getNormalizedTexts() {
+        return normalizedTexts;
     }
 }

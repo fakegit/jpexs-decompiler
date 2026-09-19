@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,19 +12,32 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.flv;
 
 /**
+ * Script data object.
  *
  * @author JPEXS
  */
 public class SCRIPTDATAOBJECT {
 
+    /**
+     * Object name
+     */
     public String objectName;
 
+    /**
+     * Object data
+     */
     public SCRIPTDATAVALUE objectData;
 
+    /**
+     * Constructor.
+     * @param objectName Object name
+     * @param objectData Object data
+     */
     public SCRIPTDATAOBJECT(String objectName, SCRIPTDATAVALUE objectData) {
         this.objectName = objectName;
         this.objectData = objectData;

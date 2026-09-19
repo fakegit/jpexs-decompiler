@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,16 +12,28 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.helpers;
 
 /**
- * Class with helper method
+ * Class with helper method.
  *
+ * @param <T> Argument type
  * @author JPEXS
- * @param <T>
  */
 public abstract class Callback<T> {
 
+    /**
+     * Calls
+     * @param arg1 Argument
+     */
     public abstract void call(T arg1);
+
+    /**
+     * Constructor.
+     */
+    public Callback() {
+
+    }
 }

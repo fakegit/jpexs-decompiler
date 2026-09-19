@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,10 +12,13 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.abc.avm2.graph.AVM2GraphTargetDialect;
+import com.jpexs.decompiler.flash.abc.avm2.model.clauses.AssignmentAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.parser.script.AssignableAVM2Item;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
@@ -26,13 +29,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Pre increment.
  *
  * @author JPEXS
  */
-public class PreIncrementAVM2Item extends UnaryOpItem {
+public class PreIncrementAVM2Item extends UnaryOpItem implements AssignmentAVM2Item {
 
-    public PreIncrementAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object) {
-        super(instruction, lineStartIns, PRECEDENCE_UNARY, object, "++", "Number");
+    /**
+     * Type
+     */
+    public GraphTargetItem type;
+    
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     * @param type Type
+     */
+    public PreIncrementAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem type) {
+        super(AVM2GraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_UNARY, object, "++", "" /*"Number" Causes unnecessary ++Number(xx) when xx not number*/);
+        this.type = type;
     }
 
     @Override
@@ -58,6 +75,11 @@ public class PreIncrementAVM2Item extends UnaryOpItem {
 
     @Override
     public GraphTargetItem returnType() {
-        return value.returnType();
+        return type;
+    }
+    
+    @Override
+    public GraphTargetItem getObject() {
+        return value;
     }
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,19 +26,42 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Call super.
  *
  * @author JPEXS
  */
 public class CallSuperAVM2Item extends AVM2Item {
 
+    /**
+     * Receiver
+     */
     public GraphTargetItem receiver;
 
+    /**
+     * Multiname
+     */
     public GraphTargetItem multiname;
 
+    /**
+     * Arguments
+     */
     public List<GraphTargetItem> arguments;
 
+    /**
+     * Is void
+     */
     public boolean isVoid;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param isVoid Is void
+     * @param receiver Receiver
+     * @param multiname Multiname
+     * @param arguments Arguments
+     */
     public CallSuperAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, boolean isVoid, GraphTargetItem receiver, GraphTargetItem multiname, List<GraphTargetItem> arguments) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.receiver = receiver;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,13 +24,22 @@ import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 
 /**
+ * Exception.
  *
  * @author JPEXS
  */
 public class ExceptionAVM2Item extends AVM2Item {
 
+    /**
+     * Exception.
+     */
     public ABCException exception;
 
+    /**
+     * Constructor.
+     *
+     * @param exception Exception
+     */
     public ExceptionAVM2Item(ABCException exception) {
         super(null, null, NOPRECEDENCE);
         this.exception = exception;
@@ -38,7 +47,7 @@ public class ExceptionAVM2Item extends AVM2Item {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) {
-        return writer.append(exception.getVarName(localData.constantsAvm2, localData.fullyQualifiedNames));
+        return writer.append(exception.getVarName(localData.usedDeobfuscations, localData.abc, localData.constantsAvm2, localData.fullyQualifiedNames));
     }
 
     @Override

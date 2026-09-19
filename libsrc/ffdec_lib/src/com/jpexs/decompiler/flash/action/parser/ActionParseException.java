@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,18 +12,35 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.parser;
 
 import com.jpexs.decompiler.flash.ParseException;
 
 /**
+ * Exception for action parsing errors
  *
  * @author JPEXS
  */
 public class ActionParseException extends ParseException {
 
+    /**
+     * Constructs a new parse exception.
+     * @param text Text of the exception
+     * @param line Line number where the exception occurred
+     */
     public ActionParseException(String text, long line) {
         super(text, line);
+    }
+    
+    /**
+     * Constructs a new parse exception.
+     * @param text Text of the exception
+     * @param line Line number where the exception occurred
+     * @param position Position where the exception occurred
+     */
+    public ActionParseException(String text, long line, long position) {
+        super(text, line, position);
     }
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,7 +23,6 @@ import javax.swing.ListModel;
 import javax.swing.event.ListDataListener;
 
 /**
- *
  * @author JPEXS
  */
 public class ConstantsListModel implements ListModel {

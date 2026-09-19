@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -28,7 +28,6 @@ import org.pushingpixels.flamingo.api.common.popup.PopupPanelManager;
 import org.pushingpixels.substance.flamingo.common.ui.SubstanceCommandButtonUI;
 
 /**
- *
  * Own CommandButtonUI because original Flamingo UI throws Exception in some
  * cases
  *

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,16 +31,33 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Post increment operation (x++).
  *
  * @author JPEXS
  */
 public class PostIncrementAVM2Item extends AVM2Item implements AssignmentAVM2Item {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
-    public PostIncrementAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object) {
+    /**
+     * Type
+     */
+    public GraphTargetItem type;
+    
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     * @param type Type
+     */
+    public PostIncrementAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem type) {
         super(instruction, lineStartIns, PRECEDENCE_POSTFIX);
         this.object = object;
+        this.type = type;
     }
 
     @Override
@@ -61,7 +78,7 @@ public class PostIncrementAVM2Item extends AVM2Item implements AssignmentAVM2Ite
 
     @Override
     public GraphTargetItem returnType() {
-        return object.returnType();
+        return type;
     }
 
     @Override
@@ -110,4 +127,8 @@ public class PostIncrementAVM2Item extends AVM2Item implements AssignmentAVM2Ite
         return true;
     }
 
+    @Override
+    public GraphTargetItem getObject() {
+        return object;
+    }
 }

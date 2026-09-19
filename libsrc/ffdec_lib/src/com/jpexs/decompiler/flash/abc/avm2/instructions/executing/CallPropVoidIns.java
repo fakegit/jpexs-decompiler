@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.executing;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -22,19 +23,28 @@ import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
 import com.jpexs.decompiler.flash.abc.avm2.LocalDataArea;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.GetPropertyIns;
 import com.jpexs.decompiler.flash.abc.avm2.model.CallPropertyAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.FindPropertyAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.FullMultinameAVM2Item;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.decompiler.graph.model.SetTemporaryItem;
+import com.jpexs.decompiler.graph.model.TemporaryItem;
+import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * callpropvoid instruction - Call a property, ignore return value.
  *
  * @author JPEXS
  */
 public class CallPropVoidIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public CallPropVoidIns() {
         super(0x4f, "callpropvoid", new int[]{AVM2Code.DAT_MULTINAME_INDEX, AVM2Code.DAT_ARG_COUNT}, true);
     }
@@ -75,11 +85,31 @@ public class CallPropVoidIns extends InstructionDefinition {
         for (int a = 0; a < argCount; a++) {
             args.add(0, stack.pop());
         }
-        FullMultinameAVM2Item multiname = resolveMultiname(localData, true, stack, localData.getConstants(), multinameIndex, ins);
+        FullMultinameAVM2Item multiname = resolveMultiname(localData, true, stack, localData.getConstants(), multinameIndex, ins, output);
 
-        GraphTargetItem receiver = stack.pop();
-
-        output.add(new CallPropertyAVM2Item(ins, localData.lineStartInstruction, true, receiver, multiname, args));
+        GraphTargetItem obj = stack.pop();
+        
+        if (obj instanceof TemporaryItem) {
+            TemporaryItem temporaryItemObj = (TemporaryItem) obj;
+            if (temporaryItemObj.value instanceof FindPropertyAVM2Item) {
+                for (int i = output.size() - 1; i >= 0; i--) {
+                    if (output.get(i) instanceof SetTemporaryItem) {
+                        SetTemporaryItem setTemp = (SetTemporaryItem) output.get(i);
+                        if (setTemp.getTempIndex() == temporaryItemObj.getTempIndex()) {
+                            output.remove(i);
+                            obj = temporaryItemObj.value;
+                            break;
+                        }
+                    }
+                }
+            } 
+        }
+        
+        Reference<Boolean> isStatic = new Reference<>(false);
+        Reference<GraphTargetItem> type = new Reference<>(null);
+        Reference<GraphTargetItem> callType = new Reference<>(null);
+        GetPropertyIns.resolvePropertyType(localData, obj, multiname, isStatic, type, callType);
+        stack.addToOutput(new CallPropertyAVM2Item(ins, localData.lineStartInstruction, true, obj, multiname, args, callType.getVal(), isStatic.getVal()));
     }
 
     @Override

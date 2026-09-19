@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,23 +12,50 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.script.graphviz;
 
 import java.io.Serializable;
 
 /**
+ * Token.
  *
  * @author JPEXS
  */
 public class Token implements Serializable, Comparable {
+
+    /**
+     * Token type
+     */
     public final TokenType type;
+    /**
+     * Start
+     */
     public final int start;
+
+    /**
+     * Length
+     */
     public final int length;
 
+    /**
+     * Pair value
+     */
     public final byte pairValue;
+
+    /**
+     * Kind
+     */
     public final short kind = 0;
 
+    /**
+     * Constructor.
+     *
+     * @param type Token type
+     * @param start Start
+     * @param length Length
+     */
     public Token(TokenType type, int start, int length) {
         this.type = type;
         this.start = start;
@@ -36,6 +63,14 @@ public class Token implements Serializable, Comparable {
         this.pairValue = 0;
     }
 
+    /**
+     * Constructor.
+     *
+     * @param type Token type
+     * @param start Start
+     * @param length Length
+     * @param pairValue Pair value
+     */
     public Token(TokenType type, int start, int length, byte pairValue) {
         this.type = type;
         this.start = start;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2021 JPEXS
+ *  Copyright (C) 2021-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,7 +16,6 @@
  */
 package com.jpexs.decompiler.flash.gui;
 
-import com.jpexs.decompiler.flash.configuration.Configuration;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Container;
@@ -36,7 +35,6 @@ import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
 
 /**
- *
  * @author JPEXS
  */
 public class FilesChangedDialog extends AppDialog {

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,21 +12,34 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.importers.svg;
 
 import java.awt.Color;
 
 /**
+ * SVG stop.
  *
  * @author JPEXS
  */
 class SvgStop implements Comparable<SvgStop> {
 
+    /**
+     * Color
+     */
     public Color color;
 
+    /**
+     * Offset
+     */
     public double offset;
 
+    /**
+     * Constructor.
+     * @param color Color
+     * @param offset Offset
+     */
     public SvgStop(Color color, double offset) {
         this.color = color;
         this.offset = offset;

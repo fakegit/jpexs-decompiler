@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.types;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -31,11 +32,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * astype instruction - Type conversion.
  *
  * @author JPEXS
  */
 public class AsTypeIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public AsTypeIns() {
         super(0x86, "astype", new int[]{AVM2Code.DAT_MULTINAME_INDEX}, true);
     }
@@ -60,7 +65,7 @@ public class AsTypeIns extends InstructionDefinition {
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
         GraphTargetItem val = stack.pop();
 
-        stack.push(new AsTypeAVM2Item(ins, localData.lineStartInstruction, val, new FullMultinameAVM2Item(false, ins, localData.lineStartInstruction, ins.operands[0], localData.abc.constants.getMultiname(ins.operands[0]).getName(localData.getConstants(), new ArrayList<>(), true, true))));
+        stack.push(new AsTypeAVM2Item(ins, localData.lineStartInstruction, val, new FullMultinameAVM2Item(false, ins, localData.lineStartInstruction, ins.operands[0], localData.abc.constants.getMultiname(ins.operands[0]).getName(localData.usedDeobfuscations, localData.abc, localData.getConstants(), new ArrayList<>(), true, true))));
     }
 
     @Override

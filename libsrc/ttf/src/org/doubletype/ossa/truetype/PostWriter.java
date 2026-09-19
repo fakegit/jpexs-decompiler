@@ -49,8 +49,8 @@ public class PostWriter extends FontFormatWriter {
 
     public void write() throws IOException {
         // table version number
-        writeFixed32(1.0);
-        writeFixed32(10.0); // italic angle
+        writeFixed32(3.0); //JPEXS - 3.0 = no postscript table set
+        writeFixed32(0.0);//JPEXS - original was 10.0 // italic angle
         writeFWord(0); // underline pos
         writeFWord(60); // underline thickness
 

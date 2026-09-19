@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2026 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -47,11 +47,7 @@ import org.pushingpixels.substance.internal.animation.StateTransitionTracker;
  * UI for {@link JRibbonApplicationMenuButton} components in <b>Substance</b>
  * look and feel.
  *
- * @author Kirill Grouchnikov
- */
-/**
- *
- * @author JPEXS
+ * @author Kirill Grouchnikov, JPEXS
  */
 public class MyRibbonApplicationMenuButtonUI extends BasicRibbonApplicationMenuButtonUI implements
         ActionPopupTransitionAwareUI {

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,25 +12,30 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
+import com.jpexs.decompiler.flash.tags.base.CharacterIdTag;
 import com.jpexs.decompiler.flash.types.BasicType;
 import com.jpexs.decompiler.flash.types.SOUNDINFO;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.helpers.ByteArrayRange;
 import java.io.IOException;
+import java.util.Map;
+import java.util.Set;
 
 /**
+ * StartSound tag - starts a sound playing.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 1)
-public class StartSoundTag extends Tag {
+public class StartSoundTag extends Tag implements CharacterIdTag {
 
     public static final int ID = 15;
 
@@ -44,7 +49,7 @@ public class StartSoundTag extends Tag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public StartSoundTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -54,9 +59,9 @@ public class StartSoundTag extends Tag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public StartSoundTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -73,11 +78,33 @@ public class StartSoundTag extends Tag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
         sos.writeUI16(soundId);
         sos.writeSOUNDINFO(soundInfo);
     }
+
+    @Override
+    public int getCharacterId() {
+        return soundId;
+    }
+
+    @Override
+    public void setCharacterId(int characterId) {
+        soundId = characterId;
+    }
+
+    @Override
+    public Map<String, String> getNameProperties() {
+        Map<String, String> ret = super.getNameProperties();
+        ret.put("cid", "" + soundId);
+        return ret;
+    }
+
+    @Override
+    public void getNeededCharacters(Set<Integer> needed, Set<String> neededClasses, SWF swf) {
+        needed.add(soundId);
+    }        
 }

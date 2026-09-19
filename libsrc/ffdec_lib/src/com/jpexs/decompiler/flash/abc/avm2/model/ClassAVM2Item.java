@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,28 +16,60 @@
  */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
+import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.abc.types.Multiname;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
+import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 
 /**
+ * Class.
  *
  * @author JPEXS
  */
 public class ClassAVM2Item extends AVM2Item {
 
+    /**
+     * Class name
+     */
     public Multiname className;
 
+    /**
+     * Class name as string
+     */
+    public DottedChain classNameAsStr;
+
+    /**
+     * Constructor.
+     *
+     * @param className Class name
+     */
     public ClassAVM2Item(Multiname className) {
         super(null, null, PRECEDENCE_PRIMARY);
         this.className = className;
     }
 
+    /**
+     * Constructor.
+     *
+     * @param className Class name as string
+     */
+    public ClassAVM2Item(DottedChain className) {
+        super(null, null, PRECEDENCE_PRIMARY);
+        this.classNameAsStr = className;
+    }
+
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) {
-        return writer.append(className.getName(localData.constantsAvm2, localData.fullyQualifiedNames, false, true));
+        if (classNameAsStr != null) {
+            if (localData.fullyQualifiedNames != null && localData.fullyQualifiedNames.contains(classNameAsStr)) {
+                return writer.append(classNameAsStr.toPrintableString(localData.usedDeobfuscations, localData.swf, true));
+            }
+            return writer.append(IdentifiersDeobfuscation.printIdentifier(localData.abc.getSwf(), localData.usedDeobfuscations, true, classNameAsStr.getLast()));
+        }
+        return writer.append(className.getName(localData.usedDeobfuscations, localData.abc, localData.constantsAvm2, localData.fullyQualifiedNames, false, true));
     }
 
     @Override

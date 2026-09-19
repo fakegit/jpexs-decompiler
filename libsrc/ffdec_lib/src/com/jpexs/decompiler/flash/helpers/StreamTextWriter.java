@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.helpers;
 
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
@@ -40,6 +41,11 @@ public class StreamTextWriter extends GraphTextWriter implements AutoCloseable {
 
     private int writtenBytes;
 
+    /**
+     * Constructor.
+     * @param formatting Code formatting
+     * @param os Output stream
+     */
     public StreamTextWriter(CodeFormatting formatting, OutputStream os) {
         super(formatting);
         this.writer = new Utf8OutputStreamWriter(new BufferedOutputStream(os));
@@ -47,36 +53,42 @@ public class StreamTextWriter extends GraphTextWriter implements AutoCloseable {
 
     @Override
     public GraphTextWriter hilightSpecial(String text, HighlightSpecialType type, String specialValue, HighlightData data) {
+        addLineLength(text.length());
         writeToOutputStream(text);
         return this;
     }
 
     @Override
-    public StreamTextWriter append(String str) {
+    public GraphTextWriter appendWithData(String str, HighlightData data) {
+        addLineLength(str.length());
         writeToOutputStream(str);
         return this;
     }
 
     @Override
-    public GraphTextWriter appendWithData(String str, HighlightData data) {
+    public StreamTextWriter append(String str) {
+        addLineLength(str.length());
         writeToOutputStream(str);
         return this;
     }
 
     @Override
     public StreamTextWriter append(String str, long offset, long fileOffset) {
+        addLineLength(str.length());
         writeToOutputStream(str);
         return this;
     }
 
     @Override
     public StreamTextWriter appendNoHilight(int i) {
+        addLineLength(Integer.toString(i).length());
         writeToOutputStream(Integer.toString(i));
         return this;
     }
 
     @Override
     public StreamTextWriter appendNoHilight(String str) {
+        addLineLength(str.length());
         writeToOutputStream(str);
         return this;
     }
@@ -97,6 +109,7 @@ public class StreamTextWriter extends GraphTextWriter implements AutoCloseable {
     public StreamTextWriter newLine() {
         writeToOutputStream(formatting.newLineChars);
         newLine = true;
+        lineLength = 0;        
         return this;
     }
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model.clauses;
 
 import com.jpexs.decompiler.flash.abc.avm2.model.AVM2Item;
@@ -24,15 +25,30 @@ import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 
 /**
+ * Filter operation.
  *
  * @author JPEXS
  */
 public class FilterAVM2Item extends AVM2Item {
 
+    /**
+     * Expression
+     */
     public GraphTargetItem expression;
 
+    /**
+     * Collection
+     */
     public GraphTargetItem collection;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param collection Collection
+     * @param expression Expression
+     */
     public FilterAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem collection, GraphTargetItem expression) {
         super(instruction, lineStartIns, NOPRECEDENCE);
         this.expression = expression;
@@ -49,7 +65,7 @@ public class FilterAVM2Item extends AVM2Item {
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         collection.toString(writer, localData);
         writer.append(".(");
-        expression.toStringBoolean(writer, localData);
+        expression.toString(writer, localData, "Boolean", true);
         return writer.append(")");
     }
 

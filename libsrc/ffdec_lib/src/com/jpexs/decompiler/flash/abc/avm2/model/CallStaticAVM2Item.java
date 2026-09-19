@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,17 +26,36 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Call static.
  *
  * @author JPEXS
  */
 public class CallStaticAVM2Item extends AVM2Item {
 
+    /**
+     * Receiver
+     */
     public GraphTargetItem receiver;
 
+    /**
+     * Method name
+     */
     public String methodName;
 
+    /**
+     * Arguments
+     */
     public List<GraphTargetItem> arguments;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param receiver Receiver
+     * @param methodName Method name
+     * @param arguments Arguments
+     */
     public CallStaticAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem receiver, String methodName, List<GraphTargetItem> arguments) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.receiver = receiver;
@@ -61,7 +80,7 @@ public class CallStaticAVM2Item extends AVM2Item {
         }
         writer.append(".");
         writer.append(methodName);
-        writer.spaceBeforeCallParenthesies(arguments.size());
+        writer.spaceBeforeCallParenthesis(arguments.size());
         writer.append("(");
         for (int a = 0; a < arguments.size(); a++) {
             if (a > 0) {

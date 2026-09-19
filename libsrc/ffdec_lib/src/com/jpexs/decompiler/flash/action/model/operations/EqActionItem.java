@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,6 +18,7 @@ package com.jpexs.decompiler.flash.action.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.Action;
+import com.jpexs.decompiler.flash.action.ActionGraphTargetDialect;
 import com.jpexs.decompiler.flash.action.swf5.ActionEquals2;
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
 import com.jpexs.decompiler.graph.CompilationException;
@@ -32,15 +33,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Equality.
  *
  * @author JPEXS
  */
 public class EqActionItem extends BinaryOpItem implements LogicalOpItem, EqualsTypeItem {
 
+    /**
+     * Version 2 flag.
+     */
     boolean version2;
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param leftSide Left side
+     * @param rightSide Right side
+     * @param version2 Version 2 flag
+     */
     public EqActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem leftSide, GraphTargetItem rightSide, boolean version2) {
-        super(instruction, lineStartIns, PRECEDENCE_EQUALITY, leftSide, rightSide, "==", "", "");
+        super(ActionGraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_EQUALITY, leftSide, rightSide, "==", "", "");
         this.version2 = version2;
     }
 
@@ -49,6 +62,13 @@ public class EqActionItem extends BinaryOpItem implements LogicalOpItem, EqualsT
         return getResult(rightSide.getResult(), leftSide.getResult(), version2);
     }
 
+    /**
+     * Gets result.
+     * @param rightResult Right result
+     * @param leftResult Left result
+     * @param version2 Version 2 flag
+     * @return Result
+     */
     public static Boolean getResult(Object rightResult, Object leftResult, boolean version2) {
         if (version2) {
             return EcmaScript.equals(true, leftResult, rightResult);

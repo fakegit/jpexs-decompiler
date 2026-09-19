@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2026 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,6 +18,7 @@ package com.jpexs.decompiler.flash.action.model.clauses;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.model.ActionItem;
+import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.swf4.ActionWaitForFrame2;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.Block;
@@ -27,21 +28,37 @@ import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
+import com.jpexs.decompiler.graph.model.BreakItem;
 import com.jpexs.decompiler.graph.model.ContinueItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * IfFrameLoaded clause.
  *
  * @author JPEXS
  */
 public class IfFrameLoadedActionItem extends ActionItem implements Block {
 
+    /**
+     * Actions
+     */
     private final List<GraphTargetItem> actions;
 
+    /**
+     * Frame
+     */
     private final GraphTargetItem frame;
 
+    /**
+     * Constructor.
+     *
+     * @param frame Frame
+     * @param actions Actions
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     */
     public IfFrameLoadedActionItem(GraphTargetItem frame, List<GraphTargetItem> actions, GraphSourceItem instruction, GraphSourceItem lineStartIns) {
         super(instruction, lineStartIns, NOPRECEDENCE);
         this.actions = actions;
@@ -59,12 +76,10 @@ public class IfFrameLoadedActionItem extends ActionItem implements Block {
         visitor.visit(frame);
     }
 
-
-
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("ifFrameLoaded");
-        writer.spaceBeforeCallParenthesies(1);
+        writer.spaceBeforeCallParenthesis(1);
         writer.append("(");
         frame.toString(writer, localData);
         writer.append(")").startBlock();
@@ -83,6 +98,11 @@ public class IfFrameLoadedActionItem extends ActionItem implements Block {
     }
 
     @Override
+    public List<BreakItem> getBreaks() {
+        return new ArrayList<>();
+    }
+        
+    @Override
     public List<List<GraphTargetItem>> getSubs() {
         List<List<GraphTargetItem>> ret = new ArrayList<>();
         if (actions != null) {
@@ -94,7 +114,12 @@ public class IfFrameLoadedActionItem extends ActionItem implements Block {
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         List<GraphSourceItem> body = generator.generate(localData, actions);
-        return toSourceMerge(localData, generator, frame, new ActionWaitForFrame2(body.size()), body);
+        ActionSourceGenerator actionGenerator = (ActionSourceGenerator) generator;
+        String charset = actionGenerator.getCharset();
+        if (body.size() > 0xFF) {
+            throw new CompilationException("ifFrameLoaded body exceeds limit of 255 actions", line);
+        }
+        return toSourceMerge(localData, generator, frame, new ActionWaitForFrame2(body.size(), charset, actionGenerator.getSwfVersion()), body);
     }
 
     @Override
